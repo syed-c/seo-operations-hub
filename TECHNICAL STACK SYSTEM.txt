@@ -1,0 +1,430 @@
+TECHNICAL STACK & SYSTEM ARCHITECTURE DOCUMENT — SEO OPERATIONS CRM
+1️⃣ PRIMARY TECH STACK
+Frontend
+Layer	Technology	Why
+Framework	Next.js 14+ (App Router)	Best for SSR, SEO tools, server actions, routing
+Language	TypeScript	Type-safe development
+Styling	TailwindCSS + shadcn/ui	Fast UI, reusable components
+State	Zustand or Jotai	Lightweight, predictable state management
+Charts	Recharts / Chart.js / Nivo	For ranking graphs, backlinks graphs
+Forms	react-hook-form + zod	Validation + schema-safe
+API Calls	SWR / TanStack Query	Optimized re-fetching & cache
+Theme	next-themes	Light/dark mode
+Backend
+Layer	Technology	Why
+Database	Supabase (Postgres)	Real-time, auth, row-level security
+Auth	Supabase Auth	Email/OTP/Magic Link + RBAC
+ORM	Prisma ORM	Migration-safe, ideal for complex schema
+Storage	Supabase Storage	For reports, logs, exports
+Scheduled Jobs	Supabase Cron / Cloudflare Workers	Daily audits, ranking checks
+Caching	Redis (Upstash) optional	Speed for audits & ranking caching
+AI & Automation
+Purpose	API/Model
+SEO audits	GPT-4.1/4.1-mini/5.1 reasoning
+Ranking insights	Custom decision engine
+Content auditing	Embeddings + LLM
+Task automation	LLM + database engine
+Local SEO clustering	text-embedding-3-large
+Content writing (briefs, suggestions)	GPT-4.1
+2️⃣ THIRD-PARTY API INTEGRATIONS
+
+This CRM depends heavily on automated SEO data ingestion.
+
+A. Google APIs
+Purpose	API
+Search Console rankings	Google Search Console API
+Analytics insights	GA4 Data API
+Local SEO / GBP listings	Google Business Profile API
+GMB review fetch	GBP Reviews API
+Keyword geo ranking	SERP APIs (Backup)
+B. SERP APIs (for ranking checks)
+
+We use one (primary) + 1 fallback.
+
+Primary
+
+SerpAPI
+(Real-time geo-based keyword ranking)
+
+Fallback Providers
+
+DataForSEO
+
+Zenserp
+
+ScaleSERP
+
+C. Content & Plagiarism
+Purpose	API
+SEO content scoring	Surfer-like custom LLM engine
+Duplicate checks	Copyleaks API
+NLP processing	OpenAI embeddings
+D. Backlink APIs
+Purpose	API
+Backlink index	Ahrefs API
+Domain authority	Moz API
+Toxicity detection	Semrush Backlink Audit
+E. Analytics & Heatmaps
+Purpose	API
+Page analytics	GA4
+Heatmaps	Microsoft Clarity API
+F. Notifications
+Channel	Service
+Email alerts	Resend / Sendgrid
+Slack notifications	Slack Webhooks
+WhatsApp alerts	Twilio
+Push notifications	OneSignal
+G. Chat + Real-time
+Purpose	API
+Team chat	Supabase Realtime
+File sharing	Supabase Storage
+Real-time tasks	Supabase channels
+3️⃣ CORE SERVICES (BACKEND MICROSERVICES)
+
+The CRM backend is structured into domain-based services:
+
+1. Project Service
+
+Handles:
+
+CRUD projects
+
+connect GA, GSC, GBP
+
+goal settings
+
+project-level ranking regions
+
+Tables:
+
+projects
+
+project_integrations
+
+project_settings
+
+2. Website/Pages Service
+
+Handles:
+
+website verification
+
+sitemap parsing
+
+page inventory
+
+issue tracking
+
+Tables:
+
+websites
+
+pages
+
+page_metrics
+
+3. Keywords Service
+
+Handles:
+
+keyword CRUD
+
+clustering
+
+ranking fetch
+
+geo-based ranking checks
+
+Tables:
+
+keywords
+
+keyword_rankings
+
+4. SEO Audit Engine
+
+AI-based engine performs:
+
+content audit
+
+technical audit
+
+backlink audit
+
+local SEO audit
+
+opportunity analysis
+
+Tables:
+
+audits
+
+audit_logs
+
+audit_results
+
+5. Task Engine (Automation)
+
+Handles:
+
+CRUD tasks
+
+Assign automatically
+
+Daily plans
+
+Weekly audits
+
+Recurring checks
+
+Tables:
+
+tasks
+
+task_assignments
+
+automation_rules
+
+6. AI Decision Engine
+
+Reads all data → determines:
+
+priority tasks
+
+upcoming risks
+
+weekly insights
+
+roadmap suggestions
+
+Tables:
+
+insights
+
+recommendations
+
+7. Backlink Service
+
+Fetches:
+
+new backlinks
+
+lost backlinks
+
+spammy links
+
+toxicity scoring
+
+Tables:
+
+backlinks
+
+backlink_metrics
+
+8. Reporting Service
+
+Automates:
+
+daily reports
+
+weekly audits
+
+monthly summary
+
+export dashboards
+
+Tables:
+
+reports
+
+report_history
+
+9. User Management + RBAC
+
+Handles:
+
+roles: Super Admin, Admin, SEO Lead, Content Lead, Backlink Lead, Developer, Client
+
+permissions per tab
+
+activity logs
+
+Tables:
+
+users
+
+roles
+
+permissions
+
+activity_logs
+
+4️⃣ DATABASE SCHEMA (HIGH LEVEL)
+users
+roles
+permissions
+projects
+project_integrations
+websites
+pages
+page_metrics
+keywords
+keyword_rankings
+audits
+audit_results
+tasks
+task_assignments
+automation_rules
+insights
+recommendations
+backlinks
+backlink_metrics
+reports
+report_history
+team_chat
+notifications
+activity_logs
+
+
+Everything revolves around project_id.
+
+5️⃣ FOLDER STRUCTURE (NEXT.JS + CLEAN ARCHITECTURE)
+/
+├── app/
+│   ├── dashboard/
+│   ├── projects/
+│   ├── tasks/
+│   ├── users/
+│   ├── audits/
+│   ├── api/
+│   │   ├── projects/
+│   │   ├── audits/
+│   │   ├── tasks/
+│   │   └── users/
+│   └── layout.tsx
+│
+├── components/
+│   ├── ui/
+│   │   ├── button.tsx
+│   │   ├── card.tsx
+│   │   ├── modal.tsx
+│   │   ├── table.tsx
+│   │   ├── chart.tsx
+│   │   ├── kpi.tsx
+│   │   ├── chip.tsx
+│   │   ├── sidebar.tsx
+│   │   ├── topbar.tsx
+│   │   └── theme-toggle.tsx
+│   │
+│   ├── dashboard/
+│   ├── tasks/
+│   ├── audits/
+│   └── forms/
+│
+├── lib/
+│   ├── supabase.ts
+│   ├── google/
+│   ├── serp/
+│   ├── ai/
+│   ├── scoring/
+│   └── utils/
+│
+├── prisma/
+│   ├── schema.prisma
+│
+├── public/
+│
+└── styles/
+    └── globals.css
+
+6️⃣ AUTOMATION SYSTEM DESIGN
+Daily Automation
+
+✔ Check all connected GSC accounts
+✔ Update ranking positions
+✔ Crawl pages
+✔ Compute page scores
+✔ Check backlinks
+✔ Update SEO health score
+✔ Generate daily task list
+✔ Notify assigned team members
+
+Weekly Automation
+
+✔ Full audit
+✔ New opportunities
+✔ Competitor gaps
+✔ Backlink issues
+✔ Priority task refinement
+✔ Export weekly PDF report
+
+7️⃣ SECURITY REQUIREMENTS
+Authentication
+
+JWT-based Supabase Auth
+
+Row Level Security (RLS) enabled
+
+Role-based access
+
+Sensitive Data Encryption
+
+store tokens in encrypted fields
+
+no client-side exposure
+
+API Protection
+
+rate limiting
+
+error logging
+
+retries for external APIs
+
+8️⃣ DEPLOYMENT
+Frontend
+
+Vercel (ideal for Next.js)
+
+Backend
+
+Supabase (database + storage + auth)
+
+Worker Jobs
+
+Cloudflare Workers
+or
+
+Supabase Cron
+
+Monitoring
+
+Logflare
+
+Sentry for error logging
+
+9️⃣ CI/CD
+
+Automated:
+
+linting
+
+type-checking
+
+tests
+
+preview deployments
+
+production deployment after approvals
+
+🔟 WHAT THIS DOCUMENT ENABLES
+
+With this document, your developers (or AI CodeBuilder) can:
+
+✔ Build the complete CRM backend
+✔ Build all UI pages consistently
+✔ Integrate all ranking, audit, backlink, and Google data
+✔ Implement automated reporting
+✔ Implement auto-task assignment
+✔ Maintain scalable architecture
+✔ Enable light/dark modern UI from your design reference

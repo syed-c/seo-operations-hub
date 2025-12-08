@@ -1,3 +1,4 @@
+import { useEffect, useMemo, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import { Globe, Plus, Search, Filter, MoreVertical, TrendingUp, Users, Calendar } from "lucide-react";
@@ -5,100 +6,97 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/lib/supabaseClient";
 
-interface Project {
+type ProjectRecord = {
   id: string;
   name: string;
-  domain: string;
-  client: string;
-  healthScore: number;
-  status: "active" | "paused" | "completed";
-  keywords: number;
-  backlinks: number;
-  avgPosition: number;
-  team: { name: string; avatar: string }[];
-  lastUpdated: string;
-}
-
-const projects: Project[] = [
-  {
-    id: "1",
-    name: "TechStartup Pro",
-    domain: "techstartup.io",
-    client: "TechStartup Inc.",
-    healthScore: 92,
-    status: "active",
-    keywords: 156,
-    backlinks: 1240,
-    avgPosition: 4.2,
-    team: [
-      { name: "Sarah", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=64" },
-      { name: "Mike", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64" },
-    ],
-    lastUpdated: "2 hours ago",
-  },
-  {
-    id: "2",
-    name: "Ecommerce Giant",
-    domain: "shop-giant.com",
-    client: "Giant Retail Corp",
-    healthScore: 78,
-    status: "active",
-    keywords: 423,
-    backlinks: 3560,
-    avgPosition: 8.7,
-    team: [
-      { name: "Emma", avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=64" },
-      { name: "John", avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64" },
-      { name: "Lisa", avatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?w=64" },
-    ],
-    lastUpdated: "5 hours ago",
-  },
-  {
-    id: "3",
-    name: "Local Restaurant Chain",
-    domain: "bestefood.local",
-    client: "Best Food LLC",
-    healthScore: 85,
-    status: "active",
-    keywords: 45,
-    backlinks: 320,
-    avgPosition: 2.1,
-    team: [
-      { name: "Tom", avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=64" },
-    ],
-    lastUpdated: "1 day ago",
-  },
-  {
-    id: "4",
-    name: "SaaS Platform",
-    domain: "saasplatform.io",
-    client: "SaaS Corp",
-    healthScore: 61,
-    status: "paused",
-    keywords: 289,
-    backlinks: 890,
-    avgPosition: 15.3,
-    team: [
-      { name: "Sarah", avatar: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=64" },
-      { name: "Mike", avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=64" },
-    ],
-    lastUpdated: "3 days ago",
-  },
-];
+  client?: string;
+  status?: string;
+  health_score?: number;
+  created_at?: string;
+};
 
 const statusColors = {
   active: "bg-success/10 text-success",
   paused: "bg-warning/10 text-warning",
   completed: "bg-muted text-muted-foreground",
+  critical: "bg-destructive/10 text-destructive",
 };
 
 export default function Projects() {
+  const [projects, setProjects] = useState<ProjectRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [name, setName] = useState("");
+  const [client, setClient] = useState("");
+  const [health, setHealth] = useState(70);
+  const [status, setStatus] = useState("active");
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("projects")
+        .select("id, name, client, status, health_score, created_at")
+        .order("created_at", { ascending: false });
+      
+      setLoading(false);
+      
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      
+      setProjects(data || []);
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || "Failed to load projects");
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const onCreate = async () => {
+    if (!name) return;
+    const { error } = await supabase.from("projects").insert({
+      name,
+      client,
+      status,
+      health_score: health,
+    });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setName("");
+    setClient("");
+    setHealth(70);
+    setStatus("active");
+    load();
+  };
+
+  const onDelete = async (id: string) => {
+    await supabase.from("projects").delete().eq("id", id);
+    load();
+  };
+
+  const onUpdate = async (p: ProjectRecord) => {
+    await supabase
+      .from("projects")
+      .update({ status: p.status, health_score: p.health_score, client: p.client, name: p.name })
+      .eq("id", p.id);
+    load();
+  };
+
+  const filtered = useMemo(() => projects, [projects]);
+
   return (
     <MainLayout>
       <Header title="Projects" subtitle="Manage all your SEO projects in one place" />
 
-      {/* Actions Bar */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -114,15 +112,38 @@ export default function Projects() {
             Filters
           </Button>
         </div>
-        <Button className="gap-2 rounded-xl">
-          <Plus className="w-4 h-4" />
-          New Project
-        </Button>
+        <div className="flex items-center gap-3">
+          <input
+            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+            placeholder="Project name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <input
+            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+            placeholder="Client / Domain"
+            value={client}
+            onChange={(e) => setClient(e.target.value)}
+          />
+          <input
+            type="number"
+            className="h-10 w-20 rounded-xl border border-border bg-card px-3 text-sm"
+            placeholder="Health"
+            value={health}
+            onChange={(e) => setHealth(Number(e.target.value))}
+          />
+          <Button className="gap-2 rounded-xl" onClick={onCreate}>
+            <Plus className="w-4 h-4" />
+            New Project
+          </Button>
+        </div>
       </div>
 
-      {/* Projects Grid */}
+      {loading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
+      {error && <p className="text-sm text-destructive mb-4">{error}</p>}
+
       <div className="grid grid-cols-2 gap-5">
-        {projects.map((project, index) => (
+        {filtered.map((project, index) => (
           <div
             key={project.id}
             className="glass-card p-5 animate-slide-up hover:shadow-card-hover transition-all cursor-pointer group"
@@ -134,15 +155,35 @@ export default function Projects() {
                   <Globe className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <h3 className="font-semibold group-hover:text-primary transition-colors">{project.name}</h3>
-                  <p className="text-sm text-muted-foreground">{project.domain}</p>
+                  <input
+                    className="font-semibold bg-transparent outline-none"
+                    value={project.name}
+                    onChange={(e) => setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, name: e.target.value } : p)))}
+                  />
+                  <input
+                    className="text-sm text-muted-foreground bg-transparent outline-none"
+                    value={project.client ?? ""}
+                    onChange={(e) => setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, client: e.target.value } : p)))}
+                  />
                 </div>
               </div>
               <div className="flex items-center gap-2">
-                <span className={cn("chip text-xs capitalize", statusColors[project.status])}>
-                  {project.status}
-                </span>
-                <button className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center">
+                <select
+                  className={cn("chip text-xs capitalize bg-muted text-foreground")}
+                  value={project.status ?? "active"}
+                  onChange={(e) =>
+                    setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, status: e.target.value } : p)))
+                  }
+                >
+                  <option value="active">active</option>
+                  <option value="paused">paused</option>
+                  <option value="completed">completed</option>
+                  <option value="critical">critical</option>
+                </select>
+                <button
+                  className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
+                  onClick={() => onDelete(project.id)}
+                >
                   <MoreVertical className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
@@ -151,31 +192,38 @@ export default function Projects() {
             <div className="mb-4">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm text-muted-foreground">Health Score</span>
-                <span className="text-sm font-semibold">{project.healthScore}%</span>
+                <input
+                  type="number"
+                  className="text-sm font-semibold w-20 bg-transparent outline-none"
+                  value={project.health_score ?? 0}
+                  onChange={(e) =>
+                    setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, health_score: Number(e.target.value) } : p)))
+                  }
+                />
               </div>
               <Progress
-                value={project.healthScore}
+                value={project.health_score ?? 0}
                 className="h-2"
                 indicatorClassName={cn(
-                  project.healthScore >= 80 && "bg-success",
-                  project.healthScore >= 60 && project.healthScore < 80 && "bg-warning",
-                  project.healthScore < 60 && "bg-destructive"
+                  (project.health_score ?? 0) >= 80 && "bg-success",
+                  (project.health_score ?? 0) >= 60 && (project.health_score ?? 0) < 80 && "bg-warning",
+                  (project.health_score ?? 0) < 60 && "bg-destructive"
                 )}
               />
             </div>
 
             <div className="grid grid-cols-3 gap-4 mb-4">
               <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-lg font-semibold">{project.keywords}</p>
+                <p className="text-lg font-semibold">—</p>
                 <p className="text-xs text-muted-foreground">Keywords</p>
               </div>
               <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-lg font-semibold">{project.backlinks.toLocaleString()}</p>
+                <p className="text-lg font-semibold">—</p>
                 <p className="text-xs text-muted-foreground">Backlinks</p>
               </div>
               <div className="text-center p-3 rounded-xl bg-muted/30">
                 <div className="flex items-center justify-center gap-1">
-                  <p className="text-lg font-semibold">{project.avgPosition}</p>
+                  <p className="text-lg font-semibold">—</p>
                   <TrendingUp className="w-3.5 h-3.5 text-success" />
                 </div>
                 <p className="text-xs text-muted-foreground">Avg. Pos</p>
@@ -186,18 +234,22 @@ export default function Projects() {
               <div className="flex items-center gap-2">
                 <Users className="w-4 h-4 text-muted-foreground" />
                 <div className="flex -space-x-2">
-                  {project.team.map((member, i) => (
-                    <Avatar key={i} className="w-7 h-7 border-2 border-card">
-                      <AvatarImage src={member.avatar} />
-                      <AvatarFallback>{member.name[0]}</AvatarFallback>
-                    </Avatar>
-                  ))}
+                  <Avatar className="w-7 h-7 border-2 border-card">
+                    <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64" />
+                    <AvatarFallback>SA</AvatarFallback>
+                  </Avatar>
                 </div>
               </div>
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <Calendar className="w-3.5 h-3.5" />
-                {project.lastUpdated}
+                {project.created_at ? new Date(project.created_at).toLocaleDateString() : "—"}
               </div>
+            </div>
+
+            <div className="flex items-center justify-between pt-3">
+              <Button size="sm" variant="outline" className="rounded-xl" onClick={() => onUpdate(project)}>
+                Save
+              </Button>
             </div>
           </div>
         ))}

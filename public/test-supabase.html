@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supabase Connection Test</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div id="app">
+        <h1>Supabase Connection Test</h1>
+        <button id="testBtn">Test Connection</button>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // Supabase configuration from your .env file
+        const supabaseUrl = 'https://mfvyhhoyqfjdwasdjdll.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1mdnloaG95cWZqZHdhc2RqZGxsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjUxOTIxNzEsImV4cCI6MjA4MDc2ODE3MX0.24D4NAIEOz-lfTFe_hm39WGK-6pKU4LGFVLC4x_KNao';
+        
+        const supabase = supabase.createClient(supabaseUrl, supabaseKey);
+        
+        document.getElementById('testBtn').addEventListener('click', async () => {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '<p>Testing connection...</p>';
+            
+            try {
+                // Test connection by trying to fetch roles
+                const { data, error } = await supabase
+                    .from('roles')
+                    .select('*')
+                    .limit(1);
+                    
+                if (error) {
+                    resultDiv.innerHTML = `<p style="color: red;">Error: ${error.message}</p>`;
+                    console.error('Supabase error:', error);
+                } else {
+                    resultDiv.innerHTML = `<p style="color: green;">Success! Connected to Supabase. Found ${data.length} roles.</p>`;
+                    console.log('Supabase data:', data);
+                }
+            } catch (err) {
+                resultDiv.innerHTML = `<p style="color: red;">Exception: ${err.message}</p>`;
+                console.error('Supabase exception:', err);
+            }
+        });
+    </script>
+</body>
+</html>

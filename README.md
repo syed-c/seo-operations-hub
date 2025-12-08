@@ -1,40 +1,43 @@
-# Welcome to your Lovable project
+# SEO Operations Hub
 
-## Project info
+## Project Overview
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+This is an SEO Operations CRM application built with React, TypeScript, Vite, and Supabase.
 
-## How can I edit this code?
-
-There are several ways of editing your application.
-
-**Use Lovable**
-
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
-
-Changes made via Lovable will be committed automatically to this repo.
-
-**Use your preferred IDE**
-
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
-
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+## How to Run Locally
 
 Follow these steps:
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
+# Step 1: Clone the repository
 git clone <YOUR_GIT_URL>
 
-# Step 2: Navigate to the project directory.
+# Step 2: Navigate to the project directory
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install the necessary dependencies.
+# Step 3: Install the necessary dependencies
 npm i
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+# Step 4: Set up environment variables
+# Copy .env.example to .env and fill in your Supabase credentials
+
+# Step 5: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
+
+## Environment Variables
+
+Create a `.env` file in the root directory with the following variables:
+
+```bash
+VITE_SUPABASE_URL=your_supabase_project_url
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
+```
+
+## Production Deployment
+
+For production deployment instructions, see [PRODUCTION_GUIDE.md](./PRODUCTION_GUIDE.md).
 
 **Edit a file directly in GitHub**
 
