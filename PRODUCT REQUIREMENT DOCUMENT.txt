@@ -1,0 +1,649 @@
+PRODUCT REQUIREMENT DOCUMENT (PRD)
+SEO Operations CRM — Intelligent SEO Management & Automation System
+Tech Stack: Next.js + Supabase (Auth + DB)
+1️⃣ Purpose / Why This System Exists
+
+You run many SEO projects with a small team.
+There is no visibility, no task priority logic, no automated reporting, and no way to keep track of ranking, content, backlinks, or technical issues across all websites.
+
+This CRM solves your biggest problems:
+
+Core Problems
+
+Too many projects — impossible to manage manually.
+
+Small team — hard to assign work based on skill and priority.
+
+No automated auditing — everything requires manual checks.
+
+No ranking / content / technical monitoring per page & per location.
+
+No structured daily / weekly workflow reporting.
+
+No central system to assign tasks intelligently.
+
+No clear hierarchy — different team roles need different dashboards.
+
+No automation for repeated work like:
+
+content audits
+
+backlink checks
+
+ranking updates
+
+technical reports
+
+page fixes
+
+This CRM removes manual effort, human dependency, and confusion across the entire SEO process.
+
+2️⃣ High-Level Goals
+Goal 1 – Fully Automated SEO Audits
+
+The system should automatically audit:
+
+content
+
+backlinks
+
+rankings
+
+technical issues
+
+on-page factors
+
+off-page factors
+
+Audit must run on:
+
+daily
+
+weekly
+
+monthly
+
+The system should recommend what to fix and assign the right tasks.
+
+Goal 2 – Automatic Rank Tracking per Project → Website → Page → Location
+
+Every page must be monitored:
+
+for each target keyword
+
+in multiple locations (Dubai, Manchester, Modesto, etc.)
+
+with daily ranking changes
+
+with alerts if ranking drops
+
+Goal 3 – Automatic Daily & Weekly Reports
+
+The system must generate:
+
+What was done today
+
+What needs to be done tomorrow
+
+What tasks are blocked
+
+Weekly deep audit based on all the daily reports
+
+Weekly summary of:
+
+what improved
+
+what dropped
+
+what needs urgent work
+
+what tasks must move to next week
+
+Goal 4 – Automatic Team Assignment
+
+The system must auto-assign tasks based on:
+
+team member skills
+
+workload
+
+priority of tasks
+
+task type:
+
+content
+
+backlinks
+
+technical
+
+design
+
+development
+
+Goal 5 – Complete Project & Team Intelligence Storage
+
+For each Team Member, system must store:
+
+name
+
+email
+
+role
+
+skills
+
+experience areas
+
+current work capacity
+
+performance insights (optional later)
+
+For each Project, system must store:
+
+project name
+
+client info
+
+websites
+
+goals
+
+locations
+
+competitive difficulty
+
+required SEO work areas
+
+targeted keywords
+
+Goal 6 – Role-Based Dashboards
+
+Super Admin
+
+can see everything
+
+error logs
+
+automation logs
+
+AI decisions
+
+all projects and teams
+
+Team Member (Content Writer / Backlink Specialist / SEO / Developer)
+
+only sees:
+
+tasks assigned to them
+
+reports relevant to their skill
+
+project list (no deep access)
+
+SEO Lead
+
+sees projects, pages, keywords, tasks
+
+can run audits
+
+can approve AI decisions
+
+Goal 7 – Internal Chat System
+
+1-to-1 chat
+
+Team group chat
+
+Project-based chat
+
+AI chat (SEO Assistant)
+
+Task-level conversation
+
+3️⃣ Core System Modules (High Level)
+
+Your CRM will have the following major modules:
+
+A. Authentication & RBAC (Supabase Auth)
+Users
+
+Super Admin
+
+Admin
+
+SEO Lead
+
+Technical SEO
+
+Content Lead
+
+Backlink Lead
+
+Developer
+
+Designer
+
+Client
+
+Viewer
+
+Access
+
+Each role gets only specific tabs.
+
+B. Projects Management Module
+Features:
+
+Add/Edit/Delete Projects
+
+Assign team members
+
+Add websites
+
+Add locations
+
+Add keywords
+
+Track goals
+
+View project health score
+
+Project Tabs:
+
+Overview
+
+Websites
+
+Pages
+
+Keywords
+
+Ranking
+
+Backlinks
+
+Content Intelligence
+
+Technical SEO
+
+Local SEO
+
+Automation
+
+Tasks
+
+Reports
+
+Chat
+
+Settings
+
+Project Logic:
+
+Every project contains multiple websites
+
+Every website contains multiple pages
+
+Every page has keywords and audits
+
+C. Website & Page Management
+Websites:
+
+add/edit/delete
+
+domain settings
+
+auto-detect sitemaps
+
+auto-pull all pages
+
+Pages:
+
+add/edit/delete
+
+define page type
+
+assign keywords
+
+track rankings
+
+track content score
+
+track technical score
+
+Page Logic:
+
+Each page must sync:
+
+rankings
+
+impressions
+
+clicks
+
+backlinks
+
+content score
+
+technical score
+
+D. Keyword Intelligence
+
+Each keyword contains:
+
+intent
+
+difficulty
+
+ranking history
+
+search volume
+
+cluster group
+
+assigned page
+
+E. Ranking Tracker
+
+Daily ranking check
+
+Per keyword
+
+Per location
+
+With history charts
+
+Alerts for drops or surges
+
+Auto-assign tasks when ranking drops
+
+F. Backlink Tracker
+
+monitor total backlinks
+
+authority score
+
+new lost links
+
+spam score
+
+competitor backlink comparison
+
+auto-tasks for link building needs
+
+G. Content Intelligence Engine
+AI must automatically:
+
+audit page content
+
+detect issues
+
+find missing keywords
+
+suggest improvements
+
+generate content briefs
+
+rewrite sections if needed
+
+score content
+
+Output stored:
+
+ContentAudit
+
+ContentBrief
+
+ContentSuggestions
+
+UI:
+
+The page-level "Content Intelligence" modal shows:
+
+audit
+
+brief
+
+suggestions
+
+“Create tasks from suggestions” button
+
+H. Technical SEO Engine
+
+Auto-detect:
+
+index issues
+
+speed issues
+
+broken links
+
+missing schema
+
+core vitals
+
+sitemap issues
+
+mobile issues
+
+AI should describe what's wrong and suggest tasks.
+
+I. Local SEO Module
+
+Track for each location:
+
+Google Business Profile metrics
+
+Reviews
+
+Map views
+
+Calls
+
+Directions
+
+Auto-tasks when performance drops.
+
+J. Automation Engine
+
+The CRM must run automation rules:
+
+daily
+
+weekly
+
+on event triggers
+
+Automation rules consist of:
+
+condition (metric threshold)
+
+operator
+
+value
+
+target (keyword/page/project)
+
+action (create task, send alert, re-check)
+
+Recurring tasks:
+
+weekly audit
+
+daily ranking sync
+
+nightly sitemap checks
+
+Auto-Assignment Logic:
+
+When a task is created:
+
+Identify task category
+
+Identify best team member based on:
+
+skills
+
+availability
+
+workload
+
+Assign automatically
+
+K. Tasks System
+
+Tasks must support:
+
+create/edit/delete
+
+comments
+
+subtasks
+
+priority
+
+tags
+
+deadlines
+
+Kanban board
+
+Status: To Do → In Progress → Review → Done
+
+L. Reporting Engine
+
+Auto-generate:
+
+Daily Reports:
+
+what changed today
+
+what pages improved or dropped
+
+what tasks completed
+
+tasks pending
+
+Weekly Reports:
+
+full audit
+
+ranking changes
+
+content issues
+
+technical issues
+
+backlink health
+
+future recommendations
+
+auto-created task list
+
+M. AI Engine (Virtual SEO Director)
+
+AI should:
+
+read all project data
+
+detect issues
+
+create tasks
+
+highlight opportunities
+
+summarize performance
+
+help team members through chat
+
+propose fixes
+
+assign priorities
+
+AI Console Modes:
+
+SEO overview
+
+Traffic drop
+
+Content audit
+
+Keyword opportunity finder
+
+Backlink strategy
+
+Technical health
+
+N. Internal Chat Module
+
+Chats:
+
+Personal chat
+
+Team chat
+
+Project chat
+
+AI chat bot
+
+Task-level discussion
+
+4️⃣ Database Schema Overview (High Level)
+
+Tables (Supabase):
+
+User
+Role
+UserSkills
+Project
+ProjectTeam
+Website
+Page
+Keyword
+PageKeyword
+RankingHistory
+BacklinkHistory
+ContentAudit
+ContentBrief
+ContentSuggestion
+Task
+TaskAssignment
+TaskTemplate
+AutomationRule
+RecurringTask
+MetricSnapshot
+LocalLocation
+LocalMetrics
+ChatMessage
+ChatRoom
+AIInsight
+SystemLogs
+5️⃣ Super Admin Control Panel
+
+Super Admin can:
+
+access everything
+
+monitor logs
+
+view all errors
+
+view system health
+
+manage users
+
+manage automation rules
+
+override assignments
+
+6️⃣ What the System Must Guarantee
+✔ Auto auditing
+✔ Auto task creation
+✔ Auto task assignment
+✔ Auto monitoring
+✔ Role-based dashboard
+✔ AI assistance everywhere
+✔ Fully functional CRUD
+✔ Clean visual dashboard
+✔ Next.js (frontend) + Supabase (backend+auth)

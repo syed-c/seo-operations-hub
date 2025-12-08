@@ -1,0 +1,600 @@
+UI/UX DESIGN DOCUMENT — SEO OPERATIONS CRM
+Visual Style Inspired by Your Reference Dashboard
+1️⃣ Design Philosophy
+
+Your CRM UI must feel:
+
+modern
+
+clean
+
+minimal
+
+slightly playful but professional
+
+with smooth edges, rounded containers, and soft drop shadows
+
+responsive for all screen sizes
+
+readable at a glance
+
+built for heavy daily usage
+
+Key UI influences from provided sample:
+
+floating rounded sidebar
+
+soft beige/light backgrounds
+
+frosted glass panels
+
+highly visual cards with icons
+
+timeline charts with dots
+
+circular avatars
+
+pill badges
+
+chip filters
+
+compact spacing
+
+smooth animation transitions
+
+2️⃣ Global UI Layout Structure
+
+The application UI follows this hierarchy:
+
+┌───────────────────────────────────────────────────────────┐
+│   Top Search Bar + Global Actions (light glass background) │
+├───────────────┬────────────────────────────────────────────┤
+│ Sidebar       │ Main Content Area                          │
+│ (Floating)    │ Dashboard / Pages / Tasks / etc.           │
+└───────────────┴────────────────────────────────────────────┘
+
+A. Top Bar
+
+global search
+
+quick project switcher
+
+notification bell
+
+user avatar
+
+light/dark toggle
+
+floating with soft shadow & blur
+
+B. Left Sidebar
+
+Inspired heavily by your screenshots.
+
+Characteristics:
+
+soft background (light beige or dark charcoal)
+
+rounded corners top & bottom
+
+icons inside circles
+
+mini indicators
+
+expandable sections
+
+nested menus
+
+Sections:
+
+Starred
+Recent
+
+Projects
+   - All Projects
+   - My Projects
+   - New Project
+
+SEO Modules
+   - Dashboard
+   - Websites
+   - Pages
+   - Keywords
+   - Rankings
+   - Content
+   - Technical SEO
+   - Backlinks
+   - Local SEO
+   - Competitors
+   - Integrations
+   - Reports
+   - Automation
+   - Tasks
+   - Chat
+   - Users
+Settings
+
+3️⃣ Color Palette
+Light Mode
+Purpose	Color
+Background	#F5F5F5 (soft gray/cream like your reference)
+Panels	#FFFFFF
+Borders	#EAEAEA
+Primary	#E04377 (pinkish red from screenshots)
+Secondary	#5A5A89 (soft muted navy)
+Text strong	#2A2A2A
+Text soft	#666666
+Shadows	rgba(0,0,0,0.04)
+Dark Mode
+Purpose	Color
+Background	#111216
+Panels	#1A1C21
+Borders	#2A2D33
+Primary	#E04377
+Secondary	#A0A1B5
+Text strong	#FFFFFF
+Text soft	#CCCCCC
+Shadows	rgba(0,0,0,0.28)
+4️⃣ Core UI Components (High Fidelity)
+
+All components must follow the rounded, soft, glassy, modern look of your sample.
+
+Component 1 — Summary KPI Cards
+
+Your screenshots use small cards with:
+
+rounded corners
+
+light background
+
+bold numbers
+
+tiny icons
+
+subtle line separators
+
+Example:
+Revenue
+$528,976.82 ↑7.1%
+Top Sales: Mikasa
+
+Our version for SEO metrics:
+
+Total Clicks
+
+Total Impressions
+
+Average Position
+
+Technical Score
+
+Content Score
+
+Backlink Strength
+
+Local SEO Score
+
+Issues Found
+
+Component 2 — Filter Chips
+
+Rounded bubbles with icons.
+
+Use for:
+
+Filter pages
+
+Filter keywords
+
+Filter tasks
+
+Filter ranking locations
+
+Component 3 — Trends Graphs
+
+Your reference dashboard uses:
+
+soft gradient lines
+
+rounded edges
+
+minimal axes
+
+small dots for peaks
+
+Your CRM graphs should use the same style for:
+
+Clicks & impressions
+
+Ranking changes
+
+Backlink growth
+
+Technical health over time
+
+Page content score over time
+
+Component 4 — Data Cards with Tabs
+
+Examples from your screenshots:
+
+card with tabs like "Revenue / Leads"
+
+small bar charts inside
+
+Your CRM equivalent:
+
+Page Insights: “Ranking / Content / Technical / Backlinks / Local SEO"
+
+Keyword Insights: “Volume / Difficulty / Trends”
+
+Reports: "Daily / Weekly / Monthly"
+
+Component 5 — Multi-Avatar Group
+
+Used in screenshots for contributors.
+
+Your CRM uses:
+
+Assigned team members
+
+AI suggested collaborators
+
+Automation actors
+
+Component 6 — Sidebar Navigation
+
+Your sample sidebar uses:
+
+minimalist icons
+
+rounded icons with highlights
+
+section separations
+
+We follow exactly that style.
+
+Component 7 — Floating Panels
+
+Used when:
+
+showing detailed metrics
+
+displaying insights
+
+modals for tasks
+
+editing audits
+
+Panels should be:
+
+glass-morphism style
+
+rounded
+
+subtly shadowed
+
+Component 8 — Task Board Cards
+
+Kanban style:
+
+“To Do / In Progress / Review / Done” lanes
+
+Each task card shows:
+
+Task title
+
+Tags (content/technical/backlinks/etc.)
+
+Priority (color-coded)
+
+Assigned user circle
+
+Due date indicator
+
+Component 9 — AI Assistant Panel
+
+Like a floating chat drawer.
+
+Layout style:
+
+similar to iMessage/chat apps
+
+rounded message bubbles
+
+AI suggestions shown as rich cards
+
+Quick buttons: “Create Task”, “Audit Page”, “Run Ranking Check”
+
+Component 10 — Modal System
+
+Used across the CRM for CRUD.
+
+Modal specs:
+
+640px width for forms
+
+full-page wide modals for audits
+
+blurred background
+
+shadow depth = 24dp equivalent
+
+5️⃣ Dashboard Layout (Based on Your Reference)
+Top Section
+
+Project Switcher
+
+Time range selector
+
+User avatars
+
+KPIs row (Clicks, Impressions, Ranking, Technical Score)
+
+Middle Section
+
+Two cards side-by-side:
+
+Left card:
+
+Ranking & Traffic charts
+
+Filters
+
+Keyword performance
+
+Landing page performance
+
+Right card:
+
+SEO issues detected
+
+Content audits summary
+
+Backlink summary
+
+Local SEO signals
+
+Bottom Section
+
+Two sections:
+
+Left:
+
+Content gaps
+
+Missing metadata
+
+Pages needing updates
+
+Right:
+
+AI Opportunities
+
+Suggested tasks
+
+“Apply all” / “Create tasks” buttons
+
+This matches your sample’s layout EXACTLY but with SEO content instead of revenue statistics.
+
+6️⃣ Dark Mode Specification
+
+Dark mode is not inverted — it is redesigned.
+
+Rules:
+
+use deep charcoal backgrounds (#111216)
+
+cards are slightly lighter (#1A1C21)
+
+primary accents remain vibrant pink (#E04377)
+
+graphs invert colors
+
+shadows become softer and more diffused
+
+Animations:
+
+smooth fade for theme transitions (150ms ease-in-out)
+
+7️⃣ Responsive Behavior
+Desktop (primary):
+
+1366px+ ideal layout (3-column grid when possible)
+
+Tablet:
+
+Sidebar collapses into mini-icon mode
+
+Cards stack vertically
+
+Mobile:
+
+bottom nav
+
+modals become full-screen
+
+graphs simplify
+
+8️⃣ Page-by-Page UI Design Blueprint
+
+I will list each CRM section with the UI layout.
+
+A. Projects Page
+
+card grid layout
+
+each card shows:
+
+logo/icon
+
+project name
+
+SEO health
+
+ranking trend mini-graph
+
+assigned team
+
+“New Project” floating button
+
+B. Project Overview Page
+
+Layout structure:
+
+Top → KPI cards row
+Second → Ranking + Traffic card (full width)
+Third → AI Insights + Issue Summary
+Fourth → Upcoming tasks + Weekly progress
+
+C. Websites Page
+
+Simple table:
+
+domain
+
+pages count
+
+traffic trend
+
+technical health
+
+actions
+
+D. Pages Page
+
+Card/table hybrid inspired by screenshot panels:
+
+Each page card shows:
+
+URL
+
+Type
+
+Ranking
+
+Content score
+
+Technical score
+
+Backlink score
+
+Status color
+
+Mini chart
+
+E. Task Board
+
+Kanban with colored columns:
+
+To Do
+
+In Progress
+
+Review
+
+Done
+
+Each card uses rounded, shadowed style of user images.
+
+F. Automation Page
+
+rule list with card UI
+
+each card:
+
+trigger
+
+condition
+
+action
+
+priority
+
+“Test rule” button
+
+floating “New Automation Rule” button
+
+G. Content Intelligence Page
+
+Multi-tab panel inside a floating modal.
+
+Layout:
+
+Audit tab: metrics + charts
+
+Brief tab: outline + instructions
+
+Suggestions tab: cards with “Create Task” buttons
+
+H. AI Console
+
+Chat UI with:
+
+left side = history
+
+right side = chat thread
+
+message cards styled like modern assistants
+
+suggestions shown as cards
+
+9️⃣ Component System in Next.js + Tailwind
+
+Reusable components:
+
+/components
+   /ui
+      Button
+      Card
+      Chart
+      Chip
+      Input
+      Select
+      Sidebar
+      TopBar
+      Avatar
+      Modal
+      Tabs
+      KPIStat
+      TrendChart
+      FilterBar
+      DataTable
+      TaskCard
+      KanbanColumn
+      ToggleTheme
+
+🔟 Design Tokens
+Border Radius
+
+default: 16px
+
+large cards: 24px
+
+Spacing
+
+base grid = 8px system
+
+Shadows
+
+card shadow: 0px 6px 24px rgba(0,0,0,0.06)
+
+floating elements: 0px 12px 38px rgba(0,0,0,0.10)
+
+Animation
+
+all transitions 0.15s ease-in-out
+
+1️⃣1️⃣ Final Deliverables (This Document Represents)
+
+This UI/UX spec includes:
+
+✔ Complete layout blueprint
+✔ Component breakdown
+✔ Style & theme rules
+✔ Light + dark mode
+✔ Dashboard structure
+✔ Page-by-page UI
+✔ Designer-ready color + spacing system
+✔ Developer-ready component architecture
+✔ Interaction patterns based on your screenshots

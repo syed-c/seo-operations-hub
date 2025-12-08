@@ -1,73 +1,10 @@
+import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
-import { FileText, Download, Calendar, Clock, TrendingUp, TrendingDown, BarChart3, Sparkles } from "lucide-react";
+import { FileText, Download, Clock, BarChart3, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-
-interface Report {
-  id: string;
-  title: string;
-  type: "daily" | "weekly" | "monthly" | "audit";
-  project: string;
-  generatedAt: string;
-  highlights: {
-    metric: string;
-    value: string;
-    change: number;
-  }[];
-  status: "ready" | "generating" | "scheduled";
-}
-
-const reports: Report[] = [
-  {
-    id: "1",
-    title: "Weekly SEO Performance Report",
-    type: "weekly",
-    project: "All Projects",
-    generatedAt: "2 hours ago",
-    highlights: [
-      { metric: "Organic Traffic", value: "45.2K", change: 12.5 },
-      { metric: "Keywords Improved", value: "34", change: 15 },
-      { metric: "New Backlinks", value: "156", change: 8.3 },
-    ],
-    status: "ready",
-  },
-  {
-    id: "2",
-    title: "Technical SEO Audit",
-    type: "audit",
-    project: "Ecommerce Giant",
-    generatedAt: "Yesterday",
-    highlights: [
-      { metric: "Health Score", value: "78%", change: -3 },
-      { metric: "Issues Found", value: "24", change: 12 },
-      { metric: "Core Web Vitals", value: "Pass", change: 0 },
-    ],
-    status: "ready",
-  },
-  {
-    id: "3",
-    title: "Daily Ranking Update",
-    type: "daily",
-    project: "TechStartup Pro",
-    generatedAt: "6 hours ago",
-    highlights: [
-      { metric: "Avg. Position", value: "4.2", change: 0.3 },
-      { metric: "Top 10 Keywords", value: "45", change: 2 },
-      { metric: "New Impressions", value: "12.4K", change: 5.6 },
-    ],
-    status: "ready",
-  },
-  {
-    id: "4",
-    title: "Monthly Content Analysis",
-    type: "monthly",
-    project: "SaaS Platform",
-    generatedAt: "Generating...",
-    highlights: [],
-    status: "generating",
-  },
-];
+import { supabase } from "@/lib/supabaseClient";
 
 const typeColors = {
   daily: "bg-info/10 text-info",
@@ -77,11 +14,109 @@ const typeColors = {
 };
 
 export default function Reports() {
+  const [reports, setReports] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [form, setForm] = useState({ title: "", type: "weekly", projectId: "", status: "ready" });
+
+  const load = async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from("reports")
+        .select("id, title, type, status, project_id, generated_at")
+        .order("generated_at", { ascending: false });
+      
+      setLoading(false);
+      
+      if (error) {
+        setError(error.message);
+        return;
+      }
+      
+      setReports(
+        (data || []).map((r) => ({
+          ...r,
+          project: r.project_id,
+          generatedAt: r.generated_at,
+          highlights: [],
+        }))
+      );
+    } catch (err: any) {
+      setLoading(false);
+      setError(err.message || "Failed to load reports");
+    }
+  };
+
+  useEffect(() => {
+    load();
+  }, []);
+
+  const onCreate = async () => {
+    if (!form.title) return;
+    const { error } = await supabase.from("reports").insert({
+      title: form.title,
+      type: form.type,
+      status: form.status,
+      project_id: form.projectId || null,
+    });
+    if (error) {
+      setError(error.message);
+      return;
+    }
+    setForm({ title: "", type: "weekly", projectId: "", status: "ready" });
+    load();
+  };
+
+  const onDelete = async (id: string) => {
+    await supabase.from("reports").delete().eq("id", id);
+    load();
+  };
+
   return (
     <MainLayout>
       <Header title="Reports" subtitle="View automated SEO reports and insights" />
 
-      {/* Quick Stats */}
+      <div className="flex items-center gap-3 mb-6">
+        <input
+          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+          placeholder="Report title"
+          value={form.title}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+        />
+        <select
+          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+          value={form.type}
+          onChange={(e) => setForm({ ...form, type: e.target.value })}
+        >
+          <option value="daily">daily</option>
+          <option value="weekly">weekly</option>
+          <option value="monthly">monthly</option>
+          <option value="audit">audit</option>
+        </select>
+        <input
+          className="h-10 w-32 rounded-xl border border-border bg-card px-3 text-sm"
+          placeholder="Project ID"
+          value={form.projectId}
+          onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+        />
+        <select
+          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+          value={form.status}
+          onChange={(e) => setForm({ ...form, status: e.target.value })}
+        >
+          <option value="ready">ready</option>
+          <option value="generating">generating</option>
+          <option value="scheduled">scheduled</option>
+        </select>
+        <Button className="rounded-xl" onClick={onCreate}>
+          Create
+        </Button>
+      </div>
+
+      {loading && <p className="text-sm text-muted-foreground mb-3">Loading...</p>}
+      {error && <p className="text-sm text-destructive mb-3">{error}</p>}
+
       <div className="grid grid-cols-4 gap-4 mb-6">
         <div className="glass-card p-5 animate-slide-up">
           <div className="flex items-center gap-3 mb-3">
@@ -89,7 +124,7 @@ export default function Reports() {
               <FileText className="w-5 h-5 text-primary" />
             </div>
             <div>
-              <p className="text-2xl font-bold">156</p>
+              <p className="text-2xl font-bold">{reports.length}</p>
               <p className="text-sm text-muted-foreground">Reports Generated</p>
             </div>
           </div>
@@ -100,7 +135,7 @@ export default function Reports() {
               <BarChart3 className="w-5 h-5 text-success" />
             </div>
             <div>
-              <p className="text-2xl font-bold">23</p>
+              <p className="text-2xl font-bold">—</p>
               <p className="text-sm text-muted-foreground">Audits This Month</p>
             </div>
           </div>
@@ -111,7 +146,7 @@ export default function Reports() {
               <Sparkles className="w-5 h-5 text-info" />
             </div>
             <div>
-              <p className="text-2xl font-bold">89</p>
+              <p className="text-2xl font-bold">—</p>
               <p className="text-sm text-muted-foreground">AI Insights</p>
             </div>
           </div>
@@ -122,14 +157,13 @@ export default function Reports() {
               <Clock className="w-5 h-5 text-warning" />
             </div>
             <div>
-              <p className="text-2xl font-bold">7</p>
+              <p className="text-2xl font-bold">—</p>
               <p className="text-sm text-muted-foreground">Scheduled Reports</p>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Reports List */}
       <div className="space-y-4">
         {reports.map((report, index) => (
           <div
@@ -145,12 +179,12 @@ export default function Reports() {
                 <div>
                   <div className="flex items-center gap-2 mb-1">
                     <h3 className="font-semibold">{report.title}</h3>
-                    <span className={cn("chip text-xs capitalize", typeColors[report.type])}>
+                    <span className={cn("chip text-xs capitalize", typeColors[report.type as keyof typeof typeColors] ?? "chip")}>
                       {report.type}
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {report.project} • {report.generatedAt}
+                    {report.project || "All Projects"} • {report.generatedAt || "recent"}
                   </p>
                 </div>
               </div>
@@ -167,43 +201,18 @@ export default function Reports() {
                     Generating...
                   </div>
                 )}
-                <Button variant="outline" size="sm" className="rounded-xl">
-                  View Details
-                </Button>
+                <button
+                  className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
+                  onClick={() => onDelete(report.id)}
+                >
+                  <Trash2 className="w-4 h-4 text-muted-foreground" />
+                </button>
               </div>
             </div>
-
-            {report.highlights.length > 0 && (
-              <div className="grid grid-cols-3 gap-4 mt-5 pt-5 border-t border-border/50">
-                {report.highlights.map((highlight, i) => (
-                  <div key={i} className="flex items-center justify-between p-3 rounded-xl bg-muted/30">
-                    <div>
-                      <p className="text-xs text-muted-foreground">{highlight.metric}</p>
-                      <p className="font-semibold">{highlight.value}</p>
-                    </div>
-                    {highlight.change !== 0 && (
-                      <div
-                        className={cn(
-                          "flex items-center gap-0.5 text-sm font-medium",
-                          highlight.change > 0 ? "text-success" : "text-destructive"
-                        )}
-                      >
-                        {highlight.change > 0 ? (
-                          <TrendingUp className="w-4 h-4" />
-                        ) : (
-                          <TrendingDown className="w-4 h-4" />
-                        )}
-                        {highlight.change > 0 ? "+" : ""}
-                        {highlight.change}%
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
         ))}
       </div>
     </MainLayout>
   );
 }
+
