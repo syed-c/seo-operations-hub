@@ -50,7 +50,7 @@ export default function Keywords() {
           last_checked,
           project_id, 
           page_id, 
-          keyword_rankings(position, recorded_at)
+          keyword_rankings!keyword_rankings.keyword_id(position, recorded_at)
         `)
         .order("created_at", { ascending: false })
         .order("recorded_at", { ascending: false, foreignTable: "keyword_rankings" })
