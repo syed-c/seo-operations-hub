@@ -1,6 +1,7 @@
 import { CheckCircle2, Circle, Clock, AlertCircle } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface Task {
   id: string;
@@ -93,6 +94,12 @@ const statusIcons = {
 };
 
 export function TaskList() {
+  const navigate = useNavigate();
+
+  const handleViewAll = () => {
+    navigate("/tasks");
+  };
+
   return (
     <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: "200ms" }}>
       <div className="flex items-center justify-between mb-6">
@@ -100,7 +107,12 @@ export function TaskList() {
           <h3 className="section-title">Priority Tasks</h3>
           <p className="text-sm text-muted-foreground mt-1">Tasks requiring attention</p>
         </div>
-        <button className="text-sm text-primary font-medium hover:underline">View All</button>
+        <button 
+          className="text-sm text-primary font-medium hover:underline" 
+          onClick={handleViewAll}
+        >
+          View All
+        </button>
       </div>
       <div className="space-y-3">
         {tasks.map((task) => {

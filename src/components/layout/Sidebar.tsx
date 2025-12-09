@@ -23,8 +23,16 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
+  ChevronsUpDown
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useProject } from "@/contexts/ProjectContext";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface NavItem {
   title: string;
@@ -75,6 +83,7 @@ const navSections: NavSection[] = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>(["SEO Modules", "Operations"]);
+  const { projects, selectedProject, setSelectedProject } = useProject();
 
   const toggleSection = (title: string) => {
     setExpandedSections((prev) =>
@@ -119,6 +128,39 @@ export function Sidebar() {
             <span>Search...</span>
             <kbd className="ml-auto text-xs bg-background px-1.5 py-0.5 rounded">⌘K</kbd>
           </div>
+        </div>
+      )}
+
+      {/* Project Selector */}
+      {!collapsed && (
+        <div className="px-3 pb-3">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-muted/50 text-muted-foreground text-sm hover:bg-muted transition-colors">
+                <div className="flex items-center gap-2 truncate">
+                  <FolderKanban className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">
+                    {selectedProject ? selectedProject.name : "Select Project"}
+                  </span>
+                </div>
+                <ChevronsUpDown className="w-4 h-4 flex-shrink-0" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="w-64 max-h-60 overflow-y-auto">
+              <DropdownMenuItem onClick={() => setSelectedProject(null)}>
+                <span className="font-medium">General Analytics</span>
+              </DropdownMenuItem>
+              {projects.map((project) => (
+                <DropdownMenuItem
+                  key={project.id}
+                  onClick={() => setSelectedProject(project)}
+                  className={selectedProject?.id === project.id ? "bg-accent" : ""}
+                >
+                  <span className="truncate">{project.name}</span>
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       )}
 

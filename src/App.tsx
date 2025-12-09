@@ -22,7 +22,14 @@ import Chat from "./pages/Chat";
 import Team from "./pages/Team";
 import RoleBasedDashboard from "./components/dashboard/RoleBasedDashboard";
 import NotificationSettings from "./pages/NotificationSettings";
+import ProjectSelection from "./pages/ProjectSelection";
+import SEOLeadDashboard from "./pages/roles/SEOLeadDashboard";
+import ContentLeadDashboard from "./pages/roles/ContentLeadDashboard";
+import BacklinkLeadDashboard from "./pages/roles/BacklinkLeadDashboard";
+import DeveloperDashboard from "./pages/roles/DeveloperDashboard";
+import ClientDashboard from "./pages/roles/ClientDashboard";
 import { AuthGate } from "./components/AuthGate";
+import { ProjectProvider } from "./contexts/ProjectContext";
 
 const queryClient = new QueryClient();
 
@@ -32,30 +39,38 @@ const App = () => (
       <Toaster />
       <Sonner />
       <AuthGate>
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<Index />} />
-            <Route path="/dashboard" element={<RoleBasedDashboard userRole="Super Admin" />} />
-            <Route path="/starred" element={<Starred />} />
-            <Route path="/recent" element={<Recent />} />
-            <Route path="/projects" element={<Projects />} />
-            <Route path="/websites" element={<Websites />} />
-            <Route path="/pages" element={<PagesPage />} />
-            <Route path="/tasks" element={<Tasks />} />
-            <Route path="/keywords" element={<Keywords />} />
-            <Route path="/rankings" element={<Rankings />} />
-            <Route path="/backlinks" element={<Backlinks />} />
-            <Route path="/local-seo" element={<LocalSEO />} />
-            <Route path="/automation" element={<Automation />} />
-            <Route path="/reports" element={<Reports />} />
-            <Route path="/chat" element={<Chat />} />
-            <Route path="/team" element={<Team />} />
-            <Route path="/settings" element={<Settings />} />
-            <Route path="/notification-settings" element={<NotificationSettings />} />
-            {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
+        <ProjectProvider>
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<Index />} />
+              <Route path="/project-selection" element={<ProjectSelection />} />
+              <Route path="/dashboard" element={<RoleBasedDashboard userRole="Super Admin" />} />
+              <Route path="/seo-lead-dashboard" element={<SEOLeadDashboard />} />
+              <Route path="/content-lead-dashboard" element={<ContentLeadDashboard />} />
+              <Route path="/backlink-lead-dashboard" element={<BacklinkLeadDashboard />} />
+              <Route path="/developer-dashboard" element={<DeveloperDashboard />} />
+              <Route path="/client-dashboard" element={<ClientDashboard />} />
+              <Route path="/starred" element={<Starred />} />
+              <Route path="/recent" element={<Recent />} />
+              <Route path="/projects" element={<Projects />} />
+              <Route path="/websites" element={<Websites />} />
+              <Route path="/pages" element={<PagesPage />} />
+              <Route path="/tasks" element={<Tasks />} />
+              <Route path="/keywords" element={<Keywords />} />
+              <Route path="/rankings" element={<Rankings />} />
+              <Route path="/backlinks" element={<Backlinks />} />
+              <Route path="/local-seo" element={<LocalSEO />} />
+              <Route path="/automation" element={<Automation />} />
+              <Route path="/reports" element={<Reports />} />
+              <Route path="/chat" element={<Chat />} />
+              <Route path="/team" element={<Team />} />
+              <Route path="/settings" element={<Settings />} />
+              <Route path="/notification-settings" element={<NotificationSettings />} />
+              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </ProjectProvider>
       </AuthGate>
     </TooltipProvider>
   </QueryClientProvider>

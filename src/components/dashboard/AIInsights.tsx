@@ -1,5 +1,6 @@
 import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, ArrowRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 
 interface Insight {
   id: string;
@@ -64,6 +65,12 @@ const impactColors = {
 };
 
 export function AIInsights() {
+  const navigate = useNavigate();
+
+  const handleViewAll = () => {
+    navigate("/reports");
+  };
+
   return (
     <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: "150ms" }}>
       <div className="flex items-center justify-between mb-6">
@@ -76,7 +83,10 @@ export function AIInsights() {
             <p className="text-xs text-muted-foreground">Powered by intelligence engine</p>
           </div>
         </div>
-        <button className="text-sm text-primary font-medium hover:underline flex items-center gap-1">
+        <button 
+          className="text-sm text-primary font-medium hover:underline flex items-center gap-1"
+          onClick={handleViewAll}
+        >
           View All <ArrowRight className="w-3.5 h-3.5" />
         </button>
       </div>

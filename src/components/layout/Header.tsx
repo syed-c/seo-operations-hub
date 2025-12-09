@@ -1,4 +1,4 @@
-import { Search, Plus, ChevronDown } from "lucide-react";
+import { Search, Plus, ChevronDown, FolderKanban } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { NotificationsPanel } from "@/components/NotificationsPanel";
@@ -10,6 +10,8 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { useProject } from "@/contexts/ProjectContext";
+import { useNavigate } from "react-router-dom";
 
 interface HeaderProps {
   title: string;
@@ -17,6 +19,32 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
+  const { projects, selectedProject, setSelectedProject } = useProject();
+  const navigate = useNavigate();
+
+  const handleNewProject = () => {
+    navigate("/projects");
+  };
+
+  const handleNewWebsite = () => {
+    // TODO: Implement new website functionality
+    console.log("New website clicked");
+  };
+
+  const handleNewKeyword = () => {
+    // TODO: Implement new keyword functionality
+    console.log("New keyword clicked");
+  };
+
+  const handleNewTask = () => {
+    navigate("/tasks");
+  };
+
+  const handleRunAudit = () => {
+    // TODO: Implement run audit functionality
+    console.log("Run audit clicked");
+  };
+
   return (
     <header className="flex items-center justify-between mb-8">
       <div>
@@ -25,6 +53,33 @@ export function Header({ title, subtitle }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-3">
+        {/* Project Selector */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="gap-2 rounded-xl">
+              <FolderKanban className="w-4 h-4" />
+              <span className="max-w-[150px] truncate">
+                {selectedProject ? selectedProject.name : "Select Project"}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-64 max-h-60 overflow-y-auto">
+            <DropdownMenuItem onClick={() => setSelectedProject(null)}>
+              <span className="font-medium">General Analytics</span>
+            </DropdownMenuItem>
+            {projects.map((project) => (
+              <DropdownMenuItem
+                key={project.id}
+                onClick={() => setSelectedProject(project)}
+                className={selectedProject?.id === project.id ? "bg-accent" : ""}
+              >
+                <span className="truncate">{project.name}</span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         {/* Search */}
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -45,12 +100,12 @@ export function Header({ title, subtitle }: HeaderProps) {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
-            <DropdownMenuItem>New Project</DropdownMenuItem>
-            <DropdownMenuItem>New Website</DropdownMenuItem>
-            <DropdownMenuItem>New Keyword</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleNewProject}>New Project</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleNewWebsite}>New Website</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleNewKeyword}>New Keyword</DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem>New Task</DropdownMenuItem>
-            <DropdownMenuItem>Run Audit</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleNewTask}>New Task</DropdownMenuItem>
+            <DropdownMenuItem onClick={handleRunAudit}>Run Audit</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
