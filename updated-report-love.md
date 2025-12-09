@@ -52,12 +52,27 @@ All 9 edge functions were updated to use modern Deno.serve() pattern:
 - Project dropdown in sidebar for easy switching
 - All pages should filter data by selected project
 
-### 3. Additional UI/UX Improvements
+### 3. Connecting Non-Functional Buttons
 **Status:** NOT STARTED
-- Connect all action buttons to actual functionality
+**Requirement:** Wire up all action buttons to actual functionality:
+- "New Project" button → Create project modal/form
+- "New Task" button → Create task modal/form
+- "Add Keywords" button → Keyword import modal
+- "Run Audit" button → Trigger audit edge function
+- "Download Report" button → Generate PDF/export
+- Filter/Sort buttons → Apply actual filtering
+- All "View All" links → Navigate to relevant pages
+- Task status changes → Update database
+- Project health score clicks → Navigate to audit details
+
+### 4. Additional UI/UX Improvements
+**Status:** NOT STARTED
 - Implement proper project-scoped data fetching
 - Add real-time notifications
 - Implement PDF report generation
+- Add loading states for all async operations
+- Add error boundary components
+- Implement proper form validation with zod
 
 ---
 
