@@ -13,9 +13,9 @@ interface User {
   email: string;
   first_name?: string;
   last_name?: string;
-  role_id?: string;
+  role?: string;  // Changed from role_id to role
   role_name?: string;
-  avatar_url?: string; // Made optional since it may not exist in DB
+  avatar_url?: string;
   created_at: string;
 }
 
@@ -68,7 +68,7 @@ export default function Team() {
           email, 
           first_name,
           last_name,
-          role_id, 
+          role, 
           avatar_url, 
           created_at,
           roles (name)
@@ -85,7 +85,7 @@ export default function Team() {
             email, 
             first_name,
             last_name,
-            role_id, 
+            role, 
             created_at,
             roles (name)
           `)
@@ -104,7 +104,7 @@ export default function Team() {
           email: user.email,
           first_name: user.first_name || undefined,
           last_name: user.last_name || undefined,
-          role_id: user.role_id || undefined,
+          role: user.role || undefined,
           role_name: user.roles?.name || "No role",
           avatar_url: undefined,
           created_at: user.created_at,
@@ -127,7 +127,7 @@ export default function Team() {
         email: user.email,
         first_name: user.first_name || undefined,
         last_name: user.last_name || undefined,
-        role_id: user.role_id || undefined,
+        role: user.role || undefined,
         role_name: user.roles?.name || "No role",
         avatar_url: user.avatar_url || undefined,
         created_at: user.created_at,
@@ -159,7 +159,7 @@ export default function Team() {
       email,
       first_name: firstName || null,
       last_name: lastName || null,
-      role_id: roleId || null,
+      role: roleId || null,  // Changed from role_id to role
     });
     
     setName("");
@@ -180,7 +180,7 @@ export default function Team() {
   const startEdit = (user: User) => {
     setEditingUserId(user.id);
     setEditName(`${user.first_name || ''} ${user.last_name || ''}`.trim());
-    setEditRoleId(user.role_id || "");
+    setEditRoleId(user.role || "");  // Changed from user.role_id to user.role
   };
 
   const cancelEdit = () => {
@@ -201,7 +201,7 @@ export default function Team() {
         id: userId,
         first_name: firstName || null,
         last_name: lastName || null,
-        role_id: editRoleId || null,
+        role: editRoleId || null,  // Changed from role_id to role
       });
       setEditingUserId(null);
       setEditName("");

@@ -57,8 +57,8 @@ create policy "Authorized users can create projects" on projects
     exists (
       select 1 from users 
       where id = auth.uid() 
-      and role_id in (
-        select id from roles 
+      and role in (
+        select name from roles 
         where name in ('Super Admin', 'Admin', 'SEO Lead')
       )
     )

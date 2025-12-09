@@ -7,7 +7,7 @@ const SUPER_ADMIN_EMAIL = "contact@syedrayyan.com";
 interface User {
   id: string;
   email: string;
-  role_id?: string;
+  role?: string;  // Changed from role_id to role
   role_name?: string;
 }
 
