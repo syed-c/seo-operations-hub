@@ -11,7 +11,8 @@ import { Button } from "@/components/ui/button";
 interface User {
   id: string;
   email: string;
-  name?: string;
+  first_name?: string;
+  last_name?: string;
   role_id?: string;
   role_name?: string;
   avatar_url?: string; // Made optional since it may not exist in DB
@@ -65,7 +66,8 @@ export default function Team() {
         .select(`
           id, 
           email, 
-          name, 
+          first_name,
+          last_name,
           role_id, 
           avatar_url, 
           created_at,
@@ -81,7 +83,8 @@ export default function Team() {
           .select(`
             id, 
             email, 
-            name, 
+            first_name,
+            last_name,
             role_id, 
             created_at,
             roles (name)
@@ -99,7 +102,8 @@ export default function Team() {
         const transformedData = (fallbackData || []).map((user: any) => ({
           id: user.id,
           email: user.email,
-          name: user.name || undefined,
+          first_name: user.first_name || undefined,
+          last_name: user.last_name || undefined,
           role_id: user.role_id || undefined,
           role_name: user.roles?.name || "No role",
           avatar_url: undefined,
@@ -121,7 +125,8 @@ export default function Team() {
       const transformedData = (data || []).map((user: any) => ({
         id: user.id,
         email: user.email,
-        name: user.name || undefined,
+        first_name: user.first_name || undefined,
+        last_name: user.last_name || undefined,
         role_id: user.role_id || undefined,
         role_name: user.roles?.name || "No role",
         avatar_url: user.avatar_url || undefined,
@@ -144,20 +149,22 @@ export default function Team() {
   const onCreate = async () => {
     if (!email) return;
     
-    try {
-      // Use secure admin API instead of direct database access
-      await createUser({
-        email,
-        name: name || null,
-        role_id: roleId || null,
-      });
-      
-      setName("");
-      setEmail("");
-      loadUsers();
-    } catch (err: any) {
-      setError(err.message || "Failed to create user");
-    }
+    // Split name into first and last name
+    const nameParts = name.trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
+    
+    // Use secure admin API instead of direct database access
+    await createUser({
+      email,
+      first_name: firstName || null,
+      last_name: lastName || null,
+      role_id: roleId || null,
+    });
+    
+    setName("");
+    setEmail("");
+    loadUsers();
   };
 
   const onDelete = async (id: string) => {
@@ -172,7 +179,7 @@ export default function Team() {
 
   const startEdit = (user: User) => {
     setEditingUserId(user.id);
-    setEditName(user.name || "");
+    setEditName(`${user.first_name || ''} ${user.last_name || ''}`.trim());
     setEditRoleId(user.role_id || "");
   };
 
@@ -184,10 +191,16 @@ export default function Team() {
 
   const saveEdit = async (userId: string) => {
     try {
+      // Split name into first and last name
+      const nameParts = editName.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      
       // Use secure admin API instead of direct database access
       await updateUser({
         id: userId,
-        name: editName || null,
+        first_name: firstName || null,
+        last_name: lastName || null,
         role_id: editRoleId || null,
       });
       setEditingUserId(null);
@@ -287,7 +300,7 @@ export default function Team() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <Users className="w-4 h-4 text-primary" />
-                    <CardTitle className="text-sm">{user.name || user.email}</CardTitle>
+                    <CardTitle className="text-sm">{`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email}</CardTitle>
                   </div>
                   <div className="flex gap-1">
                     <button
@@ -310,7 +323,7 @@ export default function Team() {
             <CardContent className="flex items-center gap-3">
               <Avatar className="w-10 h-10">
                 <AvatarImage src={user.avatar_url || undefined} />
-                <AvatarFallback>{user.name ? user.name.charAt(0) : user.email.charAt(0)}</AvatarFallback>
+                <AvatarFallback>{(user.first_name ? user.first_name.charAt(0) : '') + (user.last_name ? user.last_name.charAt(0) : user.email.charAt(0))}</AvatarFallback>
               </Avatar>
               <div>
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
@@ -324,4 +337,15 @@ export default function Team() {
       </div>
     </MainLayout>
   );
+}
+
+const transformUser = (user: any) => {
+  const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
+  const initials = (user.first_name ? user.first_name.charAt(0) : '') + (user.last_name ? user.last_name.charAt(0) : user.email.charAt(0));
+  
+  return {
+    ...user,
+    name: fullName,
+    initials: initials
+  };
 }
