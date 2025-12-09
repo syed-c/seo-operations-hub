@@ -4,10 +4,11 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
-import { User, Bell, Shield, Palette, Globe, Key, Database, Zap } from "lucide-react";
+import { User, Bell, Shield, Palette, Globe, Key, Database, Zap, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { useNavigate } from "react-router-dom";
 import {
   Form,
   FormControl,
@@ -82,6 +83,7 @@ const settingsSections = [
 
 export default function Settings() {
   const [activeSection, setActiveSection] = useState("profile");
+  const navigate = useNavigate();
 
   // Initialize the form with react-hook-form
   const form = useForm<ProfileFormValues>({
@@ -204,7 +206,20 @@ export default function Settings() {
 
           {/* Notification Preferences */}
           <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: "100ms" }}>
-            <h3 className="font-semibold mb-6">Notification Preferences</h3>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="font-semibold">Notification Preferences</h3>
+                <p className="text-sm text-muted-foreground">Configure how and when you receive alerts</p>
+              </div>
+              <Button 
+                variant="outline" 
+                className="rounded-xl gap-2"
+                onClick={() => navigate('/notification-settings')}
+              >
+                Advanced Settings
+                <ChevronRight className="w-4 h-4" />
+              </Button>
+            </div>
             <div className="space-y-4">
               {[
                 { label: "Ranking changes", description: "Get notified when rankings change significantly" },

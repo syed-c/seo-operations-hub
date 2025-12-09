@@ -43,18 +43,18 @@ export default function Keywords() {
           id, 
           term, 
           intent, 
-          difficulty_score, 
+          difficulty, 
           volume, 
           target_position,
           tags,
           last_checked,
           project_id, 
           page_id, 
-keyword_rankings!keyword_id(position, recorded_at)
+          keyword_rankings(position, recorded_at)
         `)
         .order("created_at", { ascending: false })
-        .order("recorded_at", { ascending: false, foreignTable: "keyword_rankings!keyword_id" })
-        .limit(1, { foreignTable: "keyword_rankings!keyword_id" });
+        .order("recorded_at", { ascending: false, foreignTable: "keyword_rankings" })
+        .limit(1, { foreignTable: "keyword_rankings" });
       
       setLoading(false);
       
@@ -68,7 +68,7 @@ keyword_rankings!keyword_id(position, recorded_at)
           id: k.id,
           keyword: k.term,
           intent: k.intent,
-          difficulty: k.difficulty_score ?? 0,
+          difficulty: k.difficulty ?? 0,
           difficultyScore: k.difficulty_score ?? null,
           lastDifficultyCheck: k.last_difficulty_check ?? null,
           volume: k.volume ?? 0,
@@ -77,8 +77,8 @@ keyword_rankings!keyword_id(position, recorded_at)
           lastChecked: k.last_checked ?? "",
           project: k.project_id,
           page: k.page_id,
-          position: k.keyword_rankings?.position ?? 0,
-          recordedAt: k.keyword_rankings?.recorded_at ?? ","
+          position: k.keyword_rankings?.[0]?.position ?? 0,
+          recordedAt: k.keyword_rankings?.[0]?.recorded_at ?? ","
         }))
       );
     } catch (err: any) {
@@ -96,7 +96,7 @@ keyword_rankings!keyword_id(position, recorded_at)
     const { error } = await supabase.from("keywords").insert({
       term: form.term,
       intent: form.intent,
-      difficulty_score: form.difficulty,
+      difficulty: form.difficulty,
       volume: form.volume,
       target_position: form.targetPosition,
       tags: form.tags,
