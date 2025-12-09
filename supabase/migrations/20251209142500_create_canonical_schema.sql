@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS users (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   first_name TEXT,
   last_name TEXT,
+  name TEXT, -- Full name, automatically populated from first_name and last_name
   email TEXT UNIQUE NOT NULL,
   role TEXT REFERENCES roles(name),
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),

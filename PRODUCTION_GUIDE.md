@@ -46,7 +46,9 @@ CREATE TABLE roles (
 CREATE TABLE users (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   email VARCHAR(255) UNIQUE NOT NULL,
-  name VARCHAR(255),
+  first_name VARCHAR(255),
+  last_name VARCHAR(255),
+  name VARCHAR(255), -- Full name, automatically populated from first_name and last_name
   role_id UUID REFERENCES roles(id),
   avatar_url TEXT,
   created_at TIMESTAMP DEFAULT NOW()
