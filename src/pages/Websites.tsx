@@ -26,7 +26,7 @@ export default function Websites() {
     try {
       const { data, error } = await supabase
         .from("websites")
-        .select("id, domain, pages_count, health_score, status, created_at")
+        .select("id, url, pages_count, health_score, status, created_at")
         .order("created_at", { ascending: false });
       
       setLoading(false);
@@ -102,7 +102,7 @@ export default function Websites() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Globe className="w-5 h-5 text-primary" />
-                  <CardTitle>{site.domain}</CardTitle>
+                  <CardTitle>{site.url}</CardTitle>
                 </div>
                 <button
                   className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
