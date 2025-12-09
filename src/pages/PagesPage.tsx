@@ -126,7 +126,7 @@ export default function PagesPage() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <FileText className="w-4 h-4 text-primary" />
-                  <CardTitle className="truncate">{page.url}</CardTitle>
+                  <CardTitle className="truncate text-sm">{page.url}</CardTitle>
                 </div>
                 <button
                   className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
@@ -136,7 +136,7 @@ export default function PagesPage() {
                 </button>
               </div>
               <p className="text-sm text-muted-foreground">
-                {page.ranking_position ? `Ranking #${page.ranking_position}` : "No ranking data"}
+                {page.title || "No title"}
               </p>
             </CardHeader>
             <CardContent className="space-y-4">
