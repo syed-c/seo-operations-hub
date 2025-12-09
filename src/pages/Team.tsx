@@ -4,7 +4,8 @@ import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Plus, Trash2, Edit3 } from "lucide-react";
-import { supabase, ensureSupabaseAdmin } from "@/lib/supabaseClient";
+import { supabase, ensureSupabase } from "@/lib/supabaseClient";
+import { createUser, updateUser, deleteUser } from "@/lib/adminApiClient"; // Import admin functions
 import { Button } from "@/components/ui/button";
 
 interface User {
@@ -139,22 +140,17 @@ export default function Team() {
     loadUsers();
   }, []);
 
+  // Use secure admin API client for user operations
   const onCreate = async () => {
     if (!email) return;
     
     try {
-      // Use admin client for user creation to bypass RLS restrictions
-      const adminClient = ensureSupabaseAdmin();
-      const { error } = await adminClient.from("users").insert({
+      // Use secure admin API instead of direct database access
+      await createUser({
         email,
         name: name || null,
         role_id: roleId || null,
       });
-      
-      if (error) {
-        setError(error.message);
-        return;
-      }
       
       setName("");
       setEmail("");
@@ -166,12 +162,8 @@ export default function Team() {
 
   const onDelete = async (id: string) => {
     try {
-      const adminClient = ensureSupabaseAdmin();
-      const { error } = await adminClient.from("users").delete().eq("id", id);
-      if (error) {
-        setError(error.message);
-        return;
-      }
+      // Use secure admin API instead of direct database access
+      await deleteUser(id);
       loadUsers();
     } catch (err: any) {
       setError(err.message || "Failed to delete user");
@@ -192,18 +184,12 @@ export default function Team() {
 
   const saveEdit = async (userId: string) => {
     try {
-      const adminClient = ensureSupabaseAdmin();
-      const { error } = await adminClient
-        .from("users")
-        .update({
-          name: editName || null,
-          role_id: editRoleId || null,
-        })
-        .eq("id", userId);
-      if (error) {
-        setError(error.message);
-        return;
-      }
+      // Use secure admin API instead of direct database access
+      await updateUser({
+        id: userId,
+        name: editName || null,
+        role_id: editRoleId || null,
+      });
       setEditingUserId(null);
       setEditName("");
       setEditRoleId("");

@@ -8,11 +8,16 @@ import { Button } from "@/components/ui/button";
 
 interface Backlink {
   id: string;
-  domain: string;
-  status: string;
-  strength?: string;
+  url: string;
+  source_url: string;
   anchor_text?: string;
-  page_id?: string;
+  domain_authority?: number;
+  spam_score?: number;
+  link_type?: string;
+  toxicity_score?: number;
+  spam_reason?: string;
+  discovered_at: string;
+  lost?: boolean;
   created_at: string;
 }
 
@@ -29,8 +34,8 @@ export default function Backlinks() {
     try {
       const { data, error } = await supabase
         .from("backlinks")
-        .select("id, domain, status, strength, anchor_text, page_id, created_at")
-        .order("created_at", { ascending: false });
+        .select("id, url, source_url, anchor_text, domain_authority, spam_score, link_type, toxicity_score, spam_reason, discovered_at, lost, created_at")
+        .order("discovered_at", { ascending: false });
       
       setLoading(false);
       
@@ -39,7 +44,11 @@ export default function Backlinks() {
         return;
       }
       
-      setBacklinks(data || []);
+      const transformedData = (data || []).map(link => ({
+        ...link,
+        domain: new URL(link.source_url).hostname
+      }));
+      setBacklinks(transformedData);
     } catch (err: any) {
       setLoading(false);
       setError(err.message || "Failed to load backlinks");
@@ -132,16 +141,23 @@ export default function Backlinks() {
                 </button>
               </div>
               <p className="text-xs text-muted-foreground">{link.anchor_text || "No anchor text"}</p>
+              {link.spam_reason && (
+                <p className="text-xs text-destructive mt-1">{link.spam_reason}</p>
+              )}
             </CardHeader>
             <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-              <span className="chip">{link.status}</span>
+              <span className="chip">
+                {link.lost ? "Lost" : link.toxicity_score && link.toxicity_score > 50 ? "Toxic" : "New"}
+              </span>
               <div className="flex items-center gap-2">
-                {link.status === "toxic" ? (
+                {link.toxicity_score && link.toxicity_score > 50 ? (
                   <ShieldAlert className="w-4 h-4 text-destructive" />
                 ) : (
                   <TrendingUp className="w-4 h-4 text-success" />
                 )}
-                <span className="font-semibold text-foreground">{link.strength || "DA50"}</span>
+                {link.toxicity_score !== undefined && (
+                  <span className="font-semibold text-foreground">Toxic: {link.toxicity_score}</span>
+                )}
               </div>
             </CardContent>
           </Card>

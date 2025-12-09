@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import { Globe, Plus, Search, Filter, MoreVertical, TrendingUp, Users, Calendar } from "lucide-react";
@@ -25,70 +26,88 @@ const statusColors = {
 };
 
 export default function Projects() {
-  const [projects, setProjects] = useState<ProjectRecord[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
+  const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [client, setClient] = useState("");
   const [health, setHealth] = useState(70);
   const [status, setStatus] = useState("active");
 
-  const load = async () => {
-    setLoading(true);
-    try {
+  // Fetch projects with React Query
+  const { data: projects = [], isLoading, error } = useQuery({
+    queryKey: ['projects'],
+    queryFn: async () => {
       const { data, error } = await supabase
         .from("projects")
         .select("id, name, client, status, health_score, created_at")
         .order("created_at", { ascending: false });
       
-      setLoading(false);
-      
-      if (error) {
-        setError(error.message);
-        return;
-      }
-      
-      setProjects(data || []);
-    } catch (err: any) {
-      setLoading(false);
-      setError(err.message || "Failed to load projects");
+      if (error) throw new Error(error.message);
+      return data || [];
     }
-  };
+  });
 
-  useEffect(() => {
-    load();
-  }, []);
+  // Mutation for creating a project
+  const createProjectMutation = useMutation({
+    mutationFn: async (newProject: Partial<ProjectRecord>) => {
+      const { error } = await supabase.from("projects").insert(newProject);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      // Reset form
+      setName("");
+      setClient("");
+      setHealth(70);
+      setStatus("active");
+    }
+  });
 
-  const onCreate = async () => {
+  // Mutation for deleting a project
+  const deleteProjectMutation = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("projects").delete().eq("id", id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    }
+  });
+
+  // Mutation for updating a project
+  const updateProjectMutation = useMutation({
+    mutationFn: async (updatedProject: ProjectRecord) => {
+      const { error } = await supabase
+        .from("projects")
+        .update({ 
+          status: updatedProject.status, 
+          health_score: updatedProject.health_score, 
+          client: updatedProject.client, 
+          name: updatedProject.name 
+        })
+        .eq("id", updatedProject.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+    }
+  });
+
+  const onCreate = () => {
     if (!name) return;
-    const { error } = await supabase.from("projects").insert({
+    createProjectMutation.mutate({
       name,
       client,
       status,
       health_score: health,
     });
-    if (error) {
-      setError(error.message);
-      return;
-    }
-    setName("");
-    setClient("");
-    setHealth(70);
-    setStatus("active");
-    load();
   };
 
-  const onDelete = async (id: string) => {
-    await supabase.from("projects").delete().eq("id", id);
-    load();
+  const onDelete = (id: string) => {
+    deleteProjectMutation.mutate(id);
   };
 
-  const onUpdate = async (p: ProjectRecord) => {
-    await supabase
-      .from("projects")
-      .update({ status: p.status, health_score: p.health_score, client: p.client, name: p.name })
-      .eq("id", p.id);
-    load();
+  const onUpdate = (project: ProjectRecord) => {
+    updateProjectMutation.mutate(project);
   };
 
   const filtered = useMemo(() => projects, [projects]);
@@ -132,15 +151,20 @@ export default function Projects() {
             value={health}
             onChange={(e) => setHealth(Number(e.target.value))}
           />
-          <Button className="gap-2 rounded-xl" onClick={onCreate}>
+          <Button 
+            className="gap-2 rounded-xl" 
+            onClick={onCreate}
+            disabled={createProjectMutation.isPending}
+          >
             <Plus className="w-4 h-4" />
             New Project
           </Button>
         </div>
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
-      {error && <p className="text-sm text-destructive mb-4">{error}</p>}
+      {isLoading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
+      {error && <p className="text-sm text-destructive mb-4">Error: {error.message}</p>}
+      {createProjectMutation.isError && <p className="text-sm text-destructive mb-4">Error: {createProjectMutation.error.message}</p>}
 
       <div className="grid grid-cols-2 gap-5">
         {filtered.map((project, index) => (
@@ -158,12 +182,24 @@ export default function Projects() {
                   <input
                     className="font-semibold bg-transparent outline-none"
                     value={project.name}
-                    onChange={(e) => setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, name: e.target.value } : p)))}
+                    onChange={(e) => {
+                      const updatedProjects = projects.map(p => 
+                        p.id === project.id ? { ...p, name: e.target.value } : p
+                      );
+                      // Optimistic update
+                      queryClient.setQueryData(['projects'], updatedProjects);
+                    }}
                   />
                   <input
                     className="text-sm text-muted-foreground bg-transparent outline-none"
                     value={project.client ?? ""}
-                    onChange={(e) => setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, client: e.target.value } : p)))}
+                    onChange={(e) => {
+                      const updatedProjects = projects.map(p => 
+                        p.id === project.id ? { ...p, client: e.target.value } : p
+                      );
+                      // Optimistic update
+                      queryClient.setQueryData(['projects'], updatedProjects);
+                    }}
                   />
                 </div>
               </div>
@@ -171,9 +207,13 @@ export default function Projects() {
                 <select
                   className={cn("chip text-xs capitalize bg-muted text-foreground")}
                   value={project.status ?? "active"}
-                  onChange={(e) =>
-                    setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, status: e.target.value } : p)))
-                  }
+                  onChange={(e) => {
+                    const updatedProjects = projects.map(p => 
+                      p.id === project.id ? { ...p, status: e.target.value } : p
+                    );
+                    // Optimistic update
+                    queryClient.setQueryData(['projects'], updatedProjects);
+                  }}
                 >
                   <option value="active">active</option>
                   <option value="paused">paused</option>
@@ -183,6 +223,7 @@ export default function Projects() {
                 <button
                   className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
                   onClick={() => onDelete(project.id)}
+                  disabled={deleteProjectMutation.isPending}
                 >
                   <MoreVertical className="w-4 h-4 text-muted-foreground" />
                 </button>
@@ -196,9 +237,13 @@ export default function Projects() {
                   type="number"
                   className="text-sm font-semibold w-20 bg-transparent outline-none"
                   value={project.health_score ?? 0}
-                  onChange={(e) =>
-                    setProjects((prev) => prev.map((p) => (p.id === project.id ? { ...p, health_score: Number(e.target.value) } : p)))
-                  }
+                  onChange={(e) => {
+                    const updatedProjects = projects.map(p => 
+                      p.id === project.id ? { ...p, health_score: Number(e.target.value) } : p
+                    );
+                    // Optimistic update
+                    queryClient.setQueryData(['projects'], updatedProjects);
+                  }}
                 />
               </div>
               <Progress
@@ -247,7 +292,13 @@ export default function Projects() {
             </div>
 
             <div className="flex items-center justify-between pt-3">
-              <Button size="sm" variant="outline" className="rounded-xl" onClick={() => onUpdate(project)}>
+              <Button 
+                size="sm" 
+                variant="outline" 
+                className="rounded-xl" 
+                onClick={() => onUpdate(project)}
+                disabled={updateProjectMutation.isPending}
+              >
                 Save
               </Button>
             </div>

@@ -3,10 +3,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string | undefined;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;
 
-// Service role key for admin operations (only use this on the server-side)
-const supabaseServiceRoleKey = import.meta.env.SUPABASE_SERVICE_ROLE_KEY as string | undefined;
-
-console.log("Supabase Config:", { supabaseUrl, supabaseAnonKey, supabaseServiceRoleKey });
+// Removed service role key from client-side code - this should only exist on server-side
 
 function isValidHttpUrl(url?: string) {
   if (!url) return false;
@@ -25,21 +22,17 @@ if (!supabaseUrl || !supabaseAnonKey) {
 } else if (!isValidHttpUrl(supabaseUrl)) {
   console.error("VITE_SUPABASE_URL is invalid. It must start with http(s)://");
 } else {
-  console.log("Creating Supabase client...");
+  // Only log in development mode
+  if (import.meta.env.DEV) {
+    console.log("Creating Supabase client...");
+  }
   supabase = createClient(supabaseUrl, supabaseAnonKey);
-  console.log("Supabase client created:", !!supabase);
+  // Removed success log to avoid exposing client status in production
 }
 
-// Create a service role client for admin operations
-let supabaseAdmin: SupabaseClient | null = null;
+// Removed admin client creation - this should only be done server-side
 
-if (supabaseServiceRoleKey) {
-  console.log("Creating Supabase admin client...");
-  supabaseAdmin = createClient(supabaseUrl!, supabaseServiceRoleKey);
-  console.log("Supabase admin client created:", !!supabaseAdmin);
-}
-
-export { supabase, supabaseAdmin };
+export { supabase };
 
 export function ensureSupabase(): SupabaseClient {
   if (!supabase) {
@@ -48,9 +41,4 @@ export function ensureSupabase(): SupabaseClient {
   return supabase;
 }
 
-export function ensureSupabaseAdmin(): SupabaseClient {
-  if (!supabaseAdmin) {
-    throw new Error("Supabase admin client is not configured. Check SUPABASE_SERVICE_ROLE_KEY.");
-  }
-  return supabaseAdmin;
-}
+// Removed ensureSupabaseAdmin function - admin operations should be done via server functions
