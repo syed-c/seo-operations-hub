@@ -49,7 +49,7 @@ CREATE TABLE users (
   first_name VARCHAR(255),
   last_name VARCHAR(255),
   name VARCHAR(255), -- Full name, automatically populated from first_name and last_name
-  role_id UUID REFERENCES roles(id),
+  role TEXT REFERENCES roles(name),  // Changed from role_id UUID REFERENCES roles(id)
   avatar_url TEXT,
   created_at TIMESTAMP DEFAULT NOW()
 );
@@ -155,15 +155,15 @@ CREATE TABLE keyword_rankings (
 
 ```sql
 INSERT INTO roles (name) VALUES 
-  ('super_admin'),
-  ('admin'),
-  ('seo_lead'),
-  ('content_lead'),
-  ('backlink_lead'),
-  ('developer'),
-  ('designer'),
-  ('client'),
-  ('viewer');
+  ('Super Admin'),
+  ('Admin'),
+  ('SEO Lead'),
+  ('Content Lead'),
+  ('Backlink Lead'),
+  ('Developer'),
+  ('Designer'),
+  ('Client'),
+  ('Viewer');
 ```
 
 ### 4. Row Level Security (RLS)
@@ -190,7 +190,7 @@ CREATE POLICY "Users can view their projects" ON projects
     EXISTS (
       SELECT 1 FROM users u 
       WHERE u.id = auth.uid() 
-      AND u.role_id IN (SELECT id FROM roles WHERE name IN ('super_admin', 'admin', 'seo_lead'))
+      AND u.role IN (SELECT name FROM roles WHERE name IN ('Super Admin', 'Admin', 'SEO Lead'))  // Changed to match role column
     )
   );
 
