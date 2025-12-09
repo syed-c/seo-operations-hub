@@ -50,7 +50,7 @@ export default function Keywords() {
           last_checked,
           project_id, 
           page_id, 
-          keyword_rankings!keyword_rankings.keyword_id(position, recorded_at)
+keyword_rankings(keyword_id,position,recorded_at)
         `)
         .order("created_at", { ascending: false })
         .order("recorded_at", { ascending: false, foreignTable: "keyword_rankings" })
@@ -77,8 +77,8 @@ export default function Keywords() {
           lastChecked: k.last_checked ?? "",
           project: k.project_id,
           page: k.page_id,
-          position: k.keyword_rankings?.[0]?.position ?? 0,
-          recordedAt: k.keyword_rankings?.[0]?.recorded_at ?? ","
+          position: k.keyword_rankings?.position ?? 0,
+          recordedAt: k.keyword_rankings?.recorded_at ?? ","
         }))
       );
     } catch (err: any) {
