@@ -20,6 +20,8 @@ import LocalSEO from "./pages/LocalSEO";
 import Automation from "./pages/Automation";
 import Chat from "./pages/Chat";
 import Team from "./pages/Team";
+import RoleBasedDashboard from "./components/dashboard/RoleBasedDashboard";
+import NotificationSettings from "./pages/NotificationSettings";
 import { AuthGate } from "./components/AuthGate";
 
 const queryClient = new QueryClient();
@@ -33,6 +35,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/dashboard" element={<RoleBasedDashboard userRole="Super Admin" />} />
             <Route path="/starred" element={<Starred />} />
             <Route path="/recent" element={<Recent />} />
             <Route path="/projects" element={<Projects />} />
@@ -48,6 +51,7 @@ const App = () => (
             <Route path="/chat" element={<Chat />} />
             <Route path="/team" element={<Team />} />
             <Route path="/settings" element={<Settings />} />
+            <Route path="/notification-settings" element={<NotificationSettings />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

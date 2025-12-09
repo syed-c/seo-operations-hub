@@ -50,6 +50,7 @@ const navSections: NavSection[] = [
     title: "SEO Modules",
     items: [
       { title: "Dashboard", href: "/", icon: LayoutDashboard },
+      { title: "Role Dashboard", href: "/dashboard", icon: Users },
       { title: "Projects", href: "/projects", icon: FolderKanban, badge: 12 },
       { title: "Websites", href: "/websites", icon: Globe },
       { title: "Pages", href: "/pages", icon: FileText },

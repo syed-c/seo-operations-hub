@@ -1,6 +1,7 @@
-import { Search, Bell, Plus, ChevronDown } from "lucide-react";
+import { Search, Plus, ChevronDown } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
+import { NotificationsPanel } from "@/components/NotificationsPanel";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -54,10 +55,7 @@ export function Header({ title, subtitle }: HeaderProps) {
         </DropdownMenu>
 
         {/* Notifications */}
-        <button className="relative w-10 h-10 rounded-xl bg-card border border-border flex items-center justify-center hover:bg-muted transition-colors">
-          <Bell className="w-4.5 h-4.5 text-muted-foreground" />
-          <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-primary" />
-        </button>
+        <NotificationsPanel />
 
         {/* User Menu */}
         <DropdownMenu>
