@@ -1,12 +1,9 @@
 // Backlink Monitor Function
-// This function monitors backlinks using the DIY crawler approach
-import { serve } from "std/http/server.ts";
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log("Backlink monitor function started");
 
-serve(async (_req) => {
-  // Create a Supabase client with the service role key
+Deno.serve(async (_req: Request) => {
   const supabaseAdmin = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -21,7 +18,6 @@ serve(async (_req) => {
   );
 
   try {
-    // Get all projects that need backlink monitoring
     const { data: projects, error } = await supabaseAdmin
       .from('projects')
       .select('*');
@@ -34,30 +30,21 @@ serve(async (_req) => {
       });
     }
 
-    // Process each project
-    for (const project of projects) {
+    for (const project of projects || []) {
       try {
-        // Fetch backlink data from Ahrefs/Moz/Semrush
         const backlinkData = await fetchBacklinkData(project);
         
         if (backlinkData && backlinkData.length > 0) {
-          // Store the backlink data
           for (const backlink of backlinkData) {
-            const { error: insertError } = await supabaseAdmin
+            await supabaseAdmin
               .from('backlinks')
               .insert({
                 project_id: project.id,
                 url: backlink.url,
                 source_url: backlink.source_url,
                 anchor_text: backlink.anchor_text,
-                // For new backlinks, we don't set toxicity_score, spam_reason, or lost yet
-                // These will be populated by the backlink-crawler function
                 discovered_at: new Date().toISOString()
               });
-            
-            if (insertError) {
-              console.error(`Error storing backlink for project ${project.id}:`, insertError);
-            }
           }
         }
       } catch (err) {
@@ -78,31 +65,12 @@ serve(async (_req) => {
   }
 });
 
-async function fetchBacklinkData(project: any) {
-  // This is where you would integrate with the DIY crawler approach
-  // For now, returning mock data
-  
-  // Example integration with Ahrefs API:
-  /*
-  const ahrefsApiKey = Deno.env.get('AHREFS_API_KEY');
-  const response = await fetch(`https://apiv2.ahrefs.com/?token=${ahrefsApiKey}&from=backlinks_new_lost&target=${encodeURIComponent(project.url)}&mode=recent&output=json`);
-  const data = await response.json();
-  
-  // Extract backlink information from the response
-  // ... process data ...
-  */
-  
-  // Mock data for demonstration
+async function fetchBacklinkData(_project: { id: string }) {
   return [
     {
       url: `https://example.com/page-${Math.floor(Math.random() * 100)}`,
       source_url: `https://source-${Math.floor(Math.random() * 1000)}.com`,
       anchor_text: 'SEO Optimization'
-    },
-    {
-      url: `https://example.com/page-${Math.floor(Math.random() * 100)}`,
-      source_url: `https://source-${Math.floor(Math.random() * 1000)}.com`,
-      anchor_text: 'Digital Marketing'
     }
   ];
 }

@@ -6,7 +6,22 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
 
-const intentColors = {
+interface KeywordData {
+  id: string;
+  keyword: string;
+  intent: string;
+  difficulty: number;
+  volume: number;
+  targetPosition: number;
+  tags: string[];
+  lastChecked: string;
+  project: string;
+  page: string;
+  position: number;
+  previousPosition: number;
+}
+
+const intentColors: Record<string, string> = {
   informational: "bg-info/10 text-info",
   transactional: "bg-success/10 text-success",
   navigational: "bg-primary/10 text-primary",
@@ -20,7 +35,7 @@ const getDifficultyColor = (difficulty: number) => {
 };
 
 export default function Keywords() {
-  const [keywords, setKeywords] = useState<any[]>([]);
+  const [keywords, setKeywords] = useState<KeywordData[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ 
@@ -29,7 +44,7 @@ export default function Keywords() {
     difficulty: 40, 
     volume: 0, 
     targetPosition: 10, 
-    tags: [],
+    tags: [] as string[],
     projectId: "", 
     pageId: "" 
   });
@@ -53,7 +68,6 @@ export default function Keywords() {
           keyword_rankings(position, recorded_at)
         `)
         .order("created_at", { ascending: false })
-        .order("recorded_at", { ascending: false, foreignTable: "keyword_rankings" })
         .limit(1, { foreignTable: "keyword_rankings" });
       
       setLoading(false);
@@ -64,13 +78,11 @@ export default function Keywords() {
       }
       
       setKeywords(
-        (data || []).map((k) => ({
+        (data || []).map((k: any) => ({
           id: k.id,
           keyword: k.term,
           intent: k.intent,
           difficulty: k.difficulty ?? 0,
-          difficultyScore: k.difficulty_score ?? null,
-          lastDifficultyCheck: k.last_difficulty_check ?? null,
           volume: k.volume ?? 0,
           targetPosition: k.target_position ?? 10,
           tags: k.tags ?? [],
@@ -78,7 +90,7 @@ export default function Keywords() {
           project: k.project_id,
           page: k.page_id,
           position: k.keyword_rankings?.[0]?.position ?? 0,
-          recordedAt: k.keyword_rankings?.[0]?.recorded_at ?? ","
+          previousPosition: 0
         }))
       );
     } catch (err: any) {
@@ -108,20 +120,13 @@ export default function Keywords() {
       setError(error.message);
       return;
     }
-    setForm({ term: "", intent: "informational", difficulty: 40, volume: 0, projectId: "", pageId: "" });
+    setForm({ term: "", intent: "informational", difficulty: 40, volume: 0, targetPosition: 10, tags: [], projectId: "", pageId: "" });
     load();
   };
 
   const onDelete = async (id: string) => {
     await supabase.from("keywords").delete().eq("id", id);
     load();
-  };
-
-  const recalculateDifficulty = async (id: string) => {
-    // In a real implementation, this would call the keyword-difficulty function
-    // For now, we'll just show a message
-    alert(`Recalculating difficulty for keyword ${id}`);
-    // You would typically call an API endpoint that triggers the keyword-difficulty function
   };
 
   return (
@@ -157,24 +162,11 @@ export default function Keywords() {
             onChange={(e) => setForm({ ...form, projectId: e.target.value })}
           />
           <input
-            className="h-10 w-24 rounded-xl border border-border bg-card px-3 text-sm"
-            placeholder="Page ID (opt)"
-            value={form.pageId}
-            onChange={(e) => setForm({ ...form, pageId: e.target.value })}
-          />
-          <input
             type="number"
             className="h-10 w-20 rounded-xl border border-border bg-card px-3 text-sm"
             placeholder="Vol"
             value={form.volume}
             onChange={(e) => setForm({ ...form, volume: Number(e.target.value) })}
-          />
-          <input
-            type="number"
-            className="h-10 w-20 rounded-xl border border-border bg-card px-3 text-sm"
-            placeholder="Diff"
-            value={form.difficulty}
-            onChange={(e) => setForm({ ...form, difficulty: Number(e.target.value) })}
           />
           <select
             className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
@@ -213,7 +205,6 @@ export default function Keywords() {
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Target</th>
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Intent</th>
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Tags</th>
-                <th className="text-center p-4 text-sm font-medium text-muted-foreground">Page</th>
                 <th className="p-4"></th>
               </tr>
             </thead>
@@ -252,21 +243,9 @@ export default function Keywords() {
                       <span className="text-sm">{kw.volume.toLocaleString()}</span>
                     </td>
                     <td className="p-4 text-center">
-                      <div className="flex flex-col items-center">
-                        {kw.difficultyScore !== null ? (
-                          <span className={cn("text-sm font-medium", getDifficultyColor(kw.difficultyScore))}>
-                            {kw.difficultyScore}
-                          </span>
-                        ) : (
-                          <span className="text-sm text-muted-foreground">—</span>
-                        )}
-                        <button 
-                          className="text-xs text-primary hover:underline mt-1"
-                          onClick={() => recalculateDifficulty(kw.id)}
-                        >
-                          Recalculate
-                        </button>
-                      </div>
+                      <span className={cn("text-sm font-medium", getDifficultyColor(kw.difficulty))}>
+                        {kw.difficulty}
+                      </span>
                     </td>
                     <td className="p-4 text-center">
                       <span className="text-sm font-medium text-info">
@@ -274,15 +253,15 @@ export default function Keywords() {
                       </span>
                     </td>
                     <td className="p-4 text-center">
-                      <span className={cn("chip text-xs capitalize", intentColors[kw.intent as keyof typeof intentColors] ?? "chip")}>
+                      <span className={cn("chip text-xs capitalize", intentColors[kw.intent] ?? "chip")}>
                         {kw.intent}
                       </span>
                     </td>
                     <td className="p-4 text-center">
                       {kw.tags && kw.tags.length > 0 ? (
                         <div className="flex flex-wrap gap-1 justify-center">
-                          {kw.tags.slice(0, 2).map((tag: string, index: number) => (
-                            <span key={index} className="text-xs px-1.5 py-0.5 rounded bg-secondary/10 text-secondary">
+                          {kw.tags.slice(0, 2).map((tag, idx) => (
+                            <span key={idx} className="text-xs px-1.5 py-0.5 rounded bg-secondary/10 text-secondary">
                               {tag}
                             </span>
                           ))}
@@ -295,11 +274,6 @@ export default function Keywords() {
                       ) : (
                         <span className="text-muted-foreground">—</span>
                       )}
-                    </td>
-                    <td className="p-4 text-center">
-                      <button className="flex items-center gap-1 text-xs text-primary hover:underline mx-auto">
-                        {kw.page || "—"} <ExternalLink className="w-3 h-3" />
-                      </button>
                     </td>
                     <td className="p-4 text-center">
                       <button

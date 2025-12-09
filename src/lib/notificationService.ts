@@ -162,7 +162,7 @@ export async function markNotificationAsRead(notificationId: string) {
  */
 export async function markAllNotificationsAsRead(userId: string) {
   try {
-    const { data, error } = await supabase
+    const { error, count } = await supabase
       .from('notifications')
       .update({ is_read: true })
       .eq('user_id', userId)
@@ -172,7 +172,7 @@ export async function markAllNotificationsAsRead(userId: string) {
       throw new Error(`Failed to mark all notifications as read: ${error.message}`);
     }
 
-    return { success: true, count: data?.length || 0 };
+    return { success: true, count: count || 0 };
   } catch (error) {
     console.error('Error marking all notifications as read:', error);
     throw error;
