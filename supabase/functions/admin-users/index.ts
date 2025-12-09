@@ -1,10 +1,9 @@
 // Supabase Edge Function for admin operations
-import { serve } from "std/http/server.ts";
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log("Admin operations function started");
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // Create a Supabase client with the service role key
   const supabaseAdmin = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -35,7 +34,7 @@ serve(async (req) => {
           // Apply filters for update operations
           if (filters) {
             Object.entries(filters).forEach(([key, value]) => {
-              query = query.eq(key, value);
+              query = query.eq(key, value as string);
             });
           }
           result = await query;
@@ -47,7 +46,7 @@ serve(async (req) => {
           // Apply filters for delete operations
           if (filters) {
             Object.entries(filters).forEach(([key, value]) => {
-              query = query.eq(key, value);
+              query = query.eq(key, value as string);
             });
           }
           result = await query;
@@ -59,7 +58,7 @@ serve(async (req) => {
           // Apply filters for select operations
           if (filters) {
             Object.entries(filters).forEach(([key, value]) => {
-              query = query.eq(key, value);
+              query = query.eq(key, value as string);
             });
           }
           result = await query;
@@ -83,15 +82,11 @@ serve(async (req) => {
       JSON.stringify({ data: result.data }),
       { headers: { 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       { headers: { 'Content-Type': 'application/json' }, status: 400 }
     );
   }
 });
-
-/* To deploy:
-1. Install Supabase CLI
-2. Run: supabase functions deploy admin-users
-*/

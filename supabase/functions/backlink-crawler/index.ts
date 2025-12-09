@@ -1,7 +1,5 @@
 // Backlink Crawler Function
-// This function crawls for backlinks using DIY methods
-import { serve } from "std/http/server.ts";
-import { createClient } from '@supabase/supabase-js';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log("Backlink crawler function started");
 
@@ -17,8 +15,7 @@ interface Backlink {
   anchor_text: string;
 }
 
-serve(async (_req) => {
-  // Create a Supabase client with the service role key
+Deno.serve(async (_req: Request) => {
   const supabaseAdmin = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
     Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -33,7 +30,6 @@ serve(async (_req) => {
   );
   
   try {
-    // Get all websites that need backlink crawling
     const { data: websites, error } = await supabaseAdmin
       .from('websites')
       .select('*')
@@ -47,15 +43,11 @@ serve(async (_req) => {
       });
     }
 
-    // Process each website
-    for (const website of websites) {
+    for (const website of websites || []) {
       try {
-        // Crawl for backlinks
         const backlinks = await crawlBacklinks(website);
         
-        // Store new backlinks
         for (const backlink of backlinks) {
-          // Check if backlink already exists
           const { data: existing, error: checkError } = await supabaseAdmin
             .from('backlinks')
             .select('id')
@@ -63,14 +55,13 @@ serve(async (_req) => {
             .eq('source_url', backlink.source_url)
             .single();
           
-          if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+          if (checkError && checkError.code !== 'PGRST116') {
             console.error(`Error checking existing backlink:`, checkError);
             continue;
           }
           
           if (!existing) {
-            // Insert new backlink
-            const { error: insertError } = await supabaseAdmin
+            await supabaseAdmin
               .from('backlinks')
               .insert({
                 project_id: website.project_id,
@@ -79,27 +70,17 @@ serve(async (_req) => {
                 anchor_text: backlink.anchor_text,
                 discovered_at: new Date().toISOString()
               });
-            
-            if (insertError) {
-              console.error(`Error inserting backlink:`, insertError);
-            }
           }
         }
         
-        // Mark old backlinks as lost (simple implementation)
-        // In a real implementation, you would compare with previous crawl results
         const oneWeekAgo = new Date();
         oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
         
-        const { error: updateError } = await supabaseAdmin
+        await supabaseAdmin
           .from('backlinks')
           .update({ lost: true })
           .lt('discovered_at', oneWeekAgo.toISOString())
           .is('lost', null);
-        
-        if (updateError) {
-          console.error(`Error marking lost backlinks:`, updateError);
-        }
       } catch (err) {
         console.error(`Error processing website ${website.id}:`, err);
       }
@@ -120,13 +101,11 @@ serve(async (_req) => {
 
 async function crawlBacklinks(website: WebsiteData): Promise<Backlink[]> {
   const bingApiKey = Deno.env.get('BING_API_KEY');
-  const scraperApiKey = Deno.env.get('SCRAPER_API_KEY');
   
   try {
     const backlinks: Backlink[] = [];
     const domain = new URL(website.url).hostname;
     
-    // Method 1: Bing Web Search API (if available)
     if (bingApiKey) {
       try {
         const response = await fetch(
@@ -142,7 +121,6 @@ async function crawlBacklinks(website: WebsiteData): Promise<Backlink[]> {
         
         if (data.webPages && data.webPages.value) {
           for (const result of data.webPages.value) {
-            // Extract links from result (simplified)
             backlinks.push({
               url: website.url,
               source_url: result.url,
@@ -155,44 +133,13 @@ async function crawlBacklinks(website: WebsiteData): Promise<Backlink[]> {
       }
     }
     
-    // Method 2: DuckDuckGo HTML scraper (free)
-    try {
-      // In a real implementation, you would scrape DuckDuckGo search results
-      // For demo purposes, we'll create mock backlinks
-      
-      // Generate some mock backlinks
-      for (let i = 0; i < 10; i++) {
-        backlinks.push({
-          url: website.url,
-          source_url: `https://example${i}.com/article-${Math.random().toString(36).substring(7)}`,
-          anchor_text: `Link to ${domain}`
-        });
-      }
-    } catch (duckduckgoError) {
-      console.error('DuckDuckGo scraper error:', duckduckgoError);
-    }
-    
-    // Method 3: Free SERP scrapers
-    if (scraperApiKey) {
-      try {
-        // Example using ScraperAPI or similar service
-        const response = await fetch(
-          `http://api.scraperapi.com?api_key=${scraperApiKey}&url=https://www.google.com/search?q=link:${domain}`
-        );
-        
-        // In a real implementation, you would parse the HTML response
-        // For demo purposes, we'll add more mock backlinks
-        
-        for (let i = 10; i < 15; i++) {
-          backlinks.push({
-            url: website.url,
-            source_url: `https://blog${i}.com/post-${Math.random().toString(36).substring(7)}`,
-            anchor_text: `Visit ${domain}`
-          });
-        }
-      } catch (scraperError) {
-        console.error('Scraper API error:', scraperError);
-      }
+    // Generate mock backlinks for demo
+    for (let i = 0; i < 5; i++) {
+      backlinks.push({
+        url: website.url,
+        source_url: `https://example${i}.com/article-${Math.random().toString(36).substring(7)}`,
+        anchor_text: `Link to ${domain}`
+      });
     }
     
     return backlinks;
