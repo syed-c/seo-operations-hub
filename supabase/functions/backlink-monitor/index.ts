@@ -1,5 +1,5 @@
 // Backlink Monitor Function
-// This function integrates with Ahrefs / Moz / Semrush to monitor backlinks
+// This function monitors backlinks using the DIY crawler approach
 import { serve } from "std/http/server.ts";
 import { createClient } from '@supabase/supabase-js';
 
@@ -50,9 +50,9 @@ serve(async (_req) => {
                 url: backlink.url,
                 source_url: backlink.source_url,
                 anchor_text: backlink.anchor_text,
-                domain_authority: backlink.domain_authority,
-                spam_score: backlink.spam_score,
-                link_type: backlink.link_type
+                // For new backlinks, we don't set toxicity_score, spam_reason, or lost yet
+                // These will be populated by the backlink-crawler function
+                discovered_at: new Date().toISOString()
               });
             
             if (insertError) {
@@ -79,7 +79,7 @@ serve(async (_req) => {
 });
 
 async function fetchBacklinkData(project: any) {
-  // This is where you would integrate with Ahrefs/Moz/Semrush
+  // This is where you would integrate with the DIY crawler approach
   // For now, returning mock data
   
   // Example integration with Ahrefs API:
@@ -97,18 +97,12 @@ async function fetchBacklinkData(project: any) {
     {
       url: `https://example.com/page-${Math.floor(Math.random() * 100)}`,
       source_url: `https://source-${Math.floor(Math.random() * 1000)}.com`,
-      anchor_text: 'SEO Optimization',
-      domain_authority: Math.floor(Math.random() * 100),
-      spam_score: Math.floor(Math.random() * 100),
-      link_type: Math.random() > 0.5 ? 'dofollow' : 'nofollow'
+      anchor_text: 'SEO Optimization'
     },
     {
       url: `https://example.com/page-${Math.floor(Math.random() * 100)}`,
       source_url: `https://source-${Math.floor(Math.random() * 1000)}.com`,
-      anchor_text: 'Digital Marketing',
-      domain_authority: Math.floor(Math.random() * 100),
-      spam_score: Math.floor(Math.random() * 100),
-      link_type: Math.random() > 0.5 ? 'dofollow' : 'nofollow'
+      anchor_text: 'Digital Marketing'
     }
   ];
 }

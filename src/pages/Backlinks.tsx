@@ -11,9 +11,6 @@ interface Backlink {
   url: string;
   source_url: string;
   anchor_text?: string;
-  domain_authority?: number;
-  spam_score?: number;
-  link_type?: string;
   toxicity_score?: number;
   spam_reason?: string;
   discovered_at: string;
@@ -34,7 +31,7 @@ export default function Backlinks() {
     try {
       const { data, error } = await supabase
         .from("backlinks")
-        .select("id, url, source_url, anchor_text, domain_authority, spam_score, link_type, toxicity_score, spam_reason, discovered_at, lost, created_at")
+        .select("id, url, source_url, anchor_text, toxicity_score, spam_reason, discovered_at, lost, created_at")
         .order("discovered_at", { ascending: false });
       
       setLoading(false);
@@ -62,10 +59,10 @@ export default function Backlinks() {
   const onCreate = async () => {
     if (!domain) return;
     const { error } = await supabase.from("backlinks").insert({
-      domain,
+      url: domain,
       anchor_text: anchorText || null,
-      status,
-      strength: "DA50",
+      // For new backlinks, we don't set toxicity_score, spam_reason, or lost yet
+      // These will be populated by the backlink-crawler function
     });
     if (error) {
       setError(error.message);
