@@ -50,11 +50,11 @@ export default function Keywords() {
           last_checked,
           project_id, 
           page_id, 
-keyword_rankings(keyword_id,position,recorded_at)
+keyword_rankings!keyword_id(position, recorded_at)
         `)
         .order("created_at", { ascending: false })
-        .order("recorded_at", { ascending: false, foreignTable: "keyword_rankings" })
-        .limit(1, { foreignTable: "keyword_rankings" });
+        .order("recorded_at", { ascending: false, foreignTable: "keyword_rankings!keyword_id" })
+        .limit(1, { foreignTable: "keyword_rankings!keyword_id" });
       
       setLoading(false);
       
