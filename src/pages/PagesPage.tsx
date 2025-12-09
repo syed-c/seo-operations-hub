@@ -5,13 +5,22 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { FileText, TrendingUp, Bug, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import { AuditResults } from "@/components/seo/AuditResults";
 
 interface Page {
   id: string;
   url: string;
-  ranking_position?: number;
+  title?: string;
+  content?: string;
+  word_count?: number;
   content_score?: number;
-  technical_score?: number;
+  cwv_lcp?: number;
+  cwv_cls?: number;
+  cwv_fid?: number;
+  performance_score?: number;
+  seo_score?: number;
+  accessibility_score?: number;
+  last_audited?: string;
   website_id?: string;
   created_at: string;
 }
@@ -28,7 +37,7 @@ export default function PagesPage() {
     try {
       const { data, error } = await supabase
         .from("pages")
-        .select("id, url, ranking_position, content_score, technical_score, website_id, created_at")
+        .select("id, url, title, content, word_count, content_score, cwv_lcp, cwv_cls, cwv_fid, performance_score, seo_score, accessibility_score, last_audited, website_id, created_at")
         .order("created_at", { ascending: false });
       
       setLoading(false);
@@ -38,7 +47,11 @@ export default function PagesPage() {
         return;
       }
       
-      setPages(data || []);
+      const transformedData = (data || []).map(page => ({
+        ...page,
+        content: page.content ? page.content.substring(0, 100) + '...' : ''
+      }));
+      setPages(transformedData);
     } catch (err: any) {
       setLoading(false);
       setError(err.message || "Failed to load pages");
@@ -55,7 +68,9 @@ export default function PagesPage() {
       url,
       website_id: websiteId || null,
       content_score: 0,
-      technical_score: 0,
+      performance_score: 0,
+      seo_score: 0,
+      accessibility_score: 0,
     });
     if (error) {
       setError(error.message);
@@ -124,14 +139,44 @@ export default function PagesPage() {
                 {page.ranking_position ? `Ranking #${page.ranking_position}` : "No ranking data"}
               </p>
             </CardHeader>
-            <CardContent className="flex items-center justify-between text-sm">
-              <div className="flex items-center gap-2 text-success">
-                <TrendingUp className="w-4 h-4" />
-                Content {page.content_score ? `${page.content_score}%` : "0%"}
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex items-center gap-2 text-success">
+                  <TrendingUp className="w-4 h-4" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Content</div>
+                    <div className="font-medium">{page.content_score ? `${page.content_score}%` : "0%"}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-warning">
+                  <Bug className="w-4 h-4" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Performance</div>
+                    <div className="font-medium">{page.performance_score ? `${page.performance_score}%` : "0%"}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-info">
+                  <FileText className="w-4 h-4" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">SEO</div>
+                    <div className="font-medium">{page.seo_score ? `${page.seo_score}%` : "0%"}</div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 text-primary">
+                  <FileText className="w-4 h-4" />
+                  <div>
+                    <div className="text-sm text-muted-foreground">Accessibility</div>
+                    <div className="font-medium">{page.accessibility_score ? `${page.accessibility_score}%` : "0%"}</div>
+                  </div>
+                </div>
+                <div className="col-span-2 text-xs text-muted-foreground">
+                  Last audited: {page.last_audited ? new Date(page.last_audited).toLocaleDateString() : 'Never'}
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-warning">
-                <Bug className="w-4 h-4" />
-                Tech {page.technical_score ? `${page.technical_score}%` : "0%"}
+              
+              {/* Audit Results */}
+              <div className="pt-4 border-t border-border">
+                <AuditResults entityId={page.id} entityType="page" />
               </div>
             </CardContent>
           </Card>

@@ -1,9 +1,33 @@
+import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import { User, Bell, Shield, Palette, Globe, Key, Database, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import {
+  Form,
+  FormControl,
+  FormDescription,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+
+// Define the form schema with Zod
+const profileFormSchema = z.object({
+  firstName: z.string().min(1, "First name is required"),
+  lastName: z.string().min(1, "Last name is required"),
+  email: z.string().email("Please enter a valid email address"),
+  role: z.string(),
+});
+
+type ProfileFormValues = z.infer<typeof profileFormSchema>;
 
 const settingsSections = [
   {
@@ -57,6 +81,24 @@ const settingsSections = [
 ];
 
 export default function Settings() {
+  const [activeSection, setActiveSection] = useState("profile");
+
+  // Initialize the form with react-hook-form
+  const form = useForm<ProfileFormValues>({
+    resolver: zodResolver(profileFormSchema),
+    defaultValues: {
+      firstName: "John",
+      lastName: "Doe",
+      email: "john.doe@company.com",
+      role: "SEO Lead",
+    },
+  });
+
+  function onSubmit(data: ProfileFormValues) {
+    console.log("Form submitted:", data);
+    // Here you would typically send the data to your backend
+  }
+
   return (
     <MainLayout>
       <Header title="Settings" subtitle="Manage your account and application preferences" />
@@ -69,15 +111,16 @@ export default function Settings() {
               {settingsSections.map((section, index) => (
                 <button
                   key={section.id}
+                  onClick={() => setActiveSection(section.id)}
                   className={cn(
                     "w-full flex items-center gap-3 p-3 rounded-xl text-left transition-all hover:bg-muted",
-                    index === 0 && "bg-primary/10 text-primary"
+                    activeSection === section.id && "bg-primary/10 text-primary"
                   )}
                 >
                   <div
                     className={cn(
                       "w-9 h-9 rounded-lg flex items-center justify-center",
-                      index === 0 ? "bg-primary/20" : "bg-muted"
+                      activeSection === section.id ? "bg-primary/20" : "bg-muted"
                     )}
                   >
                     <section.icon className="w-4.5 h-4.5" />
@@ -97,43 +140,66 @@ export default function Settings() {
           {/* Profile Section */}
           <div className="glass-card p-6 animate-slide-up" style={{ animationDelay: "50ms" }}>
             <h3 className="font-semibold mb-6">Profile Information</h3>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">First Name</label>
-                  <input
-                    type="text"
-                    defaultValue="John"
-                    className="w-full h-10 px-4 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="firstName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>First Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="lastName"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Last Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
                 </div>
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Last Name</label>
-                  <input
-                    type="text"
-                    defaultValue="Doe"
-                    className="w-full h-10 px-4 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  />
-                </div>
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Email</label>
-                <input
-                  type="email"
-                  defaultValue="john.doe@company.com"
-                  className="w-full h-10 px-4 rounded-xl bg-muted border border-border text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                <FormField
+                  control={form.control}
+                  name="email"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Email</FormLabel>
+                      <FormControl>
+                        <Input type="email" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-              <div>
-                <label className="text-sm font-medium mb-2 block">Role</label>
-                <input
-                  type="text"
-                  defaultValue="SEO Lead"
-                  disabled
-                  className="w-full h-10 px-4 rounded-xl bg-muted/50 border border-border text-sm text-muted-foreground"
+                <FormField
+                  control={form.control}
+                  name="role"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Role</FormLabel>
+                      <FormControl>
+                        <Input {...field} disabled />
+                      </FormControl>
+                      <FormDescription>Your role in the organization</FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
                 />
-              </div>
-            </div>
+                <Button type="submit">Save Changes</Button>
+              </form>
+            </Form>
           </div>
 
           {/* Notification Preferences */}
@@ -160,7 +226,7 @@ export default function Settings() {
 
           <div className="flex justify-end gap-3">
             <Button variant="outline" className="rounded-xl">Cancel</Button>
-            <Button className="rounded-xl">Save Changes</Button>
+            <Button className="rounded-xl">Save All Changes</Button>
           </div>
         </div>
       </div>

@@ -23,14 +23,35 @@ export default function Keywords() {
   const [keywords, setKeywords] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ term: "", intent: "informational", difficulty: 40, volume: 0, projectId: "", pageId: "" });
+  const [form, setForm] = useState({ 
+    term: "", 
+    intent: "informational", 
+    difficulty: 40, 
+    volume: 0, 
+    targetPosition: 10, 
+    tags: [],
+    projectId: "", 
+    pageId: "" 
+  });
 
   const load = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("keywords")
-        .select("id, term, intent, difficulty, volume, project_id, page_id, keyword_rankings(position, recorded_at)")
+        .select(`
+          id, 
+          term, 
+          intent, 
+          difficulty, 
+          volume, 
+          target_position,
+          tags,
+          last_checked,
+          project_id, 
+          page_id, 
+          keyword_rankings(position, recorded_at)
+        `)
         .order("created_at", { ascending: false })
         .order("recorded_at", { ascending: false, foreignTable: "keyword_rankings" })
         .limit(1, { foreignTable: "keyword_rankings" });
@@ -48,11 +69,16 @@ export default function Keywords() {
           keyword: k.term,
           intent: k.intent,
           difficulty: k.difficulty ?? 0,
+          difficultyScore: k.difficulty_score ?? null,
+          lastDifficultyCheck: k.last_difficulty_check ?? null,
           volume: k.volume ?? 0,
+          targetPosition: k.target_position ?? 10,
+          tags: k.tags ?? [],
+          lastChecked: k.last_checked ?? "",
           project: k.project_id,
           page: k.page_id,
           position: k.keyword_rankings?.[0]?.position ?? 0,
-          recordedAt: k.keyword_rankings?.[0]?.recorded_at ?? "",
+          recordedAt: k.keyword_rankings?.[0]?.recorded_at ?? ","
         }))
       );
     } catch (err: any) {
@@ -72,6 +98,9 @@ export default function Keywords() {
       intent: form.intent,
       difficulty: form.difficulty,
       volume: form.volume,
+      target_position: form.targetPosition,
+      tags: form.tags,
+      last_checked: new Date().toISOString(),
       project_id: form.projectId,
       page_id: form.pageId || null,
     });
@@ -86,6 +115,13 @@ export default function Keywords() {
   const onDelete = async (id: string) => {
     await supabase.from("keywords").delete().eq("id", id);
     load();
+  };
+
+  const recalculateDifficulty = async (id: string) => {
+    // In a real implementation, this would call the keyword-difficulty function
+    // For now, we'll just show a message
+    alert(`Recalculating difficulty for keyword ${id}`);
+    // You would typically call an API endpoint that triggers the keyword-difficulty function
   };
 
   return (
@@ -174,7 +210,9 @@ export default function Keywords() {
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Position</th>
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Volume</th>
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Difficulty</th>
+                <th className="text-center p-4 text-sm font-medium text-muted-foreground">Target</th>
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Intent</th>
+                <th className="text-center p-4 text-sm font-medium text-muted-foreground">Tags</th>
                 <th className="text-center p-4 text-sm font-medium text-muted-foreground">Page</th>
                 <th className="p-4"></th>
               </tr>
@@ -214,14 +252,49 @@ export default function Keywords() {
                       <span className="text-sm">{kw.volume.toLocaleString()}</span>
                     </td>
                     <td className="p-4 text-center">
-                      <span className={cn("text-sm font-medium", getDifficultyColor(kw.difficulty))}>
-                        {kw.difficulty}
+                      <div className="flex flex-col items-center">
+                        {kw.difficultyScore !== null ? (
+                          <span className={cn("text-sm font-medium", getDifficultyColor(kw.difficultyScore))}>
+                            {kw.difficultyScore}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-muted-foreground">—</span>
+                        )}
+                        <button 
+                          className="text-xs text-primary hover:underline mt-1"
+                          onClick={() => recalculateDifficulty(kw.id)}
+                        >
+                          Recalculate
+                        </button>
+                      </div>
+                    </td>
+                    <td className="p-4 text-center">
+                      <span className="text-sm font-medium text-info">
+                        {kw.targetPosition ? `#${kw.targetPosition}` : "—"}
                       </span>
                     </td>
                     <td className="p-4 text-center">
                       <span className={cn("chip text-xs capitalize", intentColors[kw.intent as keyof typeof intentColors] ?? "chip")}>
                         {kw.intent}
                       </span>
+                    </td>
+                    <td className="p-4 text-center">
+                      {kw.tags && kw.tags.length > 0 ? (
+                        <div className="flex flex-wrap gap-1 justify-center">
+                          {kw.tags.slice(0, 2).map((tag: string, index: number) => (
+                            <span key={index} className="text-xs px-1.5 py-0.5 rounded bg-secondary/10 text-secondary">
+                              {tag}
+                            </span>
+                          ))}
+                          {kw.tags.length > 2 && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                              +{kw.tags.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <span className="text-muted-foreground">—</span>
+                      )}
                     </td>
                     <td className="p-4 text-center">
                       <button className="flex items-center gap-1 text-xs text-primary hover:underline mx-auto">
