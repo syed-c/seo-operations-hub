@@ -19,12 +19,11 @@ interface Backlink {
 }
 
 export default function Backlinks() {
-  const [backlinks, setBacklinks] = useState<Backlink[]>([]);
+  const [backlinks, setBacklinks] = useState<(Backlink & { domain: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [domain, setDomain] = useState("");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [anchorText, setAnchorText] = useState("");
-  const [status, setStatus] = useState("new");
 
   const loadBacklinks = async () => {
     setLoading(true);
@@ -41,10 +40,18 @@ export default function Backlinks() {
         return;
       }
       
-      const transformedData = (data || []).map(link => ({
-        ...link,
-        domain: new URL(link.source_url).hostname
-      }));
+      const transformedData = (data || []).map(link => {
+        let domain = '';
+        try {
+          domain = new URL(link.source_url).hostname;
+        } catch {
+          domain = link.source_url || '';
+        }
+        return {
+          ...link,
+          domain
+        };
+      });
       setBacklinks(transformedData);
     } catch (err: any) {
       setLoading(false);
@@ -57,20 +64,19 @@ export default function Backlinks() {
   }, []);
 
   const onCreate = async () => {
-    if (!domain) return;
+    if (!sourceUrl) return;
     const { error } = await supabase.from("backlinks").insert({
-      url: domain,
+      url: sourceUrl,
+      source_url: sourceUrl,
       anchor_text: anchorText || null,
-      // For new backlinks, we don't set toxicity_score, spam_reason, or lost yet
-      // These will be populated by the backlink-crawler function
+      discovered_at: new Date().toISOString()
     });
     if (error) {
       setError(error.message);
       return;
     }
-    setDomain("");
+    setSourceUrl("");
     setAnchorText("");
-    setStatus("new");
     loadBacklinks();
   };
 
@@ -89,10 +95,10 @@ export default function Backlinks() {
       
       <div className="flex items-center gap-3 mb-6">
         <input
-          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          placeholder="Domain"
-          value={domain}
-          onChange={(e) => setDomain(e.target.value)}
+          className="h-10 rounded-xl border border-border bg-card px-3 text-sm flex-1 max-w-xs"
+          placeholder="Source URL"
+          value={sourceUrl}
+          onChange={(e) => setSourceUrl(e.target.value)}
         />
         <input
           className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
@@ -100,15 +106,6 @@ export default function Backlinks() {
           value={anchorText}
           onChange={(e) => setAnchorText(e.target.value)}
         />
-        <select
-          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          value={status}
-          onChange={(e) => setStatus(e.target.value)}
-        >
-          <option value="new">New</option>
-          <option value="lost">Lost</option>
-          <option value="toxic">Toxic</option>
-        </select>
         <Button className="gap-2 rounded-xl" onClick={onCreate}>
           <Plus className="w-4 h-4" />
           Add Backlink
@@ -128,7 +125,7 @@ export default function Backlinks() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Link2 className="w-4 h-4 text-primary" />
-                  <CardTitle className="text-sm">{link.domain}</CardTitle>
+                  <CardTitle className="text-sm truncate">{link.domain}</CardTitle>
                 </div>
                 <button
                   className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
@@ -153,7 +150,7 @@ export default function Backlinks() {
                   <TrendingUp className="w-4 h-4 text-success" />
                 )}
                 {link.toxicity_score !== undefined && (
-                  <span className="font-semibold text-foreground">Toxic: {link.toxicity_score}</span>
+                  <span className="font-semibold text-foreground">Score: {link.toxicity_score}</span>
                 )}
               </div>
             </CardContent>

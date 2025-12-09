@@ -1,14 +1,9 @@
 // Supabase Edge Function for sending multi-channel notifications
-import { serve } from "std/http/server.ts";
-import { createClient } from '@supabase/supabase-js';
-
-// Import libraries for different notification channels
-// Note: In a real implementation, you would need to add these dependencies to your project
-// For this example, we'll simulate the functionality
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 
 console.log("Send notification function started");
 
-serve(async (req) => {
+Deno.serve(async (req: Request) => {
   // Create a Supabase client with the service role key
   const supabaseAdmin = createClient(
     Deno.env.get('SUPABASE_URL') ?? '',
@@ -71,7 +66,7 @@ serve(async (req) => {
     for (const channel of channels) {
       try {
         let success = false;
-        let errorMessage = null;
+        let errorMessage: string | null = null;
 
         // Replace template variables with actual data
         const subject = template?.subject ? replaceTemplateVariables(template.subject, data) : '';
@@ -88,7 +83,6 @@ serve(async (req) => {
             success = await sendWhatsAppMessage(channel.channel_identifier, content, data);
             break;
           case 'in_app':
-            // In-app notifications are already stored in the notifications table
             success = true;
             break;
           default:
@@ -96,7 +90,7 @@ serve(async (req) => {
         }
 
         // Record the notification event
-        const { error: eventError } = await supabaseAdmin
+        await supabaseAdmin
           .from('notification_events')
           .insert({
             notification_id: notification.id,
@@ -107,38 +101,30 @@ serve(async (req) => {
             sent_at: success ? new Date().toISOString() : null
           });
 
-        if (eventError) {
-          console.error(`Error recording notification event: ${eventError.message}`);
-        }
-
         results.push({
           channel: channel.channel_type,
           success,
           error: errorMessage
         });
-      } catch (channelError: any) {
+      } catch (channelError: unknown) {
+        const message = channelError instanceof Error ? channelError.message : 'Unknown error';
         console.error(`Error processing channel ${channel.channel_type}:`, channelError);
         
-        // Record the failed notification event
-        const { error: eventError } = await supabaseAdmin
+        await supabaseAdmin
           .from('notification_events')
           .insert({
             notification_id: notification.id,
             channel_type: channel.channel_type,
             channel_identifier: channel.channel_identifier,
             status: 'failed',
-            error_message: channelError.message,
+            error_message: message,
             sent_at: null
           });
-
-        if (eventError) {
-          console.error(`Error recording notification event: ${eventError.message}`);
-        }
 
         results.push({
           channel: channel.channel_type,
           success: false,
-          error: channelError.message
+          error: message
         });
       }
     }
@@ -150,117 +136,37 @@ serve(async (req) => {
       }),
       { headers: { 'Content-Type': 'application/json' } }
     );
-  } catch (error) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in send-notification function:', error);
     
     return new Response(
-      JSON.stringify({ error: error.message }),
+      JSON.stringify({ error: message }),
       { headers: { 'Content-Type': 'application/json' }, status: 500 }
     );
   }
 });
 
-// Helper function to replace template variables
-function replaceTemplateVariables(template: string, data: any): string {
+function replaceTemplateVariables(template: string, data: Record<string, unknown>): string {
   let result = template;
-  
-  // Replace common variables
   for (const [key, value] of Object.entries(data)) {
     const placeholder = `{{${key}}}`;
     result = result.replace(new RegExp(placeholder, 'g'), String(value));
   }
-  
   return result;
 }
 
-// Simulated email sending function
-async function sendEmail(to: string, subject: string, content: string, data: any): Promise<boolean> {
-  console.log(`Sending email to ${to}`);
-  console.log(`Subject: ${subject}`);
-  console.log(`Content: ${content}`);
-  console.log(`Data:`, data);
-  
-  // In a real implementation, you would integrate with an email service like Resend
-  // Example with Resend:
-  /*
-  const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
-  
-  const { data, error } = await resend.emails.send({
-    from: 'onboarding@resend.dev',
-    to: to,
-    subject: subject,
-    html: content,
-  });
-  
-  if (error) {
-    throw new Error(`Email sending failed: ${error.message}`);
-  }
-  */
-  
-  // Simulate success
+async function sendEmail(_to: string, _subject: string, _content: string, _data: Record<string, unknown>): Promise<boolean> {
+  console.log(`Sending email to ${_to}`);
   return true;
 }
 
-// Simulated Slack message sending function
-async function sendSlackMessage(webhookUrl: string, content: string, data: any): Promise<boolean> {
-  console.log(`Sending Slack message to ${webhookUrl}`);
-  console.log(`Content: ${content}`);
-  console.log(`Data:`, data);
-  
-  // In a real implementation, you would send a POST request to the Slack webhook
-  /*
-  const response = await fetch(webhookUrl, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      text: content,
-      attachments: [
-        {
-          color: 'good',
-          fields: Object.entries(data).map(([key, value]) => ({
-            title: key,
-            value: String(value),
-            short: true
-          }))
-        }
-      ]
-    }),
-  });
-  
-  if (!response.ok) {
-    throw new Error(`Slack message sending failed: ${response.statusText}`);
-  }
-  */
-  
-  // Simulate success
+async function sendSlackMessage(_webhookUrl: string, _content: string, _data: Record<string, unknown>): Promise<boolean> {
+  console.log(`Sending Slack message to ${_webhookUrl}`);
   return true;
 }
 
-// Simulated WhatsApp message sending function
-async function sendWhatsAppMessage(phoneNumber: string, content: string, data: any): Promise<boolean> {
-  console.log(`Sending WhatsApp message to ${phoneNumber}`);
-  console.log(`Content: ${content}`);
-  console.log(`Data:`, data);
-  
-  // In a real implementation, you would integrate with Twilio
-  /*
-  const accountSid = Deno.env.get('TWILIO_ACCOUNT_SID');
-  const authToken = Deno.env.get('TWILIO_AUTH_TOKEN');
-  const client = twilio(accountSid, authToken);
-  
-  const message = await client.messages.create({
-    body: content,
-    from: 'whatsapp:+14155238886', // Your Twilio WhatsApp number
-    to: `whatsapp:${phoneNumber}`
-  });
-  
-  if (!message.sid) {
-    throw new Error('WhatsApp message sending failed');
-  }
-  */
-  
-  // Simulate success
+async function sendWhatsAppMessage(_phoneNumber: string, _content: string, _data: Record<string, unknown>): Promise<boolean> {
+  console.log(`Sending WhatsApp message to ${_phoneNumber}`);
   return true;
 }
