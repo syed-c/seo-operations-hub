@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Plus, Trash2, Edit3 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
+import { callAdminFunction } from "@/lib/adminApiClient";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -135,10 +136,8 @@ export default function Team() {
     }
 
     try {
-      // For security, we should use the admin Edge Function for user creation
-      // But for now, let's use the regular Supabase client and handle RLS properly
-      // First, create the user in the users table
-      const { error: userError } = await supabase.from("users").insert({
+      // Create user in users table using admin API client
+      const { error: userError } = await callAdminFunction('create', 'users', {
         email,
         first_name: firstName || null,
         last_name: lastName || null,
@@ -195,8 +194,8 @@ export default function Team() {
 
   const onDelete = async (id: string) => {
     try {
-      // Delete from users table
-      const { error: userError } = await supabase.from("users").delete().eq("id", id);
+      // Delete from users table using admin API client
+      const { error: userError } = await callAdminFunction('delete', 'users', undefined, { id });
       
       if (userError) {
         toast({
