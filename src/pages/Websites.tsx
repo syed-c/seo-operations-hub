@@ -5,13 +5,16 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Globe, Shield, Activity, Plus, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 
 interface Website {
   id: string;
-  domain: string;
-  pages_count?: number;
-  health_score?: number;
+  name: string;
+  url: string;
+  project_id?: string;
+  is_verified?: boolean;
   status?: string;
+  health_score?: number;
   created_at: string;
 }
 
@@ -19,14 +22,15 @@ export default function Websites() {
   const [websites, setWebsites] = useState<Website[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [domain, setDomain] = useState("");
+  const [name, setName] = useState("");
+  const [url, setUrl] = useState("");
 
   const loadWebsites = async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
         .from("websites")
-        .select("id, domain, pages_count, health_score, status, created_at")
+        .select("id, name, url, project_id, is_verified, status, health_score, created_at")
         .order("created_at", { ascending: false });
       
       setLoading(false);
@@ -48,28 +52,61 @@ export default function Websites() {
   }, []);
 
   const onCreate = async () => {
-    if (!domain) return;
+    if (!name || !url) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter both name and URL",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Ensure URL has protocol
+    const formattedUrl = url.startsWith('http') ? url : `https://${url}`;
+
     const { error } = await supabase.from("websites").insert({
-      domain,
-      url: `https://${domain}`,
+      name,
+      url: formattedUrl,
       status: "pending",
       health_score: 0,
-      pages_count: 0,
+      is_verified: false,
     });
+    
     if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
       setError(error.message);
       return;
     }
-    setDomain("");
+    
+    toast({
+      title: "Success",
+      description: "Website added successfully!",
+    });
+    
+    setName("");
+    setUrl("");
     loadWebsites();
   };
 
   const onDelete = async (id: string) => {
     const { error } = await supabase.from("websites").delete().eq("id", id);
     if (error) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive"
+      });
       setError(error.message);
       return;
     }
+    toast({
+      title: "Deleted",
+      description: "Website removed successfully",
+    });
     loadWebsites();
   };
 
@@ -80,9 +117,15 @@ export default function Websites() {
       <div className="flex items-center gap-3 mb-6">
         <input
           className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          placeholder="Website domain (e.g., example.com)"
-          value={domain}
-          onChange={(e) => setDomain(e.target.value)}
+          placeholder="Website name (e.g., My Company)"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+        />
+        <input
+          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+          placeholder="URL (e.g., example.com)"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
         />
         <Button className="gap-2 rounded-xl" onClick={onCreate}>
           <Plus className="w-4 h-4" />
@@ -103,7 +146,7 @@ export default function Websites() {
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <Globe className="w-5 h-5 text-primary" />
-                  <CardTitle>{site.domain}</CardTitle>
+                  <CardTitle>{site.name || site.url}</CardTitle>
                 </div>
                 <button
                   className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
@@ -112,8 +155,8 @@ export default function Websites() {
                   <Trash2 className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
-              <p className="text-sm text-muted-foreground">
-                {site.pages_count ? `${site.pages_count} pages indexed` : "No pages indexed"}
+              <p className="text-sm text-muted-foreground truncate">
+                {site.url}
               </p>
             </CardHeader>
             <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
@@ -125,7 +168,7 @@ export default function Websites() {
               </div>
               <div className="flex items-center gap-2">
                 <Activity className="w-4 h-4 text-primary" />
-                Status: <span className="font-semibold text-foreground capitalize">{site.status || "unknown"}</span>
+                Status: <span className="font-semibold text-foreground capitalize">{site.status || "pending"}</span>
               </div>
             </CardContent>
           </Card>
