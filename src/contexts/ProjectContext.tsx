@@ -35,7 +35,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Fetch websites as projects since we're unifying the concepts
       const { data, error } = await supabase
         .from("websites")
-        .select("id, domain:name, client:url, status, health_score, created_at")
+        .select("id, domain, url, status, health_score, created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw new Error(error.message);
@@ -43,8 +43,8 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       // Transform websites data to match Project interface
       const transformedProjects = (data || []).map(website => ({
         id: website.id,
-        name: website.name,
-        client: website.url,
+        name: website.domain || "Unnamed Project",
+        client: website.url || "",
         status: website.status || "active",
         health_score: website.health_score,
         created_at: website.created_at
