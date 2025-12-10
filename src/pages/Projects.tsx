@@ -32,13 +32,13 @@ export default function Projects() {
   const [health, setHealth] = useState(70);
   const [status, setStatus] = useState("active");
 
-  // Fetch projects with React Query
+  // Fetch projects (websites) with React Query
   const { data: projects = [], isLoading, error } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("projects")
-        .select("id, name, client, status, health_score, created_at")
+        .from("websites") // Fetch websites as projects
+        .select("id, domain:name, url:client, status, health_score, created_at")
         .order("created_at", { ascending: false });
       
       if (error) throw new Error(error.message);
@@ -46,10 +46,15 @@ export default function Projects() {
     }
   });
 
-  // Mutation for creating a project
+  // Mutation for creating a project (website)
   const createProjectMutation = useMutation({
     mutationFn: async (newProject: Partial<ProjectRecord>) => {
-      const { error } = await supabase.from("projects").insert(newProject);
+      const { error } = await supabase.from("websites").insert({
+        domain: newProject.name,
+        url: newProject.client || `https://${newProject.name}`,
+        status: newProject.status,
+        health_score: newProject.health_score,
+      });
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -62,10 +67,10 @@ export default function Projects() {
     }
   });
 
-  // Mutation for deleting a project
+  // Mutation for deleting a project (website)
   const deleteProjectMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("projects").delete().eq("id", id);
+      const { error } = await supabase.from("websites").delete().eq("id", id);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -73,16 +78,16 @@ export default function Projects() {
     }
   });
 
-  // Mutation for updating a project
+  // Mutation for updating a project (website)
   const updateProjectMutation = useMutation({
     mutationFn: async (updatedProject: ProjectRecord) => {
       const { error } = await supabase
-        .from("projects")
+        .from("websites")
         .update({ 
+          domain: updatedProject.name,
+          url: updatedProject.client,
           status: updatedProject.status, 
           health_score: updatedProject.health_score, 
-          client: updatedProject.client, 
-          name: updatedProject.name 
         })
         .eq("id", updatedProject.id);
       if (error) throw new Error(error.message);
@@ -96,7 +101,7 @@ export default function Projects() {
     if (!name) return;
     createProjectMutation.mutate({
       name,
-      client,
+      client: client || `https://${name}`,
       status,
       health_score: health,
     });
@@ -107,14 +112,18 @@ export default function Projects() {
   };
 
   const onUpdate = (project: ProjectRecord) => {
-    updateProjectMutation.mutate(project);
+    updateProjectMutation.mutate({
+      ...project,
+      name: project.name,
+      client: project.client,
+    });
   };
 
   const filtered = useMemo(() => projects, [projects]);
 
   return (
     <MainLayout>
-      <Header title="Projects" subtitle="Manage all your SEO projects in one place" />
+      <Header title="Projects" subtitle="Manage all your SEO projects (websites)" />
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -140,7 +149,7 @@ export default function Projects() {
           />
           <input
             className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-            placeholder="Client / Domain"
+            placeholder="Website URL"
             value={client}
             onChange={(e) => setClient(e.target.value)}
           />
@@ -167,7 +176,7 @@ export default function Projects() {
       {createProjectMutation.isError && <p className="text-sm text-destructive mb-4">Error: {createProjectMutation.error.message}</p>}
 
       <div className="grid grid-cols-2 gap-5">
-        {filtered.map((project, index) => (
+        {filtered.map((project: any, index) => (
           <div
             key={project.id}
             className="glass-card p-5 animate-slide-up hover:shadow-card-hover transition-all cursor-pointer group"
@@ -183,7 +192,7 @@ export default function Projects() {
                     className="font-semibold bg-transparent outline-none"
                     value={project.name}
                     onChange={(e) => {
-                      const updatedProjects = projects.map(p => 
+                      const updatedProjects = projects.map((p: any) => 
                         p.id === project.id ? { ...p, name: e.target.value } : p
                       );
                       // Optimistic update
@@ -194,7 +203,7 @@ export default function Projects() {
                     className="text-sm text-muted-foreground bg-transparent outline-none"
                     value={project.client ?? ""}
                     onChange={(e) => {
-                      const updatedProjects = projects.map(p => 
+                      const updatedProjects = projects.map((p: any) => 
                         p.id === project.id ? { ...p, client: e.target.value } : p
                       );
                       // Optimistic update
@@ -208,7 +217,7 @@ export default function Projects() {
                   className={cn("chip text-xs capitalize bg-muted text-foreground")}
                   value={project.status ?? "active"}
                   onChange={(e) => {
-                    const updatedProjects = projects.map(p => 
+                    const updatedProjects = projects.map((p: any) => 
                       p.id === project.id ? { ...p, status: e.target.value } : p
                     );
                     // Optimistic update
@@ -238,7 +247,7 @@ export default function Projects() {
                   className="text-sm font-semibold w-20 bg-transparent outline-none"
                   value={project.health_score ?? 0}
                   onChange={(e) => {
-                    const updatedProjects = projects.map(p => 
+                    const updatedProjects = projects.map((p: any) => 
                       p.id === project.id ? { ...p, health_score: Number(e.target.value) } : p
                     );
                     // Optimistic update

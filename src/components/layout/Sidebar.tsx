@@ -23,7 +23,8 @@ import {
   Bell,
   ChevronLeft,
   ChevronRight,
-  ChevronsUpDown
+  ChevronsUpDown,
+  Plus
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProject } from "@/contexts/ProjectContext";
@@ -31,8 +32,22 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 interface NavItem {
   title: string;
@@ -60,7 +75,7 @@ const navSections: NavSection[] = [
       { title: "Dashboard", href: "/", icon: LayoutDashboard },
       { title: "Role Dashboard", href: "/dashboard", icon: Users },
       { title: "Projects", href: "/projects", icon: FolderKanban, badge: 12 },
-      { title: "Websites", href: "/websites", icon: Globe },
+      // Removed Websites since websites are now projects
       { title: "Pages", href: "/pages", icon: FileText },
       { title: "Keywords", href: "/keywords", icon: Target, badge: 248 },
       { title: "Rankings", href: "/rankings", icon: TrendingUp },
@@ -83,12 +98,55 @@ const navSections: NavSection[] = [
 export function Sidebar() {
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>(["SEO Modules", "Operations"]);
-  const { projects, selectedProject, setSelectedProject } = useProject();
+  const { projects, selectedProject, setSelectedProject, fetchProjects } = useProject();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectClient, setNewProjectClient] = useState("");
 
   const toggleSection = (title: string) => {
     setExpandedSections((prev) =>
       prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
     );
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+
+    try {
+      // Create a website instead of a project since we're unifying the concepts
+      const { data, error } = await supabase
+        .from("websites")
+        .insert({
+          domain: newProjectName,
+          url: newProjectClient || newProjectName,
+          status: "active",
+          health_score: 70,
+        })
+        .select();
+
+      if (error) throw error;
+
+      if (data && data[0]) {
+        // Refresh projects list
+        await fetchProjects();
+        // Select the newly created project (website)
+        setSelectedProject({
+          id: data[0].id,
+          name: data[0].domain,
+          client: data[0].url,
+          status: data[0].status,
+          health_score: data[0].health_score,
+          created_at: data[0].created_at
+        });
+      }
+
+      // Close dialog and reset form
+      setIsCreateDialogOpen(false);
+      setNewProjectName("");
+      setNewProjectClient("");
+    } catch (error) {
+      console.error("Error creating project:", error);
+    }
   };
 
   return (
@@ -159,6 +217,59 @@ export function Sidebar() {
                   <span className="truncate">{project.name}</span>
                 </DropdownMenuItem>
               ))}
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <div className="w-full text-left flex items-center gap-2 cursor-pointer">
+                      <Plus className="w-4 h-4" />
+                      <span>Create New Project</span>
+                    </div>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Project</DialogTitle>
+                      <DialogDescription>
+                        Enter the details for your new project.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="sidebar-project-name">Project Name</Label>
+                        <Input
+                          id="sidebar-project-name"
+                          value={newProjectName}
+                          onChange={(e) => setNewProjectName(e.target.value)}
+                          placeholder="Enter project name"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="sidebar-project-client">Website URL (Optional)</Label>
+                        <Input
+                          id="sidebar-project-client"
+                          value={newProjectClient}
+                          onChange={(e) => setNewProjectClient(e.target.value)}
+                          placeholder="https://example.com"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsCreateDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleCreateProject}
+                        disabled={!newProjectName.trim()}
+                      >
+                        Create Project
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>

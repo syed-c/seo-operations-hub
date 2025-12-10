@@ -12,6 +12,19 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useProject } from "@/contexts/ProjectContext";
 import { useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
 interface HeaderProps {
   title: string;
@@ -19,8 +32,11 @@ interface HeaderProps {
 }
 
 export function Header({ title, subtitle }: HeaderProps) {
-  const { projects, selectedProject, setSelectedProject } = useProject();
+  const { projects, selectedProject, setSelectedProject, fetchProjects } = useProject();
   const navigate = useNavigate();
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [newProjectClient, setNewProjectClient] = useState("");
 
   const handleNewProject = () => {
     navigate("/projects");
@@ -43,6 +59,46 @@ export function Header({ title, subtitle }: HeaderProps) {
   const handleRunAudit = () => {
     // TODO: Implement run audit functionality
     console.log("Run audit clicked");
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim()) return;
+
+    try {
+      // Create a website instead of a project since we're unifying the concepts
+      const { data, error } = await supabase
+        .from("websites")
+        .insert({
+          domain: newProjectName,
+          url: newProjectClient || newProjectName,
+          status: "active",
+          health_score: 70,
+        })
+        .select();
+
+      if (error) throw error;
+
+      if (data && data[0]) {
+        // Refresh projects list
+        await fetchProjects();
+        // Select the newly created project (website)
+        setSelectedProject({
+          id: data[0].id,
+          name: data[0].domain,
+          client: data[0].url,
+          status: data[0].status,
+          health_score: data[0].health_score,
+          created_at: data[0].created_at
+        });
+      }
+
+      // Close dialog and reset form
+      setIsCreateDialogOpen(false);
+      setNewProjectName("");
+      setNewProjectClient("");
+    } catch (error) {
+      console.error("Error creating project:", error);
+    }
   };
 
   return (
@@ -77,6 +133,56 @@ export function Header({ title, subtitle }: HeaderProps) {
                 <span className="truncate">{project.name}</span>
               </DropdownMenuItem>
             ))}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+              <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                <DialogTrigger asChild>
+                  <span className="w-full text-left font-medium cursor-pointer">+ Create New Project</span>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Create New Project</DialogTitle>
+                    <DialogDescription>
+                      Enter the details for your new project.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="project-name">Project Name</Label>
+                      <Input
+                        id="project-name"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        placeholder="Enter project name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="project-client">Website URL (Optional)</Label>
+                      <Input
+                        id="project-client"
+                        value={newProjectClient}
+                        onChange={(e) => setNewProjectClient(e.target.value)}
+                        placeholder="https://example.com"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setIsCreateDialogOpen(false)}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleCreateProject}
+                      disabled={!newProjectName.trim()}
+                    >
+                      Create Project
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 

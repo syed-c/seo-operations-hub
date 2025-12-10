@@ -27,14 +27,14 @@ export default function ProjectSelection() {
   };
 
   const handleCreateProject = () => {
-    navigate("/projects");
+    navigate("/websites");
   };
 
   return (
     <MainLayout>
       <Header 
         title="Select a Project" 
-        subtitle="Choose a project to work on or view general analytics" 
+        subtitle="Choose a project (website) to work on or view general analytics" 
       />
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -131,7 +131,7 @@ export default function ProjectSelection() {
             <Plus className="w-8 h-8 text-muted-foreground mb-2" />
             <CardTitle className="text-lg">Create New Project</CardTitle>
             <p className="text-muted-foreground text-sm mt-1">
-              Start a new SEO project
+              Start a new SEO project (website)
             </p>
           </CardContent>
         </Card>
