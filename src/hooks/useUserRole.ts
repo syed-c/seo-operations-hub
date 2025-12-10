@@ -37,19 +37,41 @@ export function useUserRole(): UserRoleData {
 
         setUserId(user.id);
 
-        // Fetch role from user_roles table (secure server-side)
+        // Try to fetch role from user_roles table first
         const { data: roleData, error: roleError } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
-          .single();
+          .maybeSingle();
 
-        if (roleError) {
-          // If no role found, default to readonly
-          console.log("No role found for user, defaulting to super_admin for demo");
-          setRole("super_admin"); // Default for demo purposes
-        } else {
+        if (roleData?.role) {
           setRole(roleData.role as UserRole);
+        } else {
+          // Fallback: check users table for legacy role
+          const { data: userData } = await supabase
+            .from("users")
+            .select("role")
+            .eq("id", user.id)
+            .maybeSingle();
+          
+          if (userData?.role) {
+            // Map legacy role names to new enum values
+            const roleMap: Record<string, UserRole> = {
+              'Super Admin': 'super_admin',
+              'Admin': 'admin',
+              'SEO Lead': 'seo_lead',
+              'Content Lead': 'content_lead',
+              'Backlink Lead': 'backlink_lead',
+              'Developer': 'developer',
+              'Client': 'client',
+              'Viewer': 'readonly',
+            };
+            setRole(roleMap[userData.role] || 'super_admin');
+          } else {
+            // Default to super_admin for demo
+            console.log("No role found for user, defaulting to super_admin for demo");
+            setRole("super_admin");
+          }
         }
       } catch (err) {
         console.error("Error fetching user role:", err);
