@@ -14,6 +14,7 @@ import { useProject } from "@/contexts/ProjectContext";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { callAdminFunction } from "@/lib/adminApiClient";
 import {
   Dialog,
   DialogContent,
@@ -103,18 +104,17 @@ export function Header({ title, subtitle }: HeaderProps) {
         console.warn("Proceeding with project creation without role check for demo");
       }
 
-      // Create a project in the projects table
-      const { data, error } = await supabase
-        .from("projects")
-        .insert({
-          name: newProjectName,
-          client: newProjectClient || null,
-          status: "active",
-          health_score: 70,
-        })
-        .select();
-
-      if (error) throw error;
+      // Create a project in the projects table using admin API client
+      const { data: projectData, error: projectError } = await callAdminFunction('create', 'projects', {
+        name: newProjectName,
+        client: newProjectClient || null,
+        status: "active",
+        health_score: 70,
+      });
+      
+      if (projectError) throw projectError;
+      
+      const data = projectData?.data || [];
 
       if (data && data[0]) {
         // Also create a website entry for this project

@@ -36,6 +36,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { supabase } from "@/lib/supabaseClient";
+import { callAdminFunction } from "@/lib/adminApiClient";
 import {
   Dialog,
   DialogContent,
@@ -151,16 +152,17 @@ export function Sidebar() {
         console.warn("Proceeding with project creation without role check for demo");
       }
 
-      // Create a project in the projects table
-      const { data, error } = await supabase
-        .from("projects")
-        .insert({
-          name: newProjectName,
-          client: newProjectClient || null,
-          status: "active",
-          health_score: 70,
-        })
-        .select();
+      // Create a project in the projects table using admin API client
+      const { data: projectData, error: projectError } = await callAdminFunction('create', 'projects', {
+        name: newProjectName,
+        client: newProjectClient || null,
+        status: "active",
+        health_score: 70,
+      });
+      
+      if (projectError) throw projectError;
+      
+      const data = projectData?.data || [];
 
       if (error) throw error;
 
