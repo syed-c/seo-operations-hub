@@ -1,6 +1,5 @@
 import { useState } from "react";
 import { NavLink } from "@/components/NavLink";
-import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import {
   LayoutDashboard,
@@ -21,15 +20,14 @@ import {
   Star,
   Clock,
   Search,
+  Bell,
   ChevronLeft,
   ChevronRight,
   ChevronsUpDown,
-  Plus,
-  LogOut,
+  Plus
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useProject } from "@/contexts/ProjectContext";
-import { useUserRole, roleNavigationConfig, getDashboardRoute, type UserRole } from "@/hooks/useUserRole";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -63,8 +61,7 @@ interface NavSection {
   items: NavItem[];
 }
 
-// Full navigation for super admin
-const allNavSections: NavSection[] = [
+const navSections: NavSection[] = [
   {
     title: "Quick Access",
     items: [
@@ -76,7 +73,9 @@ const allNavSections: NavSection[] = [
     title: "SEO Modules",
     items: [
       { title: "Dashboard", href: "/", icon: LayoutDashboard },
+      { title: "Role Dashboard", href: "/dashboard", icon: Users },
       { title: "Projects", href: "/projects", icon: FolderKanban, badge: 12 },
+      // Removed Websites since websites are now projects
       { title: "Pages", href: "/pages", icon: FileText },
       { title: "Keywords", href: "/keywords", icon: Target, badge: 248 },
       { title: "Rankings", href: "/rankings", icon: TrendingUp },
@@ -96,41 +95,13 @@ const allNavSections: NavSection[] = [
   },
 ];
 
-// Get role-specific navigation
-function getRoleNavigation(role: UserRole): NavSection[] {
-  const allowedRoutes = roleNavigationConfig[role] || [];
-  
-  return allNavSections.map(section => ({
-    ...section,
-    items: section.items.filter(item => 
-      allowedRoutes.some(route => item.href === route || route.startsWith(item.href))
-    )
-  })).filter(section => section.items.length > 0);
-}
-
-// Role display names
-const roleDisplayNames: Record<UserRole, string> = {
-  super_admin: "Super Admin",
-  admin: "Admin",
-  seo_lead: "SEO Lead",
-  content_lead: "Content Lead",
-  backlink_lead: "Backlink Lead",
-  developer: "Developer",
-  client: "Client",
-  readonly: "Read Only",
-};
-
 export function Sidebar() {
-  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [expandedSections, setExpandedSections] = useState<string[]>(["SEO Modules", "Operations"]);
   const { projects, selectedProject, setSelectedProject, fetchProjects } = useProject();
-  const { role } = useUserRole();
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectUrl, setNewProjectUrl] = useState("");
-
-  const navSections = getRoleNavigation(role);
+  const [newProjectClient, setNewProjectClient] = useState("");
 
   const toggleSection = (title: string) => {
     setExpandedSections((prev) =>
@@ -142,11 +113,50 @@ export function Sidebar() {
     if (!newProjectName.trim()) return;
 
     try {
+      // First, check if user has permission to create projects
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.error("User not authenticated");
+        return;
+      }
+
+      // Check user role
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (userError) {
+        console.error("Error fetching user role:", userError);
+        return;
+      }
+
+      // If no user data found, use a default role for demo purposes
+      if (!userData) {
+        console.warn("No user data found, using default role");
+        // For demo purposes, continue with project creation
+      }
+
+      // Only Super Admin, Admin, and SEO Lead can create projects
+      // If no user data, allow for demo purposes
+      if (userData) {
+        const allowedRoles = ['Super Admin', 'Admin', 'SEO Lead'];
+        if (!allowedRoles.includes(userData.role)) {
+          console.error("User does not have permission to create projects");
+          return;
+        }
+      } else {
+        console.warn("Proceeding with project creation without role check for demo");
+      }
+
+      // Create a project in the projects table
       const { data, error } = await supabase
-        .from("websites")
+        .from("projects")
         .insert({
-          domain: newProjectName,
-          url: newProjectUrl || newProjectName,
+          name: newProjectName,
+          client: newProjectClient || null,
           status: "active",
           health_score: 70,
         })
@@ -155,38 +165,91 @@ export function Sidebar() {
       if (error) throw error;
 
       if (data && data[0]) {
+        // Also create a website entry for this project
+        const { error: websiteError } = await supabase
+          .from("websites")
+          .insert({
+            project_id: data[0].id,
+            domain: newProjectName,
+            url: newProjectClient || `https://${newProjectName.replace(/\s+/g, '-').toLowerCase()}.com`,
+            is_verified: false,
+          });
+
+        if (websiteError) {
+          console.error("Error creating website:", websiteError);
+          // Don't throw here as we still want to select the project
+        }
+
+        // Create project membership for the creator
+        const { error: memberError } = await supabase
+          .from("project_members")
+          .insert({
+            project_id: data[0].id,
+            user_id: user.id,
+            role: "owner"
+          });
+
+        if (memberError) {
+          console.error("Error creating project membership:", memberError);
+        }
+
+        // Create default automation rules for the new project
+        const defaultRules = [
+          {
+            project_id: data[0].id,
+            name: "Daily ranking sync",
+            description: "Sync keyword rankings daily",
+            trigger_event: "daily_sync",
+            condition: {},
+            action: { type: "run_function", name: "rank-checker" }
+          },
+          {
+            project_id: data[0].id,
+            name: "Weekly audit",
+            description: "Run full SEO audit weekly",
+            trigger_event: "weekly_audit",
+            condition: {},
+            action: { type: "run_function", name: "technical-audit" }
+          },
+          {
+            project_id: data[0].id,
+            name: "Backlink monitor",
+            description: "Monitor backlinks daily",
+            trigger_event: "daily_monitor",
+            condition: {},
+            action: { type: "run_function", name: "backlink-monitor" }
+          },
+          {
+            project_id: data[0].id,
+            name: "Content audit",
+            description: "Audit content quality weekly",
+            trigger_event: "weekly_content_audit",
+            condition: {},
+            action: { type: "run_function", name: "content-audit" }
+          }
+        ];
+
+        const { error: rulesError } = await supabase
+          .from("automation_rules")
+          .insert(defaultRules);
+
+        if (rulesError) {
+          console.error("Error creating default automation rules:", rulesError);
+        }
+
+        // Refresh projects list
         await fetchProjects();
-        setSelectedProject({
-          id: data[0].id,
-          name: data[0].domain,
-          client: data[0].url,
-          status: data[0].status,
-          health_score: data[0].health_score,
-          created_at: data[0].created_at
-        });
+        // Select the newly created project
+        setSelectedProject(data[0]);
       }
 
+      // Close dialog and reset form
       setIsCreateDialogOpen(false);
       setNewProjectName("");
-      setNewProjectUrl("");
+      setNewProjectClient("");
     } catch (error) {
       console.error("Error creating project:", error);
     }
-  };
-
-  const handleProjectSelect = (project: any) => {
-    setSelectedProject(project);
-    navigate(getDashboardRoute(role));
-  };
-
-  const handleGeneralSelect = () => {
-    setSelectedProject(null);
-    navigate(getDashboardRoute(role));
-  };
-
-  const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    window.location.reload();
   };
 
   return (
@@ -221,7 +284,7 @@ export function Sidebar() {
       {/* Search */}
       {!collapsed && (
         <div className="p-3">
-          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50 text-muted-foreground text-sm cursor-pointer hover:bg-muted transition-colors">
+          <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-muted/50 text-muted-foreground text-sm">
             <Search className="w-4 h-4" />
             <span>Search...</span>
             <kbd className="ml-auto text-xs bg-background px-1.5 py-0.5 rounded">⌘K</kbd>
@@ -234,96 +297,82 @@ export function Sidebar() {
         <div className="px-3 pb-3">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <button className="w-full flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl bg-muted/50 text-sm hover:bg-muted transition-colors border border-border/50">
+              <button className="w-full flex items-center justify-between gap-2 px-3 py-2 rounded-xl bg-muted/50 text-muted-foreground text-sm hover:bg-muted transition-colors">
                 <div className="flex items-center gap-2 truncate">
-                  <FolderKanban className="w-4 h-4 flex-shrink-0 text-primary" />
-                  <span className="truncate font-medium">
-                    {selectedProject ? selectedProject.name : "All Projects"}
+                  <FolderKanban className="w-4 h-4 flex-shrink-0" />
+                  <span className="truncate">
+                    {selectedProject ? selectedProject.name : "Select Project"}
                   </span>
                 </div>
-                <ChevronsUpDown className="w-4 h-4 flex-shrink-0 text-muted-foreground" />
+                <ChevronsUpDown className="w-4 h-4 flex-shrink-0" />
               </button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="w-64 max-h-72 overflow-y-auto bg-popover">
-              <DropdownMenuItem onClick={handleGeneralSelect} className="cursor-pointer">
-                <Globe className="w-4 h-4 mr-2" />
-                <span className="font-medium">All Projects (General)</span>
+            <DropdownMenuContent align="start" className="w-64 max-h-60 overflow-y-auto">
+              <DropdownMenuItem onClick={() => setSelectedProject(null)}>
+                <span className="font-medium">General Analytics</span>
               </DropdownMenuItem>
-              <DropdownMenuSeparator />
               {projects.map((project) => (
                 <DropdownMenuItem
                   key={project.id}
-                  onClick={() => handleProjectSelect(project)}
-                  className={cn(
-                    "cursor-pointer",
-                    selectedProject?.id === project.id && "bg-accent"
-                  )}
+                  onClick={() => setSelectedProject(project)}
+                  className={selectedProject?.id === project.id ? "bg-accent" : ""}
                 >
-                  <div className="flex items-center gap-2 w-full">
-                    <div className={cn(
-                      "w-2 h-2 rounded-full",
-                      project.status === "active" && "bg-success",
-                      project.status === "paused" && "bg-warning",
-                      project.status === "critical" && "bg-destructive"
-                    )} />
-                    <span className="truncate">{project.name}</span>
-                    {project.health_score && (
-                      <span className="ml-auto text-xs text-muted-foreground">
-                        {project.health_score}%
-                      </span>
-                    )}
-                  </div>
+                  <span className="truncate">{project.name}</span>
                 </DropdownMenuItem>
               ))}
-              {(role === "super_admin" || role === "admin") && (
-                <>
-                  <DropdownMenuSeparator />
-                  <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                    <DialogTrigger asChild>
-                      <DropdownMenuItem onSelect={(e) => e.preventDefault()} className="cursor-pointer">
-                        <Plus className="w-4 h-4 mr-2" />
-                        <span>Create New Project</span>
-                      </DropdownMenuItem>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Create New Project</DialogTitle>
-                        <DialogDescription>
-                          Enter the details for your new SEO project.
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4 py-4">
-                        <div className="space-y-2">
-                          <Label htmlFor="project-name">Project Name</Label>
-                          <Input
-                            id="project-name"
-                            value={newProjectName}
-                            onChange={(e) => setNewProjectName(e.target.value)}
-                            placeholder="e.g., My Website"
-                          />
-                        </div>
-                        <div className="space-y-2">
-                          <Label htmlFor="project-url">Website URL (Optional)</Label>
-                          <Input
-                            id="project-url"
-                            value={newProjectUrl}
-                            onChange={(e) => setNewProjectUrl(e.target.value)}
-                            placeholder="https://example.com"
-                          />
-                        </div>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
+                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+                  <DialogTrigger asChild>
+                    <div className="w-full text-left flex items-center gap-2 cursor-pointer">
+                      <Plus className="w-4 h-4" />
+                      <span>Create New Project</span>
+                    </div>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Create New Project</DialogTitle>
+                      <DialogDescription>
+                        Enter the details for your new project.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="sidebar-project-name">Project Name</Label>
+                        <Input
+                          id="sidebar-project-name"
+                          value={newProjectName}
+                          onChange={(e) => setNewProjectName(e.target.value)}
+                          placeholder="Enter project name"
+                        />
                       </div>
-                      <DialogFooter>
-                        <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
-                          Cancel
-                        </Button>
-                        <Button onClick={handleCreateProject} disabled={!newProjectName.trim()}>
-                          Create Project
-                        </Button>
-                      </DialogFooter>
-                    </DialogContent>
-                  </Dialog>
-                </>
-              )}
+                      <div className="space-y-2">
+                        <Label htmlFor="sidebar-project-client">Client / Website URL (Optional)</Label>
+                        <Input
+                          id="sidebar-project-client"
+                          value={newProjectClient}
+                          onChange={(e) => setNewProjectClient(e.target.value)}
+                          placeholder="https://example.com"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setIsCreateDialogOpen(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleCreateProject}
+                        disabled={!newProjectName.trim()}
+                      >
+                        Create Project
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -390,31 +439,16 @@ export function Sidebar() {
         </NavLink>
         
         {!collapsed && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <div className="mt-3 p-3 rounded-xl bg-muted/50 flex items-center gap-3 cursor-pointer hover:bg-muted transition-colors">
-                <Avatar className="w-9 h-9">
-                  <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64&h=64&fit=crop&crop=face" />
-                  <AvatarFallback>JD</AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium truncate">John Doe</p>
-                  <p className="text-xs text-muted-foreground truncate">{roleDisplayNames[role]}</p>
-                </div>
-              </div>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-56 bg-popover">
-              <DropdownMenuItem onClick={() => navigate("/settings")} className="cursor-pointer">
-                <Settings className="w-4 h-4 mr-2" />
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer text-destructive">
-                <LogOut className="w-4 h-4 mr-2" />
-                Sign Out
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <div className="mt-3 p-3 rounded-xl bg-muted/50 flex items-center gap-3">
+            <Avatar className="w-9 h-9">
+              <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64&h=64&fit=crop&crop=face" />
+              <AvatarFallback>JD</AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium truncate">John Doe</p>
+              <p className="text-xs text-muted-foreground truncate">SEO Lead</p>
+            </div>
+          </div>
         )}
       </div>
 
