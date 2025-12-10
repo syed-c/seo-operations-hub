@@ -4,18 +4,35 @@ import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Plus, Trash2, Edit3 } from "lucide-react";
-import { supabase, ensureSupabase } from "@/lib/supabaseClient";
-import { createUser, updateUser, deleteUser } from "@/lib/adminApiClient"; // Import admin functions
+import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 interface User {
   id: string;
   email: string;
   first_name?: string;
   last_name?: string;
-  role?: string;  // Changed from role_id to role
+  role?: string;
   role_name?: string;
-  avatar_url?: string;
   created_at: string;
 }
 
@@ -28,39 +45,41 @@ export default function Team() {
   const [users, setUsers] = useState<User[]>([]);
   const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [name, setName] = useState("");
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  
+  // Form state for new user
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
-  const [roleId, setRoleId] = useState("");
-  const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [editName, setEditName] = useState("");
-  const [editRoleId, setEditRoleId] = useState("");
+  const [selectedRole, setSelectedRole] = useState("");
+  
+  // Form state for editing user
+  const [editFirstName, setEditFirstName] = useState("");
+  const [editLastName, setEditLastName] = useState("");
+  const [editRole, setEditRole] = useState("");
 
   const loadRoles = async () => {
-    try {
-      const { data, error } = await supabase
-        .from("roles")
-        .select("id, name")
-        .order("name", { ascending: true });
-      
-      if (error) {
-        setError(error.message);
-        return;
-      }
-      
-      setRoles(data || []);
-      if (data && data.length > 0 && !roleId) {
-        setRoleId(data[0].id); // Set default role only if no role is already selected
-      }
-    } catch (err: any) {
-      setError(err.message || "Failed to load roles");
+    const { data, error } = await supabase
+      .from("roles")
+      .select("id, name")
+      .order("name", { ascending: true });
+    
+    if (error) {
+      console.error("Error loading roles:", error);
+      return;
+    }
+    
+    setRoles(data || []);
+    if (data && data.length > 0 && !selectedRole) {
+      setSelectedRole(data[0].name);
     }
   };
 
   const loadUsers = async () => {
     setLoading(true);
     try {
-      // Try to fetch users with avatar_url column
       const { data, error } = await supabase
         .from("users")
         .select(`
@@ -69,74 +88,31 @@ export default function Team() {
           first_name,
           last_name,
           role, 
-          avatar_url, 
-          created_at,
-          roles (name)
+          created_at
         `)
         .order("created_at", { ascending: false });
-      
-      if (error && error.message.includes("avatar_url")) {
-        // If avatar_url column doesn't exist, fetch without it
-        console.warn("avatar_url column not found, fetching without it");
-        const { data: fallbackData, error: fallbackError } = await supabase
-          .from("users")
-          .select(`
-            id, 
-            email, 
-            first_name,
-            last_name,
-            role, 
-            created_at,
-            roles (name)
-          `)
-          .order("created_at", { ascending: false });
-        
-        setLoading(false);
-        
-        if (fallbackError) {
-          setError(fallbackError.message);
-          return;
-        }
-        
-        // Transform the data without avatar_url
-        const transformedData = (fallbackData || []).map((user: any) => ({
-          id: user.id,
-          email: user.email,
-          first_name: user.first_name || undefined,
-          last_name: user.last_name || undefined,
-          role: user.role || undefined,
-          role_name: user.roles?.name || "No role",
-          avatar_url: undefined,
-          created_at: user.created_at,
-        }));
-        
-        setUsers(transformedData);
-        return;
-      }
       
       setLoading(false);
       
       if (error) {
-        setError(error.message);
+        console.error("Error loading users:", error);
         return;
       }
       
-      // Transform the data with avatar_url
       const transformedData = (data || []).map((user: any) => ({
         id: user.id,
         email: user.email,
         first_name: user.first_name || undefined,
         last_name: user.last_name || undefined,
         role: user.role || undefined,
-        role_name: user.roles?.name || "No role",
-        avatar_url: user.avatar_url || undefined,
+        role_name: user.role || "No role",
         created_at: user.created_at,
       }));
       
       setUsers(transformedData);
     } catch (err: any) {
       setLoading(false);
-      setError(err.message || "Failed to load users");
+      console.error("Error:", err);
     }
   };
 
@@ -145,70 +121,125 @@ export default function Team() {
     loadUsers();
   }, []);
 
-  // Use secure admin API client for user operations
   const onCreate = async () => {
-    if (!email) return;
-    
-    // Split name into first and last name
-    const nameParts = name.trim().split(' ');
-    const firstName = nameParts[0] || '';
-    const lastName = nameParts.slice(1).join(' ') || '';
-    
-    // Use secure admin API instead of direct database access
-    await createUser({
-      email,
-      first_name: firstName || null,
-      last_name: lastName || null,
-      role: roleId || null,  // Changed from role_id to role
-    });
-    
-    setName("");
-    setEmail("");
-    loadUsers();
+    if (!email) {
+      toast({
+        title: "Validation Error",
+        description: "Email is required",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      // Create user in users table
+      const { error } = await supabase.from("users").insert({
+        id: crypto.randomUUID(), // Generate UUID for now
+        email,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        role: selectedRole || null,
+      });
+      
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      toast({
+        title: "Success",
+        description: "Team member added successfully!",
+      });
+      
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setDialogOpen(false);
+      loadUsers();
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message || "Failed to add user",
+        variant: "destructive"
+      });
+    }
   };
 
   const onDelete = async (id: string) => {
     try {
-      // Use secure admin API instead of direct database access
-      await deleteUser(id);
+      const { error } = await supabase.from("users").delete().eq("id", id);
+      
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      toast({
+        title: "Deleted",
+        description: "Team member removed",
+      });
       loadUsers();
     } catch (err: any) {
-      setError(err.message || "Failed to delete user");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to delete user",
+        variant: "destructive"
+      });
     }
   };
 
   const startEdit = (user: User) => {
-    setEditingUserId(user.id);
-    setEditName(`${user.first_name || ''} ${user.last_name || ''}`.trim());
-    setEditRoleId(user.role || "");  // Changed from user.role_id to user.role
+    setEditingUser(user);
+    setEditFirstName(user.first_name || "");
+    setEditLastName(user.last_name || "");
+    setEditRole(user.role || "");
+    setEditDialogOpen(true);
   };
 
-  const cancelEdit = () => {
-    setEditingUserId(null);
-    setEditName("");
-    setEditRoleId("");
-  };
-
-  const saveEdit = async (userId: string) => {
+  const saveEdit = async () => {
+    if (!editingUser) return;
+    
     try {
-      // Split name into first and last name
-      const nameParts = editName.trim().split(' ');
-      const firstName = nameParts[0] || '';
-      const lastName = nameParts.slice(1).join(' ') || '';
+      const { error } = await supabase
+        .from("users")
+        .update({
+          first_name: editFirstName || null,
+          last_name: editLastName || null,
+          role: editRole || null,
+        })
+        .eq("id", editingUser.id);
       
-      // Use secure admin API instead of direct database access
-      await updateUser({
-        id: userId,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        role: editRoleId || null,  // Changed from role_id to role
+      if (error) {
+        toast({
+          title: "Error",
+          description: error.message,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      toast({
+        title: "Updated",
+        description: "Team member updated successfully",
       });
-      setEditingUserId(null);
-      setEditName("");
-      setEditRoleId("");
+      
+      setEditDialogOpen(false);
+      setEditingUser(null);
       loadUsers();
     } catch (err: any) {
-      setError(err.message || "Failed to update user");
+      toast({
+        title: "Error",
+        description: err.message || "Failed to update user",
+        variant: "destructive"
+      });
     }
   };
 
@@ -216,114 +247,121 @@ export default function Team() {
     <MainLayout>
       <Header title="Team" subtitle="Assign owners, view roles, and capacities" />
       
-      <div className="flex items-center gap-3 mb-6">
-        <input
-          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          placeholder="Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          placeholder="Email"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <select
-          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          value={roleId}
-          onChange={(e) => setRoleId(e.target.value)}
-        >
-          {roles.map(role => (
-            <option key={role.id} value={role.id}>{role.name}</option>
-          ))}
-        </select>
-        <Button className="gap-2 rounded-xl" onClick={onCreate}>
-          <Plus className="w-4 h-4" />
-          Add User
-        </Button>
+      <div className="flex items-center justify-between mb-6">
+        <p className="text-muted-foreground">{users.length} team members</p>
+        
+        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 rounded-xl">
+              <Plus className="w-4 h-4" />
+              Add Team Member
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Add Team Member</DialogTitle>
+              <DialogDescription>
+                Add a new member to your team. They will receive an invitation email.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="firstName">First Name</Label>
+                  <Input
+                    id="firstName"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    placeholder="John"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="lastName">Last Name</Label>
+                  <Input
+                    id="lastName"
+                    value={lastName}
+                    onChange={(e) => setLastName(e.target.value)}
+                    placeholder="Doe"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="john@example.com"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role">Role</Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map(role => (
+                      <SelectItem key={role.id} value={role.name}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={onCreate}>
+                Add Member
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
       
       {loading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
-      {error && <p className="text-sm text-destructive mb-4">{error}</p>}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {users.map((user) => (
           <Card
             key={user.id}
-            className="glass-card animate-slide-up hover:shadow-card-hover transition-all"
+            className="glass-card animate-slide-up hover:shadow-card-hover transition-all group"
           >
-            {editingUserId === user.id ? (
-              // Edit mode
-              <CardHeader>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-primary" />
-                    <input
-                      className="font-semibold bg-transparent border-b border-primary outline-none"
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                    />
-                  </div>
-                  <div className="flex gap-1">
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      className="h-8 px-2"
-                      onClick={cancelEdit}
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      size="sm" 
-                      className="h-8 px-2"
-                      onClick={() => saveEdit(user.id)}
-                    >
-                      Save
-                    </Button>
-                  </div>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Users className="w-4 h-4 text-primary" />
+                  <CardTitle className="text-sm">
+                    {`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email}
+                  </CardTitle>
                 </div>
-                <select
-                  className="w-full rounded-lg border border-border bg-card px-2 py-1 text-sm"
-                  value={editRoleId}
-                  onChange={(e) => setEditRoleId(e.target.value)}
-                >
-                  <option value="">No role</option>
-                  {roles.map(role => (
-                    <option key={role.id} value={role.id}>{role.name}</option>
-                  ))}
-                </select>
-              </CardHeader>
-            ) : (
-              // View mode
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <Users className="w-4 h-4 text-primary" />
-                    <CardTitle className="text-sm">{`${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email}</CardTitle>
-                  </div>
-                  <div className="flex gap-1">
-                    <button
-                      className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
-                      onClick={() => startEdit(user)}
-                    >
-                      <Edit3 className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                    <button
-                      className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
-                      onClick={() => onDelete(user.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </div>
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <button
+                    className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
+                    onClick={() => startEdit(user)}
+                  >
+                    <Edit3 className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                  <button
+                    className="w-8 h-8 rounded-lg hover:bg-destructive/10 flex items-center justify-center"
+                    onClick={() => onDelete(user.id)}
+                  >
+                    <Trash2 className="w-4 h-4 text-destructive" />
+                  </button>
                 </div>
-                <p className="text-xs text-muted-foreground">{user.role_name}</p>
-              </CardHeader>
-            )}
+              </div>
+              <span className="chip chip-primary text-xs w-fit">{user.role_name}</span>
+            </CardHeader>
             <CardContent className="flex items-center gap-3">
               <Avatar className="w-10 h-10">
-                <AvatarImage src={user.avatar_url || undefined} />
-                <AvatarFallback>{(user.first_name ? user.first_name.charAt(0) : '') + (user.last_name ? user.last_name.charAt(0) : user.email.charAt(0))}</AvatarFallback>
+                <AvatarFallback>
+                  {(user.first_name ? user.first_name.charAt(0) : '') + 
+                   (user.last_name ? user.last_name.charAt(0) : user.email.charAt(0).toUpperCase())}
+                </AvatarFallback>
               </Avatar>
               <div>
                 <p className="text-xs text-muted-foreground truncate">{user.email}</p>
@@ -335,17 +373,61 @@ export default function Team() {
           </Card>
         ))}
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={editDialogOpen} onOpenChange={setEditDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Team Member</DialogTitle>
+            <DialogDescription>
+              Update team member information.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="editFirstName">First Name</Label>
+                <Input
+                  id="editFirstName"
+                  value={editFirstName}
+                  onChange={(e) => setEditFirstName(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="editLastName">Last Name</Label>
+                <Input
+                  id="editLastName"
+                  value={editLastName}
+                  onChange={(e) => setEditLastName(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="editRole">Role</Label>
+              <Select value={editRole} onValueChange={setEditRole}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {roles.map(role => (
+                    <SelectItem key={role.id} value={role.name}>
+                      {role.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveEdit}>
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
-}
-
-const transformUser = (user: any) => {
-  const fullName = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email;
-  const initials = (user.first_name ? user.first_name.charAt(0) : '') + (user.last_name ? user.last_name.charAt(0) : user.email.charAt(0));
-  
-  return {
-    ...user,
-    name: fullName,
-    initials: initials
-  };
 }
