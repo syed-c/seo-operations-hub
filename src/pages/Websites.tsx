@@ -51,6 +51,7 @@ export default function Websites() {
     if (!domain) return;
     const { error } = await supabase.from("websites").insert({
       domain,
+      url: `https://${domain}`,
       status: "pending",
       health_score: 0,
       pages_count: 0,
@@ -74,18 +75,18 @@ export default function Websites() {
 
   return (
     <MainLayout>
-      <Header title="Websites" subtitle="Manage connected domains and their health" />
+      <Header title="Projects" subtitle="Manage your SEO projects (websites)" />
       
       <div className="flex items-center gap-3 mb-6">
         <input
           className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          placeholder="Domain (e.g., example.com)"
+          placeholder="Website domain (e.g., example.com)"
           value={domain}
           onChange={(e) => setDomain(e.target.value)}
         />
         <Button className="gap-2 rounded-xl" onClick={onCreate}>
           <Plus className="w-4 h-4" />
-          Add Website
+          Add Project
         </Button>
       </div>
       

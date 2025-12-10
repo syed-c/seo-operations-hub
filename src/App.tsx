@@ -12,7 +12,6 @@ import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Starred from "./pages/Starred";
 import Recent from "./pages/Recent";
-import Websites from "./pages/Websites";
 import PagesPage from "./pages/PagesPage";
 import Rankings from "./pages/Rankings";
 import Backlinks from "./pages/Backlinks";
@@ -53,7 +52,7 @@ const App = () => (
               <Route path="/starred" element={<Starred />} />
               <Route path="/recent" element={<Recent />} />
               <Route path="/projects" element={<Projects />} />
-              <Route path="/websites" element={<Websites />} />
+              {/* Removed separate websites route since websites are now projects */}
               <Route path="/pages" element={<PagesPage />} />
               <Route path="/tasks" element={<Tasks />} />
               <Route path="/keywords" element={<Keywords />} />
@@ -61,12 +60,11 @@ const App = () => (
               <Route path="/backlinks" element={<Backlinks />} />
               <Route path="/local-seo" element={<LocalSEO />} />
               <Route path="/automation" element={<Automation />} />
-              <Route path="/reports" element={<Reports />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/team" element={<Team />} />
+              <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
-              {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
