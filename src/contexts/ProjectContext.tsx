@@ -32,29 +32,19 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       
-      // Fetch websites as projects since we're unifying the concepts
+      // Fetch projects from the projects table
       const { data, error } = await supabase
-        .from("websites")
-        .select("id, domain, url, status, health_score, created_at")
+        .from("projects")
+        .select("id, name, client, status, health_score, created_at")
         .order("created_at", { ascending: false });
 
       if (error) throw new Error(error.message);
       
-      // Transform websites data to match Project interface
-      const transformedProjects = (data || []).map(website => ({
-        id: website.id,
-        name: website.domain || "Unnamed Project",
-        client: website.url || "",
-        status: website.status || "active",
-        health_score: website.health_score,
-        created_at: website.created_at
-      }));
-      
-      setProjects(transformedProjects);
+      setProjects(data || []);
       
       // If no project is selected and we have projects, select the first one
-      if (!selectedProject && transformedProjects.length > 0) {
-        setSelectedProject(transformedProjects[0]);
+      if (!selectedProject && data && data.length > 0) {
+        setSelectedProject(data[0]);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch projects");

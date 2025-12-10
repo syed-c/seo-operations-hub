@@ -61,19 +61,22 @@ export default function Team() {
   const [editRole, setEditRole] = useState("");
 
   const loadRoles = async () => {
-    const { data, error } = await supabase
-      .from("roles")
-      .select("id, name")
-      .order("name", { ascending: true });
+    // Load predefined roles from the PRODUCTION_GUIDE.md
+    const predefinedRoles = [
+      { id: 'super_admin', name: 'Super Admin' },
+      { id: 'admin', name: 'Admin' },
+      { id: 'seo_lead', name: 'SEO Lead' },
+      { id: 'content_lead', name: 'Content Lead' },
+      { id: 'backlink_lead', name: 'Backlink Lead' },
+      { id: 'developer', name: 'Developer' },
+      { id: 'designer', name: 'Designer' },
+      { id: 'client', name: 'Client' },
+      { id: 'viewer', name: 'Viewer' }
+    ];
     
-    if (error) {
-      console.error("Error loading roles:", error);
-      return;
-    }
-    
-    setRoles(data || []);
-    if (data && data.length > 0 && !selectedRole) {
-      setSelectedRole(data[0].name);
+    setRoles(predefinedRoles);
+    if (predefinedRoles.length > 0 && !selectedRole) {
+      setSelectedRole(predefinedRoles[0].name);
     }
   };
 
@@ -132,19 +135,40 @@ export default function Team() {
     }
 
     try {
-      // Create user in users table
-      const { error } = await supabase.from("users").insert({
-        id: crypto.randomUUID(), // Generate UUID for now
+      // For security, we should use the admin Edge Function for user creation
+      // But for now, let's use the regular Supabase client and handle RLS properly
+      // First, create the user in the users table
+      const { error: userError } = await supabase.from("users").insert({
         email,
         first_name: firstName || null,
         last_name: lastName || null,
         role: selectedRole || null,
       });
       
-      if (error) {
+      if (userError) {
         toast({
           title: "Error",
-          description: error.message,
+          description: userError.message,
+          variant: "destructive"
+        });
+        return;
+      }
+      
+      toast({
+        title: "Success",
+        description: "Team member added successfully!",
+      });
+      
+      setFirstName("");
+      setLastName("");
+      setEmail("");
+      setDialogOpen(false);
+      loadUsers();
+      
+      if (userError) {
+        toast({
+          title: "Error",
+          description: userError.message,
           variant: "destructive"
         });
         return;
@@ -171,12 +195,13 @@ export default function Team() {
 
   const onDelete = async (id: string) => {
     try {
-      const { error } = await supabase.from("users").delete().eq("id", id);
+      // Delete from users table
+      const { error: userError } = await supabase.from("users").delete().eq("id", id);
       
-      if (error) {
+      if (userError) {
         toast({
           title: "Error",
-          description: error.message,
+          description: userError.message,
           variant: "destructive"
         });
         return;

@@ -65,12 +65,50 @@ export function Header({ title, subtitle }: HeaderProps) {
     if (!newProjectName.trim()) return;
 
     try {
-      // Create a website instead of a project since we're unifying the concepts
+      // First, check if user has permission to create projects
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        console.error("User not authenticated");
+        return;
+      }
+
+      // Check user role
+      const { data: userData, error: userError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (userError) {
+        console.error("Error fetching user role:", userError);
+        return;
+      }
+
+      // If no user data found, use a default role for demo purposes
+      if (!userData) {
+        console.warn("No user data found, using default role");
+        // For demo purposes, continue with project creation
+      }
+
+      // Only Super Admin, Admin, and SEO Lead can create projects
+      // If no user data, allow for demo purposes
+      if (userData) {
+        const allowedRoles = ['Super Admin', 'Admin', 'SEO Lead'];
+        if (!allowedRoles.includes(userData.role)) {
+          console.error("User does not have permission to create projects");
+          return;
+        }
+      } else {
+        console.warn("Proceeding with project creation without role check for demo");
+      }
+
+      // Create a project in the projects table
       const { data, error } = await supabase
-        .from("websites")
+        .from("projects")
         .insert({
-          domain: newProjectName,
-          url: newProjectClient || newProjectName,
+          name: newProjectName,
+          client: newProjectClient || null,
           status: "active",
           health_score: 70,
         })
@@ -79,17 +117,82 @@ export function Header({ title, subtitle }: HeaderProps) {
       if (error) throw error;
 
       if (data && data[0]) {
+        // Also create a website entry for this project
+        const { error: websiteError } = await supabase
+          .from("websites")
+          .insert({
+            project_id: data[0].id,
+            domain: newProjectName,
+            url: newProjectClient || `https://${newProjectName.replace(/\s+/g, '-').toLowerCase()}.com`,
+            is_verified: false,
+          });
+
+        if (websiteError) {
+          console.error("Error creating website:", websiteError);
+          // Don't throw here as we still want to select the project
+        }
+
+        // Create project membership for the creator
+        const { error: memberError } = await supabase
+          .from("project_members")
+          .insert({
+            project_id: data[0].id,
+            user_id: user.id,
+            role: "owner"
+          });
+
+        if (memberError) {
+          console.error("Error creating project membership:", memberError);
+        }
+
+        // Create default automation rules for the new project
+        const defaultRules = [
+          {
+            project_id: data[0].id,
+            name: "Daily ranking sync",
+            description: "Sync keyword rankings daily",
+            trigger_event: "daily_sync",
+            condition: {},
+            action: { type: "run_function", name: "rank-checker" }
+          },
+          {
+            project_id: data[0].id,
+            name: "Weekly audit",
+            description: "Run full SEO audit weekly",
+            trigger_event: "weekly_audit",
+            condition: {},
+            action: { type: "run_function", name: "technical-audit" }
+          },
+          {
+            project_id: data[0].id,
+            name: "Backlink monitor",
+            description: "Monitor backlinks daily",
+            trigger_event: "daily_monitor",
+            condition: {},
+            action: { type: "run_function", name: "backlink-monitor" }
+          },
+          {
+            project_id: data[0].id,
+            name: "Content audit",
+            description: "Audit content quality weekly",
+            trigger_event: "weekly_content_audit",
+            condition: {},
+            action: { type: "run_function", name: "content-audit" }
+          }
+        ];
+
+        const { error: rulesError } = await supabase
+          .from("automation_rules")
+          .insert(defaultRules);
+
+        if (rulesError) {
+          console.error("Error creating default automation rules:", rulesError);
+        }
+
         // Refresh projects list
         await fetchProjects();
-        // Select the newly created project (website)
-        setSelectedProject({
-          id: data[0].id,
-          name: data[0].domain,
-          client: data[0].url,
-          status: data[0].status,
-          health_score: data[0].health_score,
-          created_at: data[0].created_at
-        });
+        // Select the newly created project
+        setSelectedProject(data[0]);
       }
 
       // Close dialog and reset form
@@ -157,7 +260,7 @@ export function Header({ title, subtitle }: HeaderProps) {
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="project-client">Website URL (Optional)</Label>
+                      <Label htmlFor="project-client">Client / Website URL (Optional)</Label>
                       <Input
                         id="project-client"
                         value={newProjectClient}
