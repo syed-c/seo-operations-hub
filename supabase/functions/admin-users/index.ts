@@ -77,7 +77,38 @@ serve(async (req: Request) => {
     switch (action) {
       case 'create':
         console.log('Creating record in', table, 'with data:', data);
-        result = await supabaseAdmin.from(table).insert(data).select();
+        
+        // Special handling for users table - we need to create the auth user first
+        if (table === 'users' && data.email) {
+          console.log('Creating user with data:', data);
+          
+          // First, create the user in the auth system
+          const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email: data.email,
+            password: data.password || "TempPass123!",
+            email_confirm: true
+          });
+          
+          if (authError) {
+            console.error('Error creating auth user:', authError);
+            throw new Error(`Failed to create auth user: ${authError.message}`);
+          }
+          
+          console.log('Auth user created:', authUser);
+          
+          // Then create the user in the users table with the auth user's id
+          const userData = {
+            ...data,
+            id: authUser.user.id
+          };
+          
+          delete userData.password; // Remove password as it's not needed in the users table
+          
+          console.log('Creating users table entry with data:', userData);
+          result = await supabaseAdmin.from(table).insert(userData).select();
+        } else {
+          result = await supabaseAdmin.from(table).insert(data).select();
+        }
         break;
       case 'update':
         {
