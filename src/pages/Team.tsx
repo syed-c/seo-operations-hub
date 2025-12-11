@@ -103,6 +103,8 @@ export default function Team() {
         return;
       }
       
+      console.log('Raw user data:', data);
+      
       const transformedData = (data || []).map((user: any) => ({
         id: user.id,
         email: user.email,
@@ -113,6 +115,7 @@ export default function Team() {
         created_at: user.created_at,
       }));
       
+      console.log('Transformed user data:', transformedData);
       setUsers(transformedData);
     } catch (err: any) {
       setLoading(false);
@@ -136,6 +139,7 @@ export default function Team() {
     }
 
     try {
+      console.log('Creating user with data:', { email, firstName, lastName, selectedRole });
       // Create user in users table using admin API client
       const result = await callAdminFunction('create', 'users', {
         email,
@@ -146,6 +150,11 @@ export default function Team() {
       });
       
       console.log('Create user result:', result);
+      
+      // Check if there was an error in the result
+      if (result?.error) {
+        throw new Error(result.error);
+      }
       
       toast({
         title: "Success",
