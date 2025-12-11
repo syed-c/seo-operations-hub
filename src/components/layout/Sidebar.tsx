@@ -160,11 +160,9 @@ export function Sidebar() {
         health_score: 70,
       });
       
-      if (projectError) throw projectError;
+      if (projectError) throw new Error(projectError);
       
-      const data = projectData?.data || [];
-
-      if (error) throw error;
+      const data = projectData || [];
 
       if (data && data[0]) {
         // Also create a website entry for this project
