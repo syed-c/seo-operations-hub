@@ -83,11 +83,13 @@ serve(async (req: Request) => {
           console.log('Creating user with data:', data);
           
           // First, create the user in the auth system
+          console.log('Creating auth user with email:', data.email);
           const { data: authUser, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email: data.email,
             password: data.password || "TempPass123!",
             email_confirm: true
           });
+          console.log('Auth user creation result:', { authUser, authError });
           
           if (authError) {
             console.error('Error creating auth user:', authError);
