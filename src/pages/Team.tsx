@@ -139,6 +139,7 @@ export default function Team() {
       // Create user in users table using admin API client
       const result = await callAdminFunction('create', 'users', {
         email,
+        password: "TempPass123!", // Temporary password, user should reset
         first_name: firstName || null,
         last_name: lastName || null,
         role: selectedRole || null,
