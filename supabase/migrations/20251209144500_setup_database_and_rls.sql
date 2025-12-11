@@ -448,6 +448,17 @@ CREATE POLICY "Admins can manage all projects" ON projects
     )
   );
 
+-- Admins can view all users
+DROP POLICY IF EXISTS "Admins can view all users" ON users;
+CREATE POLICY "Admins can view all users" ON users
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM users u
+      WHERE u.id = auth.uid() 
+      AND u.role IN ('Super Admin', 'Admin')
+    )
+  );
+
 DROP POLICY IF EXISTS "Admins can manage all websites" ON websites;
 CREATE POLICY "Admins can manage all websites" ON websites
   FOR ALL USING (

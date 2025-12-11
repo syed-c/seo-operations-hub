@@ -26,6 +26,16 @@ CREATE POLICY "Users can update own profile" ON users
   FOR UPDATE USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
 
+-- Admins can view all users
+CREATE POLICY "Admins can view all users" ON users
+  FOR SELECT USING (
+    EXISTS (
+      SELECT 1 FROM users u
+      WHERE u.id = auth.uid() 
+      AND u.role IN ('Super Admin', 'Admin')
+    )
+  );
+
 -- Users can view projects they belong to
 CREATE POLICY "Users can view projects they belong to" ON projects
   FOR SELECT USING (
