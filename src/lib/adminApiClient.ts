@@ -1,10 +1,10 @@
 // Helper functions to call admin Edge Functions
 // This provides a secure way to perform admin operations without exposing service role keys
 
-const ADMIN_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/admin-users`;
+import { supabase } from './supabaseClient';
 
 /**
- * Call the admin function
+ * Call the admin function using Supabase functions.invoke
  * @param action The action to perform (create, update, delete, select)
  * @param table The table to operate on
  * @param data The data for the operation
@@ -13,19 +13,22 @@ const ADMIN_FUNCTION_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/ad
  */
 export async function callAdminFunction(action: string, table: string, data?: any, filters?: Record<string, any>) {
   try {
-    const response = await fetch(ADMIN_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-      },
-      body: JSON.stringify({ action, table, data, filters })
+    if (!supabase) {
+      throw new Error('Supabase client not initialized');
+    }
+    
+    const { data: result, error } = await supabase.functions.invoke('admin-users', {
+      body: { action, table, data, filters }
     });
 
-    const result = await response.json();
+    if (error) {
+      console.error('Error calling admin function:', error);
+      throw new Error(error.message || 'Admin function call failed');
+    }
     
-    if (!response.ok) {
-      throw new Error(result.error || 'Admin function call failed');
+    // Check if result contains an error from the edge function
+    if (result?.error) {
+      throw new Error(result.error);
     }
     
     return result;
