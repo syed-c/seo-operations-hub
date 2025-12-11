@@ -137,41 +137,14 @@ export default function Team() {
 
     try {
       // Create user in users table using admin API client
-      const { error: userError } = await callAdminFunction('create', 'users', {
+      const result = await callAdminFunction('create', 'users', {
         email,
         first_name: firstName || null,
         last_name: lastName || null,
         role: selectedRole || null,
       });
       
-      if (userError) {
-        toast({
-          title: "Error",
-          description: userError.message,
-          variant: "destructive"
-        });
-        return;
-      }
-      
-      toast({
-        title: "Success",
-        description: "Team member added successfully!",
-      });
-      
-      setFirstName("");
-      setLastName("");
-      setEmail("");
-      setDialogOpen(false);
-      loadUsers();
-      
-      if (userError) {
-        toast({
-          title: "Error",
-          description: userError.message,
-          variant: "destructive"
-        });
-        return;
-      }
+      console.log('Create user result:', result);
       
       toast({
         title: "Success",
@@ -184,6 +157,7 @@ export default function Team() {
       setDialogOpen(false);
       loadUsers();
     } catch (err: any) {
+      console.error('Create user error:', err);
       toast({
         title: "Error",
         description: err.message || "Failed to add user",
@@ -195,16 +169,7 @@ export default function Team() {
   const onDelete = async (id: string) => {
     try {
       // Delete from users table using admin API client
-      const { error: userError } = await callAdminFunction('delete', 'users', undefined, { id });
-      
-      if (userError) {
-        toast({
-          title: "Error",
-          description: userError.message,
-          variant: "destructive"
-        });
-        return;
-      }
+      await callAdminFunction('delete', 'users', undefined, { id });
       
       toast({
         title: "Deleted",
@@ -212,6 +177,7 @@ export default function Team() {
       });
       loadUsers();
     } catch (err: any) {
+      console.error('Delete user error:', err);
       toast({
         title: "Error",
         description: err.message || "Failed to delete user",
