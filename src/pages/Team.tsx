@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Plus, Trash2, Edit3 } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
-import { callAdminFunction } from "@/lib/adminApiClient";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -140,21 +139,26 @@ export default function Team() {
 
     try {
       console.log('Creating user with data:', { email, firstName, lastName, selectedRole });
-      // Create user in users table using admin API client
-      const result = await callAdminFunction('create', 'users', {
-        email,
-        password: "TempPass123!", // Temporary password, user should reset
-        first_name: firstName || null,
-        last_name: lastName || null,
-        role: selectedRole || null,
-      });
+      // Create user in users table using direct Supabase insert
+      const { data: userData, error: userError } = await supabase
+        .from('users')
+        .insert([{
+          email,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          role: selectedRole || null,
+        }])
+        .select();
+      
+      if (userError) {
+        throw new Error(userError.message);
+      }
+      
+      const result = { data: userData };
       
       console.log('Create user result:', result);
       
-      // Check if there was an error in the result
-      if (result?.error) {
-        throw new Error(result.error);
-      }
+
       
       toast({
         title: "Success",
@@ -178,8 +182,15 @@ export default function Team() {
 
   const onDelete = async (id: string) => {
     try {
-      // Delete from users table using admin API client
-      await callAdminFunction('delete', 'users', undefined, { id });
+      // Delete from users table using direct Supabase delete
+      const { error: deleteError } = await supabase
+        .from('users')
+        .delete()
+        .eq('id', id);
+      
+      if (deleteError) {
+        throw new Error(deleteError.message);
+      }
       
       toast({
         title: "Deleted",
