@@ -14,7 +14,6 @@ import { useProject } from "@/contexts/ProjectContext";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import { callAdminFunction } from "@/lib/adminApiClient";
 import {
   Dialog,
   DialogContent,
@@ -38,6 +37,7 @@ export function Header({ title, subtitle }: HeaderProps) {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectClient, setNewProjectClient] = useState("");
+  const [newProjectDescription, setNewProjectDescription] = useState("");
 
   const handleNewProject = () => {
     navigate("/projects");
@@ -66,7 +66,7 @@ export function Header({ title, subtitle }: HeaderProps) {
     if (!newProjectName.trim()) return;
 
     try {
-      // First, check if user has permission to create projects
+      // Get current user
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
@@ -74,131 +74,65 @@ export function Header({ title, subtitle }: HeaderProps) {
         return;
       }
 
-      // Check user role
-      const { data: userData, error: userError } = await supabase
-        .from("users")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+      // Call webhook with project data directly, bypassing Supabase
+      try {
+        const webhookUrl = import.meta.env.VITE_PROJECT_CREATION_WEBHOOK_URL;
+        console.log('Attempting to call webhook with URL:', webhookUrl);
+        if (webhookUrl) {
+          const webhookData = {
+            projectName: newProjectName,
+            projectClient: newProjectClient,
+            projectDescription: newProjectDescription,
+            createdBy: user.id,
+            createdAt: new Date().toISOString()
+          };
+          
+          console.log('Webhook data being sent:', webhookData);
 
-      if (userError) {
-        console.error("Error fetching user role:", userError);
-        return;
-      }
-
-      // If no user data found, use a default role for demo purposes
-      if (!userData) {
-        console.warn("No user data found, using default role");
-        // For demo purposes, continue with project creation
-      }
-
-      // Only Super Admin, Admin, and SEO Lead can create projects
-      // If no user data, allow for demo purposes
-      if (userData) {
-        const allowedRoles = ['Super Admin', 'Admin', 'SEO Lead'];
-        if (!allowedRoles.includes(userData.role)) {
-          console.error("User does not have permission to create projects");
-          return;
-        }
-      } else {
-        console.warn("Proceeding with project creation without role check for demo");
-      }
-
-      // Create a project in the projects table using admin API client
-      const { data: projectData, error: projectError } = await callAdminFunction('create', 'projects', {
-        name: newProjectName,
-        client: newProjectClient || null,
-        status: "active",
-        health_score: 70,
-      });
-      
-      if (projectError) throw projectError;
-      
-      const data = projectData?.data || [];
-
-      if (data && data[0]) {
-        // Also create a website entry for this project
-        const { error: websiteError } = await supabase
-          .from("websites")
-          .insert({
-            project_id: data[0].id,
-            domain: newProjectName,
-            url: newProjectClient || `https://${newProjectName.replace(/\s+/g, '-').toLowerCase()}.com`,
-            is_verified: false,
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(webhookData)
           });
 
-        if (websiteError) {
-          console.error("Error creating website:", websiteError);
-          // Don't throw here as we still want to select the project
-        }
-
-        // Create project membership for the creator
-        const { error: memberError } = await supabase
-          .from("project_members")
-          .insert({
-            project_id: data[0].id,
-            user_id: user.id,
-            role: "owner"
-          });
-
-        if (memberError) {
-          console.error("Error creating project membership:", memberError);
-        }
-
-        // Create default automation rules for the new project
-        const defaultRules = [
-          {
-            project_id: data[0].id,
-            name: "Daily ranking sync",
-            description: "Sync keyword rankings daily",
-            trigger_event: "daily_sync",
-            condition: {},
-            action: { type: "run_function", name: "rank-checker" }
-          },
-          {
-            project_id: data[0].id,
-            name: "Weekly audit",
-            description: "Run full SEO audit weekly",
-            trigger_event: "weekly_audit",
-            condition: {},
-            action: { type: "run_function", name: "technical-audit" }
-          },
-          {
-            project_id: data[0].id,
-            name: "Backlink monitor",
-            description: "Monitor backlinks daily",
-            trigger_event: "daily_monitor",
-            condition: {},
-            action: { type: "run_function", name: "backlink-monitor" }
-          },
-          {
-            project_id: data[0].id,
-            name: "Content audit",
-            description: "Audit content quality weekly",
-            trigger_event: "weekly_content_audit",
-            condition: {},
-            action: { type: "run_function", name: "content-audit" }
+          console.log('Webhook response:', response.status, response.statusText);
+          
+          // Wait for and parse the response text
+          const responseText = await response.text();
+          console.log('Webhook response body:', responseText);
+          
+          if (!response.ok) {
+            console.error('Webhook call failed:', response.status, response.statusText, responseText);
+            throw new Error(`Webhook call failed: ${response.status} ${response.statusText}`);
           }
-        ];
-
-        const { error: rulesError } = await supabase
-          .from("automation_rules")
-          .insert(defaultRules);
-
-        if (rulesError) {
-          console.error("Error creating default automation rules:", rulesError);
+          
+          // Check the response text to determine success or failure
+          if (responseText.trim() === 'Project Added') {
+            console.log('Project creation webhook returned success');
+            // Success - project was added
+          } else if (responseText.trim() === 'Project Not Added') {
+            console.log('Project creation webhook returned failure');
+            throw new Error('Project could not be added');
+          } else {
+            console.warn('Unexpected webhook response:', responseText);
+            // For now, treat unexpected responses as success to avoid breaking existing workflows
+            console.log('Treating unexpected response as success');
+          }
+        } else {
+          console.warn('No webhook URL configured');
         }
-
-        // Refresh projects list
-        await fetchProjects();
-        // Select the newly created project
-        setSelectedProject(data[0]);
+      } catch (webhookError) {
+        console.error('Error calling webhook:', webhookError);
+        throw webhookError;
       }
 
       // Close dialog and reset form
       setIsCreateDialogOpen(false);
       setNewProjectName("");
       setNewProjectClient("");
+      setNewProjectDescription("");
     } catch (error) {
       console.error("Error creating project:", error);
     }
@@ -257,6 +191,15 @@ export function Header({ title, subtitle }: HeaderProps) {
                         value={newProjectName}
                         onChange={(e) => setNewProjectName(e.target.value)}
                         placeholder="Enter project name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="project-description">Description (Optional)</Label>
+                      <Input
+                        id="project-description"
+                        value={newProjectDescription}
+                        onChange={(e) => setNewProjectDescription(e.target.value)}
+                        placeholder="Enter project description"
                       />
                     </div>
                     <div className="space-y-2">

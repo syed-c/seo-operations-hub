@@ -430,6 +430,16 @@ CREATE POLICY "Users can access project backlinks" ON backlinks
     )
   );
 
+-- Users can access project automation rules
+DROP POLICY IF EXISTS "Users can access project automation rules" ON automation_rules;
+CREATE POLICY "Users can access project automation rules" ON automation_rules
+  FOR ALL USING (
+    project_id IN (
+      SELECT project_id FROM project_members 
+      WHERE user_id = auth.uid()
+    )
+  );
+
 -- Admin operations bypass RLS (handled by Edge Functions with service role key)
 -- These policies allow admins to perform operations through Edge Functions
 DROP POLICY IF EXISTS "Admins can manage all projects" ON projects;
