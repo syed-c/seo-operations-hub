@@ -4,7 +4,8 @@ import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Plus, Trash2, Edit3 } from "lucide-react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, ensureSupabase } from "@/lib/supabaseClient";
+import { callAdminFunction } from "@/lib/adminApiClient";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -83,7 +84,7 @@ export default function Team() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      const { data, error } = await ensureSupabase()
         .from("users")
         .select(`
           id, 
@@ -102,8 +103,6 @@ export default function Team() {
         return;
       }
       
-      console.log('Raw user data:', data);
-      
       const transformedData = (data || []).map((user: any) => ({
         id: user.id,
         email: user.email,
@@ -114,7 +113,6 @@ export default function Team() {
         created_at: user.created_at,
       }));
       
-      console.log('Transformed user data:', transformedData);
       setUsers(transformedData);
     } catch (err: any) {
       setLoading(false);
@@ -138,27 +136,15 @@ export default function Team() {
     }
 
     try {
-      console.log('Creating user with data:', { email, firstName, lastName, selectedRole });
-      // Create user in users table using direct Supabase insert
-      const { data: userData, error: userError } = await supabase
-        .from('users')
-        .insert([{
-          email,
-          first_name: firstName || null,
-          last_name: lastName || null,
-          role: selectedRole || null,
-        }])
-        .select();
-      
-      if (userError) {
-        throw new Error(userError.message);
-      }
-      
-      const result = { data: userData };
+      // Create user in users table using admin API client
+      const result = await callAdminFunction('create', 'users', {
+        email,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        role: selectedRole || null,
+      });
       
       console.log('Create user result:', result);
-      
-
       
       toast({
         title: "Success",
@@ -182,15 +168,8 @@ export default function Team() {
 
   const onDelete = async (id: string) => {
     try {
-      // Delete from users table using direct Supabase delete
-      const { error: deleteError } = await supabase
-        .from('users')
-        .delete()
-        .eq('id', id);
-      
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
+      // Delete from users table using admin API client
+      await callAdminFunction('delete', 'users', undefined, { id });
       
       toast({
         title: "Deleted",
@@ -219,7 +198,7 @@ export default function Team() {
     if (!editingUser) return;
     
     try {
-      const { error } = await supabase
+      const { error } = await ensureSupabase()
         .from("users")
         .update({
           first_name: editFirstName || null,

@@ -290,6 +290,21 @@ CREATE TABLE IF NOT EXISTS project_members (
   UNIQUE(project_id, user_id)
 );
 
+-- Create user_tokens table for storing OAuth tokens
+CREATE TABLE IF NOT EXISTS user_tokens (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  provider TEXT NOT NULL,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
+  expires_at TIMESTAMP WITH TIME ZONE,
+  token_type TEXT,
+  scope TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  UNIQUE(user_id, provider)
+);
+
 -- Enable RLS on all required tables
 -- First disable RLS if it's already enabled to avoid conflicts
 ALTER TABLE projects DISABLE ROW LEVEL SECURITY;
@@ -319,6 +334,29 @@ DROP POLICY IF EXISTS "Users can update own profile" ON users;
 CREATE POLICY "Users can update own profile" ON users
   FOR UPDATE USING (auth.uid() = id)
   WITH CHECK (auth.uid() = id);
+
+-- Users can manage their own tokens
+DROP POLICY IF EXISTS "Users can manage their own tokens" ON user_tokens;
+CREATE POLICY "Users can manage their own tokens" ON user_tokens
+  FOR ALL USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- Admins can manage all tokens
+DROP POLICY IF EXISTS "Admins can manage all tokens" ON user_tokens;
+CREATE POLICY "Admins can manage all tokens" ON user_tokens
+  FOR ALL USING (
+    EXISTS (
+      SELECT 1 FROM users u
+      WHERE u.id = auth.uid() 
+      AND u.role IN ('Super Admin', 'Admin')
+    )
+  ) WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM users u
+      WHERE u.id = auth.uid() 
+      AND u.role IN ('Super Admin', 'Admin')
+    )
+  );
 
 -- Users can view projects they belong to
 DROP POLICY IF EXISTS "Users can view projects they belong to" ON projects;
@@ -356,9 +394,11 @@ CREATE POLICY "Project owners can update projects" ON projects
 DROP POLICY IF EXISTS "Members can view project memberships" ON project_members;
 CREATE POLICY "Members can view project memberships" ON project_members
   FOR SELECT USING (
-    project_id IN (
-      SELECT project_id FROM project_members 
-      WHERE user_id = auth.uid()
+    -- Allow users to see memberships for projects they're part of
+    EXISTS (
+      SELECT 1 FROM project_members pm2
+      WHERE pm2.project_id = project_members.project_id
+      AND pm2.user_id = auth.uid()
     )
   );
 
@@ -366,10 +406,12 @@ CREATE POLICY "Members can view project memberships" ON project_members
 DROP POLICY IF EXISTS "Project owners can manage memberships" ON project_members;
 CREATE POLICY "Project owners can manage memberships" ON project_members
   FOR ALL USING (
-    project_id IN (
-      SELECT project_id FROM project_members 
-      WHERE user_id = auth.uid() 
-      AND role = 'owner'
+    -- Allow project owners to manage memberships
+    EXISTS (
+      SELECT 1 FROM project_members pm2
+      WHERE pm2.project_id = project_members.project_id
+      AND pm2.user_id = auth.uid()
+      AND pm2.role = 'owner'
     )
   );
 
@@ -415,24 +457,17 @@ CREATE POLICY "Users can access project keyword rankings" ON keyword_rankings
   FOR ALL USING (
     EXISTS (
       SELECT 1 FROM keywords k
-      JOIN project_members pm ON k.project_id = pm.project_id
       WHERE k.id = keyword_rankings.keyword_id
-      AND pm.user_id = auth.uid()
+      AND EXISTS (
+        SELECT 1 FROM project_members pm
+        WHERE pm.project_id = k.project_id
+        AND pm.user_id = auth.uid()
+      )
     )
   );
 
 DROP POLICY IF EXISTS "Users can access project backlinks" ON backlinks;
 CREATE POLICY "Users can access project backlinks" ON backlinks
-  FOR ALL USING (
-    project_id IN (
-      SELECT project_id FROM project_members 
-      WHERE user_id = auth.uid()
-    )
-  );
-
--- Users can access project automation rules
-DROP POLICY IF EXISTS "Users can access project automation rules" ON automation_rules;
-CREATE POLICY "Users can access project automation rules" ON automation_rules
   FOR ALL USING (
     project_id IN (
       SELECT project_id FROM project_members 
@@ -451,17 +486,6 @@ CREATE POLICY "Admins can manage all projects" ON projects
       AND u.role IN ('Super Admin', 'Admin')
     )
   ) WITH CHECK (
-    EXISTS (
-      SELECT 1 FROM users u
-      WHERE u.id = auth.uid() 
-      AND u.role IN ('Super Admin', 'Admin')
-    )
-  );
-
--- Admins can view all users
-DROP POLICY IF EXISTS "Admins can view all users" ON users;
-CREATE POLICY "Admins can view all users" ON users
-  FOR SELECT USING (
     EXISTS (
       SELECT 1 FROM users u
       WHERE u.id = auth.uid() 
