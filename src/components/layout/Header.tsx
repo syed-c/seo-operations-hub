@@ -13,7 +13,8 @@ import {
 import { useProject } from "@/contexts/ProjectContext";
 import { useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, ensureSupabase } from "@/lib/supabaseClient";
+import { callAdminFunction } from "@/lib/adminApiClient";
 import {
   Dialog,
   DialogContent,
@@ -63,76 +64,78 @@ export function Header({ title, subtitle }: HeaderProps) {
   };
 
   const handleCreateProject = async () => {
-    if (!newProjectName.trim()) return;
+    if (!newProjectName.trim() || !newProjectDescription.trim() || !newProjectClient.trim()) return;
 
     try {
-      // Get current user
-      const { data: { user } } = await supabase.auth.getUser();
+      // First, check if user has permission to create projects
+      const { data: { user } } = await ensureSupabase().auth.getUser();
       
       if (!user) {
         console.error("User not authenticated");
         return;
       }
 
-      // Call webhook with project data directly, bypassing Supabase
-      try {
-        const webhookUrl = import.meta.env.VITE_PROJECT_CREATION_WEBHOOK_URL;
-        console.log('Attempting to call webhook with URL:', webhookUrl);
-        if (webhookUrl) {
-          const webhookData = {
-            projectName: newProjectName,
-            projectClient: newProjectClient,
-            projectDescription: newProjectDescription,
-            createdBy: user.id,
-            createdAt: new Date().toISOString()
-          };
-          
-          console.log('Webhook data being sent:', webhookData);
+      // Check user role
+      const { data: userData, error: userError } = await ensureSupabase()
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
 
-          const response = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(webhookData)
-          });
-
-          console.log('Webhook response:', response.status, response.statusText);
-          
-          // Wait for and parse the response text
-          const responseText = await response.text();
-          console.log('Webhook response body:', responseText);
-          
-          if (!response.ok) {
-            console.error('Webhook call failed:', response.status, response.statusText, responseText);
-            throw new Error(`Webhook call failed: ${response.status} ${response.statusText}`);
-          }
-          
-          // Check the response text to determine success or failure
-          if (responseText.trim() === 'Project Added') {
-            console.log('Project creation webhook returned success');
-            // Success - project was added
-          } else if (responseText.trim() === 'Project Not Added') {
-            console.log('Project creation webhook returned failure');
-            throw new Error('Project could not be added');
-          } else {
-            console.warn('Unexpected webhook response:', responseText);
-            // For now, treat unexpected responses as success to avoid breaking existing workflows
-            console.log('Treating unexpected response as success');
-          }
-        } else {
-          console.warn('No webhook URL configured');
-        }
-      } catch (webhookError) {
-        console.error('Error calling webhook:', webhookError);
-        throw webhookError;
+      if (userError) {
+        console.error("Error fetching user role:", userError);
+        return;
       }
 
-      // Close dialog and reset form
-      setIsCreateDialogOpen(false);
-      setNewProjectName("");
-      setNewProjectClient("");
-      setNewProjectDescription("");
+      // Only Super Admin, Admin, and SEO Lead can create projects
+      if (userData) {
+        const allowedRoles = ['Super Admin', 'Admin', 'SEO Lead'];
+        if (!allowedRoles.includes(userData.role)) {
+          console.error("User does not have permission to create projects");
+          return;
+        }
+      } else {
+        console.warn("No user role found, proceeding with project creation");
+      }
+
+      // Call webhook to create project
+      const webhookUrl = import.meta.env.VITE_PROJECT_WEBHOOK_URL;
+      
+      if (!webhookUrl) {
+        console.error("Webhook URL not configured");
+        return;
+      }
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newProjectName,
+          description: newProjectDescription,
+          client: newProjectClient,
+          status: "active",
+          health_score: 70,
+        }),
+      });
+
+      const responseBody = await response.text();
+      
+      if (responseBody.includes('Project Added')) {
+        console.log("Project created successfully via webhook");
+        
+        // Refresh projects list
+        await fetchProjects();
+        
+        // Close dialog and reset form
+        setIsCreateDialogOpen(false);
+        setNewProjectName("");
+        setNewProjectDescription("");
+        setNewProjectClient("");
+      } else {
+        console.error("Failed to create project via webhook:", responseBody);
+      }
     } catch (error) {
       console.error("Error creating project:", error);
     }
@@ -185,30 +188,33 @@ export function Header({ title, subtitle }: HeaderProps) {
                   </DialogHeader>
                   <div className="space-y-4 py-4">
                     <div className="space-y-2">
-                      <Label htmlFor="project-name">Project Name</Label>
+                      <Label htmlFor="project-name">Project Name *</Label>
                       <Input
                         id="project-name"
                         value={newProjectName}
                         onChange={(e) => setNewProjectName(e.target.value)}
                         placeholder="Enter project name"
+                        required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="project-description">Description (Optional)</Label>
+                      <Label htmlFor="project-description">Project Description *</Label>
                       <Input
                         id="project-description"
                         value={newProjectDescription}
                         onChange={(e) => setNewProjectDescription(e.target.value)}
                         placeholder="Enter project description"
+                        required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="project-client">Client / Website URL (Optional)</Label>
+                      <Label htmlFor="project-client">Client / Website URL *</Label>
                       <Input
                         id="project-client"
                         value={newProjectClient}
                         onChange={(e) => setNewProjectClient(e.target.value)}
                         placeholder="https://example.com"
+                        required
                       />
                     </div>
                   </div>
@@ -221,7 +227,7 @@ export function Header({ title, subtitle }: HeaderProps) {
                     </Button>
                     <Button
                       onClick={handleCreateProject}
-                      disabled={!newProjectName.trim()}
+                      disabled={!newProjectName.trim() || !newProjectDescription.trim() || !newProjectClient.trim()}
                     >
                       Create Project
                     </Button>

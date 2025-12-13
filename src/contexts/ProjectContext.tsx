@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from "react";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, ensureSupabase } from "@/lib/supabaseClient";
 
 interface Project {
   id: string;
@@ -32,19 +32,71 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       
+      // First, try to get the current user's role
+      const { data: { user } } = await ensureSupabase().auth.getUser();
+      
+      if (!user) {
+        console.log('No user is currently logged in');
+        setProjects([]);
+        setLoading(false);
+        return;
+      }
+      
+      // Check user role
+      const { data: userData, error: userError } = await ensureSupabase()
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      
+      console.log('User role data:', { userData, userError });
+      
       // Fetch projects from the projects table
-      const { data, error } = await supabase
-        .from("projects")
-        .select("id, name, client, status, health_score, created_at")
-        .order("created_at", { ascending: false });
+      let query = ensureSupabase().from("projects").select("id, name, client, status, health_score, created_at");
+      
+      // If user is Super Admin or Admin, we might need to handle differently
+      if (userData && (userData.role === 'Super Admin' || userData.role === 'Admin')) {
+        console.log('User is admin, fetching all projects');
+        // For admins, we should be able to see all projects
+        // The RLS policies should allow this
+      }
+      
+      const { data, error } = await query.order("created_at", { ascending: false });
+      
+      console.log('Projects fetch result:', { data, error });
 
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error('Error fetching projects:', error);
+        throw new Error(error.message);
+      }
       
       setProjects(data || []);
       
       // If no project is selected and we have projects, select the first one
       if (!selectedProject && data && data.length > 0) {
         setSelectedProject(data[0]);
+      }
+      
+      // If no projects exist, create a default one
+      if (data && data.length === 0) {
+        console.log('No projects found, creating default project');
+        const { data: newProject, error: createError } = await ensureSupabase()
+          .from("projects")
+          .insert({
+            name: "Default Project",
+            client: "Default Client",
+            status: "active",
+            health_score: 70
+          })
+          .select();
+          
+        if (createError) {
+          console.error("Error creating default project:", createError);
+        } else if (newProject && newProject.length > 0) {
+          console.log("Default project created:", newProject[0]);
+          setProjects(newProject);
+          setSelectedProject(newProject[0]);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to fetch projects");

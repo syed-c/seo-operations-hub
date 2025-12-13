@@ -27,6 +27,7 @@ import ContentLeadDashboard from "./pages/roles/ContentLeadDashboard";
 import BacklinkLeadDashboard from "./pages/roles/BacklinkLeadDashboard";
 import DeveloperDashboard from "./pages/roles/DeveloperDashboard";
 import ClientDashboard from "./pages/roles/ClientDashboard";
+import AuthCallback from "./pages/AuthCallback";
 import { AuthGate } from "./components/AuthGate";
 import { ProjectProvider } from "./contexts/ProjectContext";
 
@@ -65,6 +66,7 @@ const App = () => (
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
+              <Route path="/auth/callback" element={<AuthCallback />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>

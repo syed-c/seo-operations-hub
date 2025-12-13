@@ -1,5 +1,6 @@
 // Notification service helper functions
 import { supabase } from "@/lib/supabaseClient";
+import { callAdminFunction } from "@/lib/adminApiClient";
 
 // Types
 interface NotificationData {
