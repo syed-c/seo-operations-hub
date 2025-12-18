@@ -9,7 +9,8 @@ import {
   getStoredGoogleToken,
   fetchSearchConsoleSites,
   fetchSearchAnalytics,
-  storeSearchConsoleData
+  storeSearchConsoleData,
+  refreshGoogleToken
 } from '@/services/googleSearchConsoleService';
 
 export function ProjectDashboard() {
@@ -20,7 +21,7 @@ export function ProjectDashboard() {
 
   useEffect(() => {
     checkGoogleConnection();
-  }, [selectedProject]);
+  }, [selectedProject, hasGoogleToken]);
 
   const checkGoogleConnection = async () => {
     if (!selectedProject) {
@@ -52,49 +53,104 @@ export function ProjectDashboard() {
     setError(null);
 
     try {
+      console.log('Starting GSC data fetch process...');
+      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('User not authenticated');
       }
+      console.log('User authenticated:', user.id);
 
       const token = await getStoredGoogleToken(user.id);
       if (!token) {
         throw new Error('Google account not connected');
       }
+      console.log('Google token retrieved');
 
       // Refresh token if expired
       let accessToken = token.access_token;
       if (new Date(token.expires_at) < new Date()) {
+        console.log('Token expired, refreshing...');
         // Token expired, refresh it
-        // Note: In a real implementation, you would implement token refresh logic here
-        throw new Error('Token expired. Please reconnect your Google account.');
+        try {
+          const refreshedToken = await refreshGoogleToken(token.refresh_token);
+          accessToken = refreshedToken.access_token;
+          
+          // Update the stored token with the new access token and expiration time
+          const { error: updateError } = await supabase
+            .from('user_tokens')
+            .update({
+              access_token: refreshedToken.access_token,
+              expires_at: new Date(Date.now() + refreshedToken.expires_in * 1000)
+            })
+            .eq('user_id', user.id)
+            .eq('provider', 'google');
+            
+          if (updateError) throw updateError;
+          console.log('Token refreshed successfully');
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError);
+          throw new Error('Token expired. Please reconnect your Google account.');
+        }
       }
 
       // Fetch sites to verify the project's website is connected
+      console.log('Fetching Search Console sites...');
       const sites = await fetchSearchConsoleSites(accessToken);
-      const projectWebsite = `sc-domain:${selectedProject.client}`;
-      const isVerified = sites.some(site => site.siteUrl === projectWebsite);
+      console.log('Sites fetched:', sites);
+      
+      // Check for multiple possible site URL formats
+      const possibleSiteUrls = [
+        `sc-domain:${selectedProject.client}`,
+        `https://${selectedProject.client}`,  
+        `https://${selectedProject.client}/`,
+        `http://${selectedProject.client}`,
+        `http://${selectedProject.client}/`
+      ];
+      
+      // Also check if client might already include protocol
+      if (selectedProject.client.startsWith('http')) {
+        possibleSiteUrls.push(selectedProject.client);
+        possibleSiteUrls.push(`${selectedProject.client}/`);
+      }
+      
+      const matchedSite = sites.find(site => 
+        possibleSiteUrls.includes(site.siteUrl)
+      );
+      console.log('Matched site:', matchedSite);
+      console.log('Looking for:', possibleSiteUrls);
 
-      if (!isVerified) {
-        throw new Error(`Website ${selectedProject.client} is not verified in Google Search Console`);
+      if (!matchedSite) {
+        // Log the actual sites for debugging
+        console.log('Available sites in Search Console:', sites);
+        console.log('Looking for:', possibleSiteUrls);
+        throw new Error(`Website ${selectedProject.client} is not verified in Google Search Console. Available sites: ${sites.map(s => s.siteUrl).join(', ')}`);
       }
 
       // Fetch analytics data
       const query = {
         startDate: '2023-01-01',
         endDate: new Date().toISOString().split('T')[0],
-        dimensions: ['page'],
+        dimensions: ['date', 'page'],
         rowLimit: 1000,
       };
+      console.log('Fetching analytics data with query:', query);
 
-      const data = await fetchSearchAnalytics(accessToken, projectWebsite, query);
+      const data = await fetchSearchAnalytics(accessToken, matchedSite.siteUrl, query);
+      console.log('Analytics data fetched:', data?.rows?.length || 0, 'rows');
       
       // Store data in Supabase
-      await storeSearchConsoleData(selectedProject.id, data);
+      console.log('Storing data in Supabase...');
+      await storeSearchConsoleData(selectedProject.id, data, query.dimensions);
+      console.log('Data stored successfully');
       
       // Refresh the UI
       window.location.reload();
     } catch (err) {
+      console.error('Error in handleFetchData:', err);
+      console.error('Error name:', err.name);
+      console.error('Error message:', err.message);
+      console.error('Error stack:', err.stack);
       setError(err instanceof Error ? err.message : 'Failed to fetch Search Console data');
     } finally {
       setIsLoading(false);
@@ -150,6 +206,16 @@ export function ProjectDashboard() {
           <CardContent>
             <div className="text-red-500 p-4 bg-red-50 rounded-md">
               {error}
+              {error.includes('Token expired') && (
+                <div className="mt-4">
+                  <Button onClick={() => {
+                    // Remove the expired token and show the connect component
+                    setHasGoogleToken(false);
+                  }}>
+                    Reconnect Google Account
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -158,7 +224,7 @@ export function ProjectDashboard() {
       {!hasGoogleToken ? (
         <GoogleSearchConsoleConnect />
       ) : (
-        <SearchConsoleAnalytics />
+        <SearchConsoleAnalytics onRefresh={handleFetchData} />
       )}
     </div>
   );

@@ -31,9 +31,19 @@ export function GoogleSearchConsoleConnect() {
         
         const token = await getStoredGoogleToken(user.id);
         if (token) {
-          setIsConnected(true);
-          // Fetch sites to verify connection
-          await fetchSites(token.access_token);
+          // Check if token is still valid
+          if (new Date(token.expires_at) > new Date()) {
+            setIsConnected(true);
+            // Fetch sites to verify connection
+            await fetchSites(token.access_token);
+          } else {
+            // Token expired, clear it and show connect button
+            await supabase
+              .from('user_tokens')
+              .delete()
+              .eq('user_id', user.id)
+              .eq('provider', 'google');
+          }
         }
       } catch (err) {
         console.error('Error checking connection status:', err);
@@ -48,6 +58,16 @@ export function GoogleSearchConsoleConnect() {
     setError(null);
     
     try {
+      // Clear any existing token before reconnecting
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        await supabase
+          .from('user_tokens')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('provider', 'google');
+      }
+      
       initGoogleAuth();
     } catch (err) {
       setError('Failed to initiate Google authentication');
@@ -62,12 +82,33 @@ export function GoogleSearchConsoleConnect() {
       
       // Check if the project's website is in the list
       if (selectedProject) {
-        const projectWebsite = `sc-domain:${selectedProject.client}`; // Adjust based on your project structure
-        const isVerified = siteList.some(site => site.siteUrl === projectWebsite);
+        // Check for multiple possible site URL formats
+        const possibleSiteUrls = [
+          `sc-domain:${selectedProject.client}`,
+          `https://${selectedProject.client}`,  
+          `https://${selectedProject.client}/`,
+          `http://${selectedProject.client}`,
+          `http://${selectedProject.client}/`
+        ];
         
-        if (isVerified) {
+        // Also check if client might already include protocol
+        if (selectedProject.client.startsWith('http')) {
+          possibleSiteUrls.push(selectedProject.client);
+          possibleSiteUrls.push(`${selectedProject.client}/`);
+        }
+        
+        const matchedSite = siteList.find(site => 
+          possibleSiteUrls.includes(site.siteUrl)
+        );
+        
+        if (matchedSite) {
           // Fetch analytics data
-          await fetchAnalyticsData(accessToken, projectWebsite);
+          await fetchAnalyticsData(accessToken, matchedSite.siteUrl);
+        } else {
+          // Show available sites for debugging
+          console.log('Available sites in Search Console:', siteList);
+          console.log('Looking for:', possibleSiteUrls);
+          setError(`Website ${selectedProject.client} is not verified in Google Search Console. Available sites: ${siteList.map(s => s.siteUrl).join(', ')}`);
         }
       }
     } catch (err) {
@@ -81,7 +122,7 @@ export function GoogleSearchConsoleConnect() {
       const query = {
         startDate: '2023-01-01',
         endDate: new Date().toISOString().split('T')[0],
-        dimensions: ['page'],
+        dimensions: ['date', 'page'],
         rowLimit: 1000,
       };
       
@@ -90,9 +131,10 @@ export function GoogleSearchConsoleConnect() {
       
       // Store data in Supabase
       if (selectedProject) {
-        await storeSearchConsoleData(selectedProject.id, data);
+        await storeSearchConsoleData(selectedProject.id, data, query.dimensions);
       }
     } catch (err) {
+      console.error('Error in fetchAnalyticsData:', err);
       setError('Failed to fetch analytics data');
       console.error(err);
     }

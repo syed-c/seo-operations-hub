@@ -146,6 +146,8 @@ export const fetchSearchAnalytics = async (
   siteUrl: string,
   query: SearchAnalyticsQuery
 ) => {
+  console.log('Fetching Search Analytics with:', { siteUrl, query });
+  
   const response = await fetch(
     `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`,
     {
@@ -158,11 +160,16 @@ export const fetchSearchAnalytics = async (
     }
   );
   
+  console.log('Search Analytics response status:', response.status);
+  
   if (!response.ok) {
-    throw new Error('Failed to fetch Search Console analytics');
+    const errorText = await response.text();
+    console.error('Search Analytics error response:', errorText);
+    throw new Error(`Failed to fetch Search Console analytics: ${response.status} ${response.statusText}. ${errorText}`);
   }
   
   const data = await response.json();
+  console.log('Search Analytics data received:', data?.rows?.length || 0, 'rows');
   return data as SearchAnalyticsResponse;
 };
 
@@ -180,24 +187,96 @@ export const isSiteVerified = async (accessToken: string, siteUrl: string) => {
 // Store Search Console data in Supabase
 export const storeSearchConsoleData = async (
   projectId: string,
-  analyticsData: SearchAnalyticsResponse
+  analyticsData: SearchAnalyticsResponse,
+  queryDimensions: string[]
 ) => {
-  const rowsToInsert = analyticsData.rows.map(row => ({
-    project_id: projectId,
-    page_url: row.keys[0] || null,
-    clicks: row.clicks,
-    impressions: row.impressions,
-    ctr: row.ctr,
-    avg_position: row.position,
-    date: new Date().toISOString().split('T')[0], // Today's date
+  console.log('Storing GSC data:', {
+    projectId,
+    rowCount: analyticsData?.rows?.length || 0,
+    queryDimensions
+  });
+  // Parse dimensions for each row
+  console.log('Parsing rows:', analyticsData?.rows?.length || 0, 'rows with dimensions:', queryDimensions);
+  const parsedRows = analyticsData.rows
+    .map((row, rowIndex) => {
+      let pageUrl = null;
+      let date = null;
+      
+      // Map the keys based on dimensions order
+      queryDimensions.forEach((dim, index) => {
+        if (dim === 'page') {
+          pageUrl = row.keys[index] || null;
+        } else if (dim === 'date') {
+          date = row.keys[index] || null;
+        }
+      });
+      
+      // Debug logging for first few rows
+      if (rowIndex < 3) {
+        console.log('Raw row:', row);
+        console.log('Query dimensions:', queryDimensions);
+        console.log('Parsed pageUrl:', pageUrl);
+        console.log('Parsed date:', date);
+      }
+      
+      return {
+        project_id: projectId,
+        page_url: pageUrl,
+        clicks: row.clicks,
+        impressions: row.impressions,
+        avg_position: row.position,
+        date: date, // Use actual date from GSC
+      };
+    })
+    .filter((row, index) => {
+      // Filter out rows with null values for unique constraint fields
+      if (row.date === null || row.page_url === null) {
+        if (index < 3) {
+          console.warn('Skipping row with null date or page_url:', row);
+        }
+        return false;
+      }
+      return true;
+    });
+  console.log('Parsed rows result:', parsedRows.length, 'valid rows');
+  
+  // Calculate CTR for all entries
+  console.log('Calculating CTR for', parsedRows.length, 'rows');
+  const rowsToInsert = parsedRows.map(item => ({
+    ...item,
+    ctr: item.impressions > 0 ? item.clicks / item.impressions : 0
   }));
+  console.log('CTR calculation complete');
   
-  const { error } = await supabase
-    .from('gsc_metrics')
-    .insert(rowsToInsert);
+  // Use upsert to avoid duplicates
+  // Filter out any rows that might still have null values for unique constraint fields
+  const validRowsToInsert = rowsToInsert.filter(
+    row => row.project_id !== null && row.date !== null && row.page_url !== null
+  );
   
-  if (error) {
-    console.error('Error storing Search Console data:', error);
-    throw error;
+  console.log('Valid rows to insert:', validRowsToInsert.length);
+  if (validRowsToInsert.length > 0) {
+    console.log('Sample of rows to insert:', validRowsToInsert.slice(0, 3));
+    const { error: upsertError } = await supabase
+      .from('gsc_metrics')
+      .upsert(validRowsToInsert, {
+        onConflict: 'project_id,date,page_url'
+      });
+    
+    if (upsertError) {
+      console.error('Error storing Search Console data:', upsertError);
+      console.error('Error details:', {
+        message: upsertError.message,
+        code: upsertError.code,
+        details: upsertError.details,
+        hint: upsertError.hint
+      });
+      throw upsertError;
+    }
+    console.log('Successfully stored', validRowsToInsert.length, 'rows');
+  } else if (rowsToInsert.length > 0) {
+    console.warn('Filtered out all rows due to null values in unique constraint fields');
+  } else {
+    console.log('No rows to insert');
   }
 };

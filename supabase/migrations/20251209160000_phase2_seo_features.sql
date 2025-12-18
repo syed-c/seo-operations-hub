@@ -81,7 +81,8 @@ CREATE TABLE IF NOT EXISTS gsc_metrics (
   impressions INTEGER,
   ctr FLOAT,
   avg_position FLOAT,
-  date DATE
+  date DATE,
+  UNIQUE(project_id, date, page_url)
 );
 
 -- Create indexes for new tables
@@ -104,6 +105,7 @@ ALTER TABLE ranking_history ENABLE ROW LEVEL SECURITY;
 ALTER TABLE gsc_metrics ENABLE ROW LEVEL SECURITY;
 
 -- Ranking alerts policies
+DROP POLICY IF EXISTS "Users can access project ranking alerts" ON ranking_alerts;
 CREATE POLICY "Users can access project ranking alerts" ON ranking_alerts
   FOR ALL USING (
     project_id IN (
@@ -113,6 +115,7 @@ CREATE POLICY "Users can access project ranking alerts" ON ranking_alerts
   );
 
 -- Ranking history policies
+DROP POLICY IF EXISTS "Users can access project ranking history" ON ranking_history;
 CREATE POLICY "Users can access project ranking history" ON ranking_history
   FOR ALL USING (
     project_id IN (
@@ -122,6 +125,7 @@ CREATE POLICY "Users can access project ranking history" ON ranking_history
   );
 
 -- GSC metrics policies
+DROP POLICY IF EXISTS "Users can access project gsc metrics" ON gsc_metrics;
 CREATE POLICY "Users can access project gsc metrics" ON gsc_metrics
   FOR ALL USING (
     project_id IN (
@@ -131,6 +135,7 @@ CREATE POLICY "Users can access project gsc metrics" ON gsc_metrics
   );
 
 -- Admin policies for new tables
+DROP POLICY IF EXISTS "Admins can manage all ranking alerts" ON ranking_alerts;
 CREATE POLICY "Admins can manage all ranking alerts" ON ranking_alerts
   FOR ALL USING (
     EXISTS (
@@ -146,6 +151,7 @@ CREATE POLICY "Admins can manage all ranking alerts" ON ranking_alerts
     )
   );
 
+DROP POLICY IF EXISTS "Admins can manage all ranking history" ON ranking_history;
 CREATE POLICY "Admins can manage all ranking history" ON ranking_history
   FOR ALL USING (
     EXISTS (
@@ -161,6 +167,7 @@ CREATE POLICY "Admins can manage all ranking history" ON ranking_history
     )
   );
 
+DROP POLICY IF EXISTS "Admins can manage all gsc metrics" ON gsc_metrics;
 CREATE POLICY "Admins can manage all gsc metrics" ON gsc_metrics
   FOR ALL USING (
     EXISTS (
