@@ -134,7 +134,6 @@ export function GoogleSearchConsoleConnect() {
         await storeSearchConsoleData(selectedProject.id, data, query.dimensions);
       }
     } catch (err) {
-      console.error('Error in fetchAnalyticsData:', err);
       setError('Failed to fetch analytics data');
       console.error(err);
     }
