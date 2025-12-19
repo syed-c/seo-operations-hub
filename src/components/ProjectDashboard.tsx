@@ -53,24 +53,19 @@ export function ProjectDashboard() {
     setError(null);
 
     try {
-      console.log('Starting GSC data fetch process...');
-      
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         throw new Error('User not authenticated');
       }
-      console.log('User authenticated:', user.id);
 
       const token = await getStoredGoogleToken(user.id);
       if (!token) {
         throw new Error('Google account not connected');
       }
-      console.log('Google token retrieved');
 
       // Refresh token if expired
       let accessToken = token.access_token;
       if (new Date(token.expires_at) < new Date()) {
-        console.log('Token expired, refreshing...');
         // Token expired, refresh it
         try {
           const refreshedToken = await refreshGoogleToken(token.refresh_token);
@@ -87,17 +82,13 @@ export function ProjectDashboard() {
             .eq('provider', 'google');
             
           if (updateError) throw updateError;
-          console.log('Token refreshed successfully');
         } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
           throw new Error('Token expired. Please reconnect your Google account.');
         }
       }
 
       // Fetch sites to verify the project's website is connected
-      console.log('Fetching Search Console sites...');
       const sites = await fetchSearchConsoleSites(accessToken);
-      console.log('Sites fetched:', sites);
       
       // Check for multiple possible site URL formats
       const possibleSiteUrls = [
@@ -117,8 +108,6 @@ export function ProjectDashboard() {
       const matchedSite = sites.find(site => 
         possibleSiteUrls.includes(site.siteUrl)
       );
-      console.log('Matched site:', matchedSite);
-      console.log('Looking for:', possibleSiteUrls);
 
       if (!matchedSite) {
         // Log the actual sites for debugging
@@ -134,23 +123,15 @@ export function ProjectDashboard() {
         dimensions: ['date', 'page'],
         rowLimit: 1000,
       };
-      console.log('Fetching analytics data with query:', query);
 
       const data = await fetchSearchAnalytics(accessToken, matchedSite.siteUrl, query);
-      console.log('Analytics data fetched:', data?.rows?.length || 0, 'rows');
       
       // Store data in Supabase
-      console.log('Storing data in Supabase...');
       await storeSearchConsoleData(selectedProject.id, data, query.dimensions);
-      console.log('Data stored successfully');
       
       // Refresh the UI
       window.location.reload();
     } catch (err) {
-      console.error('Error in handleFetchData:', err);
-      console.error('Error name:', err.name);
-      console.error('Error message:', err.message);
-      console.error('Error stack:', err.stack);
       setError(err instanceof Error ? err.message : 'Failed to fetch Search Console data');
     } finally {
       setIsLoading(false);
