@@ -1,138 +1,100 @@
 import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { useProject } from '@/contexts/ProjectContext';
 import { supabase } from '@/lib/supabaseClient';
-import {
+import { 
   initGoogleAuth,
-  getStoredGoogleToken,
   fetchSearchConsoleSites,
-  isSiteVerified,
-  fetchSearchAnalytics,
-  storeSearchConsoleData
+  fetchAndStoreSearchConsoleData,
+  storeGSCConnectionState,
+  getGSCIntegrationState
 } from '@/services/googleSearchConsoleService';
 
 export function GoogleSearchConsoleConnect() {
   const { selectedProject } = useProject();
   const [isConnected, setIsConnected] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [sites, setSites] = useState<any[]>([]);
+  const [sites, setSites] = useState<{ siteUrl: string; permissionLevel: string }[]>([]);
   const [analytics, setAnalytics] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
 
-  // Check if user has already connected Google account
   useEffect(() => {
-    const checkConnectionStatus = async () => {
-      if (!selectedProject) return;
-      
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        
-        const token = await getStoredGoogleToken(user.id);
-        if (token) {
-          // Check if token is still valid
-          if (new Date(token.expires_at) > new Date()) {
-            setIsConnected(true);
-            // Fetch sites to verify connection
-            await fetchSites(token.access_token);
-          } else {
-            // Token expired, clear it and show connect button
-            await supabase
-              .from('user_tokens')
-              .delete()
-              .eq('user_id', user.id)
-              .eq('provider', 'google');
-          }
-        }
-      } catch (err) {
-        console.error('Error checking connection status:', err);
-      }
-    };
-    
-    checkConnectionStatus();
-  }, [selectedProject]);
+    checkConnection();
+  }, []);
 
-  const handleConnect = async () => {
-    setIsLoading(true);
-    setError(null);
+  const checkConnection = async () => {
+    // Guard against undefined project
+    if (!selectedProject || !selectedProject.id) return;
     
     try {
-      // Clear any existing token before reconnecting
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        await supabase
-          .from('user_tokens')
-          .delete()
-          .eq('user_id', user.id)
-          .eq('provider', 'google');
-      }
+      // Check if user has Google token (more reliable than project integration state)
+      const { data } = await supabase
+        .from('user_tokens')
+        .select('id')
+        .eq('provider', 'google')
+        .limit(1);
       
-      initGoogleAuth();
+      const isConnected = data?.length > 0;
+      setIsConnected(isConnected);
+      
+      // If connected, fetch sites to display them
+      if (isConnected) {
+        // Import token function dynamically to avoid importing at module level
+        const { getStoredGoogleToken } = await import('@/services/googleSearchConsoleService');
+        const token = await getStoredGoogleToken(selectedProject.user_id);
+        if (token) {
+          const sites = await fetchSearchConsoleSites(token.access_token);
+          setSites(sites);
+        }
+      }
     } catch (err) {
-      setError('Failed to initiate Google authentication');
-      setIsLoading(false);
+      console.error('Error checking connection:', err);
+      setError('Failed to check connection status');
     }
   };
 
-  const fetchSites = async (accessToken: string) => {
+  const handleConnect = () => {
+    if (!selectedProject) {
+      setError('No project selected');
+      return;
+    }
+    
     try {
-      const siteList = await fetchSearchConsoleSites(accessToken);
-      setSites(siteList);
-      
-      // Check if the project's website is in the list
-      if (selectedProject) {
-        // Check for multiple possible site URL formats
-        const possibleSiteUrls = [
-          `sc-domain:${selectedProject.client}`,
-          `https://${selectedProject.client}`,  
-          `https://${selectedProject.client}/`,
-          `http://${selectedProject.client}`,
-          `http://${selectedProject.client}/`
-        ];
-        
-        // Also check if client might already include protocol
-        if (selectedProject.client.startsWith('http')) {
-          possibleSiteUrls.push(selectedProject.client);
-          possibleSiteUrls.push(`${selectedProject.client}/`);
-        }
-        
-        const matchedSite = siteList.find(site => 
-          possibleSiteUrls.includes(site.siteUrl)
-        );
-        
-        if (matchedSite) {
-          // Fetch analytics data
-          await fetchAnalyticsData(accessToken, matchedSite.siteUrl);
-        } else {
-          // Show available sites for debugging
-          console.log('Available sites in Search Console:', siteList);
-          console.log('Looking for:', possibleSiteUrls);
-          setError(`Website ${selectedProject.client} is not verified in Google Search Console. Available sites: ${siteList.map(s => s.siteUrl).join(', ')}`);
-        }
-      }
+      initGoogleAuth(selectedProject.id);
     } catch (err) {
-      setError('Failed to fetch Search Console sites');
+      setError('Failed to initiate Google authentication');
+      console.error(err);
+    }
+  };
+
+  // This function would be called after successful OAuth callback
+  // For now, we'll rely on the dashboard to check integration state
+  const handleSuccessfulConnection = async (accountEmail: string, propertyUrl: string) => {
+    if (!selectedProject) return;
+    
+    try {
+      await storeGSCConnectionState(selectedProject.id, accountEmail);
+      setIsConnected(true);
+    } catch (err) {
+      setError('Failed to store connection state');
       console.error(err);
     }
   };
 
   const fetchAnalyticsData = async (accessToken: string, siteUrl: string) => {
+    if (!selectedProject || !selectedProject.id || !selectedProject.user_id) return;
+    
     try {
-      const query = {
-        startDate: '2023-01-01',
-        endDate: new Date().toISOString().split('T')[0],
-        dimensions: ['date', 'page'],
-        rowLimit: 1000,
-      };
+      // Import token function dynamically
+      const { getStoredGoogleToken } = await import('@/services/googleSearchConsoleService');
+      // Extract account email from token
+      const token = await getStoredGoogleToken(selectedProject.user_id);
+      const accountEmail = token?.account_email || '';
       
-      const data = await fetchSearchAnalytics(accessToken, siteUrl, query);
+      // Use the new combined function to fetch both property and page data
+      const data = await fetchAndStoreSearchConsoleData(accessToken, siteUrl, selectedProject.id, accountEmail);
       setAnalytics(data);
-      
-      // Store data in Supabase
-      if (selectedProject) {
-        await storeSearchConsoleData(selectedProject.id, data, query.dimensions);
-      }
     } catch (err) {
       setError('Failed to fetch analytics data');
       console.error(err);
@@ -163,7 +125,8 @@ export function GoogleSearchConsoleConnect() {
           {analytics && (
             <div>
               <h3 className="font-medium mb-2">Analytics Summary:</h3>
-              <p>Total Rows: {analytics.rows?.length || 0}</p>
+              <p>Total Property Rows: {analytics.propertyData?.rows?.length || 0}</p>
+              <p>Total Page Rows: {analytics.pageData?.rows?.length || 0}</p>
               {/* Add more analytics display here */}
             </div>
           )}

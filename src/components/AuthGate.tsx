@@ -1,4 +1,4 @@
-import { useEffect, useState, ReactNode } from "react";
+import { useEffect, useState, ReactNode, createContext, useContext } from "react";
 import { ensureSupabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 
@@ -11,10 +11,20 @@ interface User {
   role_name?: string;
 }
 
+interface AuthContextType {
+  userId: string | null;
+  userEmail: string | null;
+}
+
+const AuthContext = createContext<AuthContextType>({ userId: null, userEmail: null });
+
+export const useAuth = () => useContext(AuthContext);
+
 export function AuthGate({ children }: { children: ReactNode }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,7 +50,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
         }
         
         const sessionEmail = sessionData.session?.user?.email ?? null;
+        const sessionId = sessionData.session?.user?.id ?? null;
         setSessionEmail(sessionEmail);
+        setUserId(sessionId);
         console.log("Current session email:", sessionEmail);
         
         // Set up auth state change listener
@@ -48,8 +60,10 @@ export function AuthGate({ children }: { children: ReactNode }) {
           if (!mounted) return;
           
           const newSessionEmail = session?.user?.email ?? null;
+          const newSessionId = session?.user?.id ?? null;
           console.log("Auth state changed:", { _event, newSessionEmail });
           setSessionEmail(newSessionEmail);
+          setUserId(newSessionId);
         });
         
         // Always set loading to false after initialization
@@ -202,7 +216,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // For testing purposes, allow any authenticated user
   // In production, uncomment the authorization check below
   console.log("Allowing access for:", sessionEmail);
-  return <>{children}</>;
+  
+  const authContextValue = {
+    userId,
+    userEmail: sessionEmail
+  };
+  
+  return (
+    <AuthContext.Provider value={authContextValue}>
+      {children}
+    </AuthContext.Provider>
+  );
   
   /*
   // Check if user is super admin (uncomment for production)

@@ -42,7 +42,54 @@ const defaultOtherPages: OtherPagesAggregate = {
 };
 
 /**
- * Get analytics summary metrics from database
+ * Get property-level analytics summary metrics from database
+ * These metrics match GSC UI totals more closely
+ */
+export const getPropertyAnalyticsSummary = async (
+  projectId: string,
+  dateRange: DateRange
+): Promise<AnalyticsSummary> => {
+  console.log('Calling get property analytics summary with:', { projectId, dateRange });
+  
+  const { data, error } = await supabase
+    .from('gsc_property_metrics')
+    .select('clicks, impressions, ctr, avg_position')
+    .eq('project_id', projectId)
+    .gte('date', dateRange.start)
+    .lte('date', dateRange.end);
+
+  console.log('RAW PROPERTY SUMMARY response:', { data, error });
+  
+  if (error) {
+    console.error('Error fetching property analytics summary:', error);
+    throw error;
+  }
+
+  // Aggregate the property-level data
+  if (!data || data.length === 0) {
+    return defaultSummary;
+  }
+
+  const total_clicks = data.reduce((sum, row) => sum + (row.clicks || 0), 0);
+  const total_impressions = data.reduce((sum, row) => sum + (row.impressions || 0), 0);
+  const avg_ctr = total_impressions > 0 ? total_clicks / total_impressions : 0;
+  
+  // For position, we'll calculate a simple average of the avg_position values
+  const positions = data.map(row => row.avg_position || 0).filter(pos => pos > 0);
+  const avg_position = positions.length > 0 
+    ? positions.reduce((sum, pos) => sum + pos, 0) / positions.length 
+    : 0;
+
+  return {
+    total_clicks,
+    total_impressions,
+    avg_ctr,
+    avg_position
+  };
+};
+
+/**
+ * Get analytics summary metrics from database (page-level aggregation)
  */
 export const getAnalyticsSummary = async (
   projectId: string,
@@ -61,7 +108,7 @@ export const getAnalyticsSummary = async (
   
   if (error) {
     console.error('Error fetching analytics summary:', error);
-    return defaultSummary;
+    throw error;
   }
 
   // Supabase RPC returns array of rows, even for single row functions
@@ -96,7 +143,7 @@ export const getTopPages = async (
   
   if (error) {
     console.error('Error fetching top pages:', error);
-    return [];
+    throw error;
   }
 
   // Return the array directly, or empty array if null
@@ -123,7 +170,7 @@ export const getOtherPagesAggregate = async (
   
   if (error) {
     console.error('Error fetching other pages aggregate:', error);
-    return defaultOtherPages;
+    throw error;
   }
 
   // Supabase RPC returns array of rows, even for single row functions
@@ -170,7 +217,7 @@ export const getAllPages = async (
 
   if (error) {
     console.error('Error fetching all pages:', error);
-    return { data: [], totalCount: 0 };
+    throw error;
   }
 
   return {

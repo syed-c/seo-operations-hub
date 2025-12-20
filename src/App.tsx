@@ -28,10 +28,16 @@ import BacklinkLeadDashboard from "./pages/roles/BacklinkLeadDashboard";
 import DeveloperDashboard from "./pages/roles/DeveloperDashboard";
 import ClientDashboard from "./pages/roles/ClientDashboard";
 import AuthCallback from "./pages/AuthCallback";
-import { AuthGate } from "./components/AuthGate";
+import { AuthGate, useAuth } from "./components/AuthGate";
 import { ProjectProvider } from "./contexts/ProjectContext";
 
 const queryClient = new QueryClient();
+
+// Wrapper component to provide userId to RoleBasedDashboard
+const DashboardWrapper = ({ userRole }: { userRole: string }) => {
+  const { userId } = useAuth();
+  return <RoleBasedDashboard userRole={userRole} userId={userId || ''} />;
+};
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -44,7 +50,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/project-selection" element={<ProjectSelection />} />
-              <Route path="/dashboard" element={<RoleBasedDashboard userRole="Super Admin" />} />
+              <Route path="/dashboard" element={<DashboardWrapper userRole="Super Admin" />} />
               <Route path="/seo-lead-dashboard" element={<SEOLeadDashboard />} />
               <Route path="/content-lead-dashboard" element={<ContentLeadDashboard />} />
               <Route path="/backlink-lead-dashboard" element={<BacklinkLeadDashboard />} />
