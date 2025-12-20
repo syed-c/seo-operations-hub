@@ -4,6 +4,11 @@ import { storeGoogleToken } from '@/services/googleSearchConsoleService';
 
 export async function handleGoogleCallback(code: string, userId: string) {
   try {
+    // Validate inputs
+    if (!userId) {
+      throw new Error('Missing userId in OAuth callback');
+    }
+    
     // Exchange code for token
     const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
       method: 'POST',

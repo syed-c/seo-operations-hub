@@ -1,7 +1,7 @@
--- Create analytics functions for proper aggregation
--- These functions move all aggregation logic to the database level
+-- Temporary migration to remove date filters for debugging
+-- This will help us verify if the dashboard lights up when date filters are removed
 
--- Function to get analytics summary
+-- Function to get analytics summary (without date filter)
 CREATE OR REPLACE FUNCTION get_analytics_summary(
   project_id UUID,
   start_date DATE,
@@ -29,11 +29,11 @@ AS $$
       ELSE 0
     END AS avg_position
   FROM gsc_metrics
-  WHERE gsc_metrics.project_id = get_analytics_summary.project_id
-  AND date BETWEEN get_analytics_summary.start_date AND get_analytics_summary.end_date;
+  WHERE gsc_metrics.project_id = get_analytics_summary.project_id;
+  -- Removed date filter for debugging
 $$;
 
--- Function to get top 10 performing pages
+-- Function to get top 10 performing pages (without date filter)
 CREATE OR REPLACE FUNCTION get_top_pages(
   project_id UUID,
   start_date DATE,
@@ -64,13 +64,13 @@ AS $$
     END AS avg_position
   FROM gsc_metrics
   WHERE gsc_metrics.project_id = get_top_pages.project_id
-  AND date BETWEEN get_top_pages.start_date AND get_top_pages.end_date
+  -- Removed date filter for debugging
   GROUP BY gsc_metrics.page_url
   ORDER BY SUM(gsc_metrics.clicks) DESC, SUM(gsc_metrics.impressions) DESC
   LIMIT 10;
 $$;
 
--- Function to get aggregated "other pages" metrics
+-- Function to get aggregated "other pages" metrics (without date filter)
 CREATE OR REPLACE FUNCTION get_other_pages_aggregate(
   project_id UUID,
   start_date DATE,
@@ -88,7 +88,7 @@ AS $$
     SELECT page_url
     FROM gsc_metrics
     WHERE gsc_metrics.project_id = get_other_pages_aggregate.project_id
-    AND date BETWEEN get_other_pages_aggregate.start_date AND get_other_pages_aggregate.end_date
+    -- Removed date filter for debugging
     GROUP BY page_url
     ORDER BY SUM(clicks) DESC, SUM(impressions) DESC
     LIMIT 10
@@ -97,7 +97,7 @@ AS $$
     SELECT *
     FROM gsc_metrics
     WHERE gsc_metrics.project_id = get_other_pages_aggregate.project_id
-    AND date BETWEEN get_other_pages_aggregate.start_date AND get_other_pages_aggregate.end_date
+    -- Removed date filter for debugging
     AND gsc_metrics.page_url NOT IN (SELECT COALESCE(page_url, '') FROM top_pages WHERE page_url IS NOT NULL)
   )
   SELECT
@@ -116,7 +116,7 @@ AS $$
   FROM filtered_pages;
 $$;
 
--- Function to get all pages (for detailed view with pagination)
+-- Function to get all pages (for detailed view with pagination) (without date filter)
 CREATE OR REPLACE FUNCTION get_all_pages(
   project_id UUID,
   start_date DATE,
@@ -148,7 +148,7 @@ AS $$
     END AS avg_position
   FROM gsc_metrics
   WHERE gsc_metrics.project_id = get_all_pages.project_id
-  AND date BETWEEN get_all_pages.start_date AND get_all_pages.end_date
+  -- Removed date filter for debugging
   AND (filter_text = '' OR gsc_metrics.page_url ILIKE '%' || filter_text || '%')
   GROUP BY gsc_metrics.page_url
   ORDER BY SUM(gsc_metrics.clicks) DESC, SUM(gsc_metrics.impressions) DESC;

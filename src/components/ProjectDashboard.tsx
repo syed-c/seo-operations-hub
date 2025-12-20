@@ -3,92 +3,63 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useProject } from '@/contexts/ProjectContext';
 import { supabase } from '@/lib/supabaseClient';
-import { GoogleSearchConsoleConnect } from '@/components/GoogleSearchConsoleConnect';
-import { SearchConsoleAnalytics } from '@/components/SearchConsoleAnalytics';
-import {
-  getStoredGoogleToken,
+import { 
+  fetchAndStoreSearchConsoleData,
   fetchSearchConsoleSites,
-  fetchSearchAnalytics,
-  storeSearchConsoleData,
-  refreshGoogleToken
+  getGSCIntegrationState
 } from '@/services/googleSearchConsoleService';
+import { SearchConsoleAnalytics } from './SearchConsoleAnalytics';
+import { GoogleSearchConsoleConnect } from './GoogleSearchConsoleConnect';
 
 export function ProjectDashboard() {
   const { selectedProject } = useProject();
   const [hasGoogleToken, setHasGoogleToken] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     checkGoogleConnection();
-  }, [selectedProject, hasGoogleToken]);
+  }, [selectedProject]);
 
   const checkGoogleConnection = async () => {
-    if (!selectedProject) {
-      setIsLoading(false);
+    // Guard against undefined project or user ID
+    if (!selectedProject || !selectedProject.id) {
+      setHasGoogleToken(false);
       return;
     }
-
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        setIsLoading(false);
-        return;
-      }
-
-      const token = await getStoredGoogleToken(user.id);
-      setHasGoogleToken(!!token);
+      // Check if user has Google token (more reliable than project integration state)
+      const { data } = await supabase
+        .from('user_tokens')
+        .select('id')
+        .eq('provider', 'google')
+        .limit(1);
+      
+      const isConnected = data?.length > 0;
+      setHasGoogleToken(isConnected);
     } catch (err) {
       console.error('Error checking Google connection:', err);
-      setError('Failed to check Google connection status');
-    } finally {
-      setIsLoading(false);
+      setHasGoogleToken(false);
     }
   };
 
   const handleFetchData = async () => {
-    if (!selectedProject) return;
-
-    setIsLoading(true);
-    setError(null);
-
+    if (!selectedProject || !selectedProject.id || !selectedProject.user_id) return;
+    
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        throw new Error('User not authenticated');
-      }
-
-      const token = await getStoredGoogleToken(user.id);
+      setIsLoading(true);
+      setError(null);
+      
+      // Import the function dynamically to avoid importing it at module level
+      const { getStoredGoogleToken } = await import('@/services/googleSearchConsoleService');
+      const token = await getStoredGoogleToken(selectedProject.user_id);
       if (!token) {
-        throw new Error('Google account not connected');
+        throw new Error('No Google token found');
       }
-
-      // Refresh token if expired
-      let accessToken = token.access_token;
-      if (new Date(token.expires_at) < new Date()) {
-        // Token expired, refresh it
-        try {
-          const refreshedToken = await refreshGoogleToken(token.refresh_token);
-          accessToken = refreshedToken.access_token;
-          
-          // Update the stored token with the new access token and expiration time
-          const { error: updateError } = await supabase
-            .from('user_tokens')
-            .update({
-              access_token: refreshedToken.access_token,
-              expires_at: new Date(Date.now() + refreshedToken.expires_in * 1000)
-            })
-            .eq('user_id', user.id)
-            .eq('provider', 'google');
-            
-          if (updateError) throw updateError;
-        } catch (refreshError) {
-          throw new Error('Token expired. Please reconnect your Google account.');
-        }
-      }
-
-      // Fetch sites to verify the project's website is connected
-      const sites = await fetchSearchConsoleSites(accessToken);
+      
+      // Fetch sites to find the matching one
+      const sites = await fetchSearchConsoleSites(token.access_token);
       
       // Check for multiple possible site URL formats
       const possibleSiteUrls = [
@@ -100,7 +71,7 @@ export function ProjectDashboard() {
       ];
       
       // Also check if client might already include protocol
-      if (selectedProject.client.startsWith('http')) {
+      if (selectedProject.client && selectedProject.client.startsWith('http')) {
         possibleSiteUrls.push(selectedProject.client);
         possibleSiteUrls.push(`${selectedProject.client}/`);
       }
@@ -108,26 +79,16 @@ export function ProjectDashboard() {
       const matchedSite = sites.find(site => 
         possibleSiteUrls.includes(site.siteUrl)
       );
-
-      if (!matchedSite) {
-        // Log the actual sites for debugging
-        console.log('Available sites in Search Console:', sites);
-        console.log('Looking for:', possibleSiteUrls);
-        throw new Error(`Website ${selectedProject.client} is not verified in Google Search Console. Available sites: ${sites.map(s => s.siteUrl).join(', ')}`);
-      }
-
-      // Fetch analytics data
-      const query = {
-        startDate: '2023-01-01',
-        endDate: new Date().toISOString().split('T')[0],
-        dimensions: ['date', 'page'],
-        rowLimit: 1000,
-      };
-
-      const data = await fetchSearchAnalytics(accessToken, matchedSite.siteUrl, query);
       
-      // Store data in Supabase
-      await storeSearchConsoleData(selectedProject.id, data, query.dimensions);
+      if (!matchedSite) {
+        throw new Error(`Website ${selectedProject.client} is not verified in Google Search Console`);
+      }
+      
+      // Extract account email from token
+      const accountEmail = token?.account_email || '';
+      
+      // Use the new combined function to fetch both property and page data
+      await fetchAndStoreSearchConsoleData(token.access_token, matchedSite.siteUrl, selectedProject.id, accountEmail);
       
       // Refresh the UI
       window.location.reload();

@@ -1,5 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { useRoleDashboardData } from "@/hooks/useRoleDashboardData";
+import { useRoleAnalytics } from "@/hooks/useRoleAnalytics";
+import { useRoleTasks } from "@/hooks/useRoleTasks";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
@@ -19,11 +22,17 @@ import {
   FolderKanban,
   ListTodo,
   MessageSquare,
-  Shield
+  Shield,
+  Clock,
+  CheckCircle,
+  Circle,
+  Play,
+  EyeIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface UserRole {
   id: string;
@@ -33,12 +42,15 @@ interface UserRole {
 
 interface DashboardProps {
   userRole: string;
+  userId: string;
 }
 
-const RoleBasedDashboard = ({ userRole }: DashboardProps) => {
+const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
   const [role, setRole] = useState<string>(userRole);
   const [availableRoles, setAvailableRoles] = useState<UserRole[]>([]);
-  const [loading, setLoading] = useState(true);
+  
+  // Use the new hook for dashboard data
+  const { data, loading, error } = useRoleDashboardData(role, userId);
 
   useEffect(() => {
     const fetchRoles = async () => {
@@ -56,104 +68,380 @@ const RoleBasedDashboard = ({ userRole }: DashboardProps) => {
         setAvailableRoles(data || []);
       } catch (err) {
         console.error('Error:', err);
-      } finally {
-        setLoading(false);
       }
     };
 
     fetchRoles();
   }, []);
 
-  // Define KPI data based on role
+  // Define KPI data based on real data
   const getKpiData = () => {
-    switch (role) {
-      case 'Super Admin':
-        return [
-          { title: "Total Projects", value: "24", change: 5.2, changeLabel: "vs last month", icon: BarChart3 },
-          { title: "Active Clients", value: "18", change: 12.5, changeLabel: "vs last month", icon: Users },
-          { title: "Team Members", value: "12", change: 9.1, changeLabel: "vs last month", icon: Users },
-          { title: "Revenue", value: "$42.5K", change: 15.3, changeLabel: "vs last month", icon: BarChart3 },
-          { title: "Avg. Project Health", value: "87%", change: 3.2, changeLabel: "vs last month", icon: TrendingUp },
-          { title: "Completion Rate", value: "92%", change: 2.1, changeLabel: "vs last month", icon: Target },
-          { title: "Support Tickets", value: "8", change: -22.2, changeLabel: "vs last month", icon: AlertCircle },
-          { title: "Client Satisfaction", value: "4.8/5", change: 1.2, changeLabel: "vs last month", icon: BarChart3 },
-        ];
-      
-      case 'SEO Lead':
-        return [
-          { title: "Managed Projects", value: "8", change: 3.1, changeLabel: "vs last month", icon: BarChart3 },
-          { title: "Avg. Rankings", value: "7.2", change: 8.7, changeLabel: "vs last month", icon: TrendingUp },
-          { title: "Keywords Tracked", value: "1,248", change: 5.4, changeLabel: "vs last month", icon: Target },
-          { title: "Traffic Growth", value: "24%", change: 12.3, changeLabel: "vs last month", icon: MousePointerClick },
-          { title: "Conversion Rate", value: "3.8%", change: 2.1, changeLabel: "vs last month", icon: Target },
-          { title: "Backlink Growth", value: "15%", change: 7.2, changeLabel: "vs last month", icon: Link2 },
-          { title: "Pending Audits", value: "3", change: -25.0, changeLabel: "vs last month", icon: Wrench },
-          { title: "Team Performance", value: "89%", change: 4.1, changeLabel: "vs last month", icon: Users },
-        ];
-      
-      case 'Content Lead':
-        return [
-          { title: "Content Pieces", value: "142", change: 12.4, changeLabel: "vs last month", icon: FileText },
-          { title: "Content Score", value: "84%", change: 3.2, changeLabel: "vs last month", icon: FileText },
-          { title: "Publishing Rate", value: "18/wk", change: 8.9, changeLabel: "vs last month", icon: Calendar },
-          { title: "Engagement Rate", value: "4.2%", change: 5.1, changeLabel: "vs last month", icon: MousePointerClick },
-          { title: "Content Ideas", value: "24", change: 15.2, changeLabel: "vs last month", icon: Target },
-          { title: "Writer Productivity", value: "92%", change: 2.7, changeLabel: "vs last month", icon: Users },
-          { title: "Content Issues", value: "5", change: -37.5, changeLabel: "vs last month", icon: AlertCircle },
-          { title: "SEO Impact", value: "15%", change: 6.3, changeLabel: "vs last month", icon: TrendingUp },
-        ];
-      
-      case 'Backlink Lead':
-        return [
-          { title: "Backlinks", value: "2,847", change: 8.7, changeLabel: "vs last month", icon: Link2 },
-          { title: "Domain Authority", value: "62", change: 4.2, changeLabel: "vs last month", icon: TrendingUp },
-          { title: "Referral Traffic", value: "8.4K", change: 12.5, changeLabel: "vs last month", icon: MousePointerClick },
-          { title: "Link Quality", value: "87%", change: 2.1, changeLabel: "vs last month", icon: Link2 },
-          { title: "New Links", value: "142", change: 15.3, changeLabel: "vs last month", icon: Link2 },
-          { title: "Lost Links", value: "23", change: -28.1, changeLabel: "vs last month", icon: AlertCircle },
-          { title: "Spam Detection", value: "98%", change: 1.4, changeLabel: "vs last month", icon: AlertCircle },
-          { title: "Competitor Gap", value: "156", change: -12.2, changeLabel: "vs last month", icon: Target },
-        ];
-      
-      case 'Developer':
-        return [
-          { title: "Technical Score", value: "92%", change: 3.8, changeLabel: "vs last month", icon: Wrench },
-          { title: "Core Web Vitals", value: "89%", change: 5.2, changeLabel: "vs last month", icon: Wrench },
-          { title: "Site Speed", value: "1.2s", change: -8.9, changeLabel: "vs last month", icon: TrendingUp },
-          { title: "Mobile Score", value: "94%", change: 2.1, changeLabel: "vs last month", icon: Wrench },
-          { title: "Crawl Errors", value: "12", change: -45.5, changeLabel: "vs last month", icon: AlertCircle },
-          { title: "Security Issues", value: "0", change: 0, changeLabel: "vs last month", icon: AlertCircle },
-          { title: "Tasks Completed", value: "42", change: 18.3, changeLabel: "vs last month", icon: Target },
-          { title: "Deployment Success", value: "100%", change: 0, changeLabel: "vs last month", icon: TrendingUp },
-        ];
-      
-      case 'Client':
-        return [
-          { title: "Project Health", value: "87%", change: 2.4, changeLabel: "vs last month", icon: BarChart3 },
-          { title: "Organic Traffic", value: "48.2K", change: 12.5, changeLabel: "vs last month", icon: MousePointerClick },
-          { title: "Avg. Position", value: "4.2", change: 15.2, changeLabel: "improved", icon: TrendingUp },
-          { title: "Top Keywords", value: "142", change: 8.3, changeLabel: "vs last month", icon: Target },
-          { title: "Backlinks", value: "2,847", change: 5.7, changeLabel: "new this month", icon: Link2 },
-          { title: "Content Score", value: "72%", change: -2.4, changeLabel: "needs work", icon: FileText },
-          { title: "Issues Found", value: "23", change: -18.5, changeLabel: "reduced", icon: AlertCircle },
-          { title: "Tasks Completed", value: "38", change: 15.2, changeLabel: "vs last month", icon: Target },
-        ];
-      
-      default:
-        return [
-          { title: "Total Clicks", value: "48.2K", change: 12.5, changeLabel: "vs last week", icon: MousePointerClick },
-          { title: "Impressions", value: "1.2M", change: 8.3, changeLabel: "vs last week", icon: Eye },
-          { title: "Avg. Position", value: "4.2", change: 15.2, changeLabel: "improved", icon: TrendingUp },
-          { title: "Technical Score", value: "87%", change: 3.1, changeLabel: "vs last audit", icon: Wrench },
-          { title: "Content Score", value: "72%", change: -2.4, changeLabel: "needs work", icon: FileText },
-          { title: "Backlinks", value: "2,847", change: 5.7, changeLabel: "new this month", icon: Link2 },
-          { title: "Local SEO Score", value: "91%", change: 1.2, changeLabel: "stable", icon: MapPin },
-          { title: "Issues Found", value: "23", change: -18.5, changeLabel: "reduced", icon: AlertCircle },
-        ];
-    }
+    return [
+      { title: "Total Projects", value: data.totalProjects.toString(), change: 0, changeLabel: "current", icon: BarChart3 },
+      { title: "Active Clients", value: data.activeClients.toString(), change: 0, changeLabel: "current", icon: Users },
+      { title: "Team Members", value: data.teamMembers.toString(), change: 0, changeLabel: "current", icon: Users },
+      { title: "Revenue", value: `$${data.revenue.toLocaleString()}`, change: 0, changeLabel: "current", icon: BarChart3 },
+      { title: "Avg. Project Health", value: `${data.avgProjectHealth}%`, change: 0, changeLabel: "current", icon: TrendingUp },
+      { title: "Completion Rate", value: `${data.completionRate}%`, change: 0, changeLabel: "current", icon: Target },
+      { title: "Support Tickets", value: data.supportTickets.toString(), change: 0, changeLabel: "current", icon: AlertCircle },
+      { title: "Client Satisfaction", value: `${data.clientSatisfaction}/5`, change: 0, changeLabel: "current", icon: BarChart3 },
+    ];
   };
 
   const kpiData = getKpiData();
+  
+  // Show loading state
+  if (loading) {
+    return (
+      <MainLayout>
+        <Header 
+          title={`${role} Dashboard`} 
+          subtitle={`Performance overview for ${role} role`} 
+        />
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </MainLayout>
+    );
+  }
+  
+  // Show error state
+  if (error) {
+    return (
+      <MainLayout>
+        <Header 
+          title={`${role} Dashboard`} 
+          subtitle={`Performance overview for ${role} role`} 
+        />
+        <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+          <p className="text-red-800">Error loading dashboard data: {error}</p>
+        </div>
+      </MainLayout>
+    );
+  }
+
+  // Analytics Tab Component
+  const AnalyticsTab = ({ userRole, userId }: { userRole: string; userId: string }) => {
+    const { data, loading, error, timeFilter, setTimeFilter } = useRoleAnalytics(userRole, userId);
+
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance Analytics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-800">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    if (!data) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Performance Analytics</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="h-80 flex items-center justify-center bg-muted/10 rounded-lg">
+              <p className="text-muted-foreground">No analytics data available</p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Time Filter */}
+        <div className="flex justify-end">
+          <Select value={timeFilter || "all"} onValueChange={(value) => setTimeFilter(value === "all" ? undefined : value as any)}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Time range" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All time</SelectItem>
+              <SelectItem value="7d">Last 7 days</SelectItem>
+              <SelectItem value="30d">Last 30 days</SelectItem>
+              <SelectItem value="90d">Last 90 days</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
+        {/* Projects by Status */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Projects by Status</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold">{data.projects.total}</div>
+                <div className="text-sm text-muted-foreground">Total</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">{data.projects.active}</div>
+                <div className="text-sm text-muted-foreground">Active</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-yellow-600">{data.projects.paused}</div>
+                <div className="text-sm text-muted-foreground">Paused</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{data.projects.completed}</div>
+                <div className="text-sm text-muted-foreground">Completed</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">{data.projects.critical}</div>
+                <div className="text-sm text-muted-foreground">Critical</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* User Distribution */}
+        <Card>
+          <CardHeader>
+            <CardTitle>User Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold">{data.users.total}</div>
+                <div className="text-sm text-muted-foreground">Total Users</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold">{data.users.superAdmins}</div>
+                <div className="text-sm text-muted-foreground">Super Admins</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold">{data.users.admins}</div>
+                <div className="text-sm text-muted-foreground">Admins</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold">{data.users.members}</div>
+                <div className="text-sm text-muted-foreground">Members</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold">{data.users.clients}</div>
+                <div className="text-sm text-muted-foreground">Clients</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        {/* Task Health */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Task Health</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold">{data.tasks.total}</div>
+                <div className="text-sm text-muted-foreground">Total Tasks</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-gray-600">{data.tasks.todo}</div>
+                <div className="text-sm text-muted-foreground">To Do</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-blue-600">{data.tasks.inProgress}</div>
+                <div className="text-sm text-muted-foreground">In Progress</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-yellow-600">{data.tasks.review}</div>
+                <div className="text-sm text-muted-foreground">Review</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-green-600">{data.tasks.done}</div>
+                <div className="text-sm text-muted-foreground">Completed</div>
+              </div>
+              <div className="border rounded-lg p-4 text-center">
+                <div className="text-2xl font-bold text-red-600">{data.tasks.overdue}</div>
+                <div className="text-sm text-muted-foreground">Overdue</div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
+
+  // Tasks Tab Component
+  const TasksTab = ({ userRole, userId }: { userRole: string; userId: string }) => {
+    const { tasks, loading, error, filters, updateFilters, clearFilters } = useRoleTasks(userRole, userId);
+
+    if (loading) {
+      return (
+        <div className="flex items-center justify-center h-64">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <Card>
+          <CardHeader>
+            <CardTitle>Tasks</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="p-4 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-red-800">{error}</p>
+            </div>
+          </CardContent>
+        </Card>
+      );
+    }
+
+    // Status badge component
+    const StatusBadge = ({ status }: { status: string }) => {
+      const statusConfig = {
+        'todo': { label: 'To Do', color: 'bg-gray-100 text-gray-800', icon: Circle },
+        'in-progress': { label: 'In Progress', color: 'bg-blue-100 text-blue-800', icon: Play },
+        'review': { label: 'Review', color: 'bg-yellow-100 text-yellow-800', icon: EyeIcon },
+        'done': { label: 'Done', color: 'bg-green-100 text-green-800', icon: CheckCircle },
+      };
+      
+      const config = statusConfig[status as keyof typeof statusConfig] || { label: status, color: 'bg-gray-100 text-gray-800', icon: Circle };
+      const Icon = config.icon;
+      
+      return (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+          <Icon className="mr-1.5 h-3 w-3" />
+          {config.label}
+        </span>
+      );
+    };
+
+    // Priority badge component
+    const PriorityBadge = ({ priority }: { priority: string }) => {
+      const priorityConfig = {
+        'low': { label: 'Low', color: 'bg-gray-100 text-gray-800' },
+        'medium': { label: 'Medium', color: 'bg-blue-100 text-blue-800' },
+        'high': { label: 'High', color: 'bg-yellow-100 text-yellow-800' },
+        'urgent': { label: 'Urgent', color: 'bg-red-100 text-red-800' },
+      };
+      
+      const config = priorityConfig[priority as keyof typeof priorityConfig] || { label: priority, color: 'bg-gray-100 text-gray-800' };
+      
+      return (
+        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
+          {config.label}
+        </span>
+      );
+    };
+
+    return (
+      <div className="space-y-6">
+        {/* Filters */}
+        <div className="flex flex-wrap gap-4">
+          <Select value={filters.status || "all"} onValueChange={(value) => updateFilters({ ...filters, status: value === "all" ? undefined : value as any })}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Statuses</SelectItem>
+              <SelectItem value="todo">To Do</SelectItem>
+              <SelectItem value="in-progress">In Progress</SelectItem>
+              <SelectItem value="review">Review</SelectItem>
+              <SelectItem value="done">Done</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={filters.priority || "all"} onValueChange={(value) => updateFilters({ ...filters, priority: value === "all" ? undefined : value as any })}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Priority" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Priorities</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="urgent">Urgent</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          <Select value={filters.dueDate || "all"} onValueChange={(value) => updateFilters({ ...filters, dueDate: value === "all" ? undefined : value as any })}>
+            <SelectTrigger className="w-[180px]">
+              <SelectValue placeholder="Due Date" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Any Due Date</SelectItem>
+              <SelectItem value="overdue">Overdue</SelectItem>
+              <SelectItem value="today">Today</SelectItem>
+              <SelectItem value="upcoming">Upcoming</SelectItem>
+            </SelectContent>
+          </Select>
+          
+          {(filters.status || filters.priority || filters.dueDate) && (
+            <Button variant="outline" onClick={clearFilters}>
+              Clear Filters
+            </Button>
+          )
+          }
+        </div>
+
+        {/* Tasks List */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Tasks</CardTitle>
+          </CardHeader>
+          <CardContent>
+            {tasks.length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-muted-foreground mb-4">No tasks found</p>
+                {Object.keys(filters).length > 0 ? (
+                  <Button onClick={clearFilters}>Clear Filters</Button>
+                ) : (
+                  <Button>Create your first task</Button>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {tasks.map((task) => (
+                  <div key={task.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium truncate">{task.title}</h4>
+                      {task.description && (
+                        <p className="text-sm text-muted-foreground truncate mt-1">{task.description}</p>
+                      )}
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <StatusBadge status={task.status} />
+                        <PriorityBadge priority={task.priority} />
+                        {task.due_date && (
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                            <Clock className="mr-1.5 h-3 w-3" />
+                            Due {new Date(task.due_date).toLocaleDateString()}
+                          </span>
+                        )
+                        }
+                      </div>
+                    </div>
+                    <Button variant="outline" size="sm" className="ml-4 whitespace-nowrap">
+                      View
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+    );
+  };
 
   // Define role-specific content
   const getRoleContent = () => {
@@ -320,37 +608,11 @@ const RoleBasedDashboard = ({ userRole }: DashboardProps) => {
         </TabsContent>
         
         <TabsContent value="analytics" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Performance Analytics</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="h-80 flex items-center justify-center bg-muted/10 rounded-lg">
-                <p className="text-muted-foreground">Analytics charts would appear here</p>
-              </div>
-            </CardContent>
-          </Card>
+          <AnalyticsTab userRole={role} userId={userId} />
         </TabsContent>
         
         <TabsContent value="tasks" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Tasks</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                {[1, 2, 3, 4, 5].map((item) => (
-                  <div key={item} className="flex items-center justify-between p-3 border rounded-lg">
-                    <div>
-                      <h4 className="font-medium">Task {item}</h4>
-                      <p className="text-sm text-muted-foreground">Description for task {item}</p>
-                    </div>
-                    <Button variant="outline" size="sm">View</Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <TasksTab userRole={role} userId={userId} />
         </TabsContent>
       </Tabs>
     </MainLayout>
