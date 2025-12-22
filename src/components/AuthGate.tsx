@@ -1,6 +1,7 @@
 import { useEffect, useState, ReactNode, createContext, useContext } from "react";
 import { ensureSupabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import { Link } from "react-router-dom";
 
 const SUPER_ADMIN_EMAIL = "contact@syedrayyan.com";
 
@@ -14,9 +15,22 @@ interface User {
 interface AuthContextType {
   userId: string | null;
   userEmail: string | null;
+  teamUser: {
+    id: string;
+    email: string;
+    first_name?: string;
+    last_name?: string;
+    role?: string;
+  } | null;
+  clearTeamAuth: () => void;
 }
 
-const AuthContext = createContext<AuthContextType>({ userId: null, userEmail: null });
+const AuthContext = createContext<AuthContextType>({
+  userId: null,
+  userEmail: null,
+  teamUser: null,
+  clearTeamAuth: () => {}
+});
 
 export const useAuth = () => useContext(AuthContext);
 
@@ -25,6 +39,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   const [password, setPassword] = useState("");
   const [sessionEmail, setSessionEmail] = useState<string | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
+  const [teamUser, setTeamUser] = useState<any | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -53,6 +68,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
         const sessionId = sessionData.session?.user?.id ?? null;
         setSessionEmail(sessionEmail);
         setUserId(sessionId);
+        
+        // Check for team user in sessionStorage
+        try {
+          const storedTeamUser = sessionStorage.getItem('teamUser');
+          if (storedTeamUser) {
+            const parsedUser = JSON.parse(storedTeamUser);
+            setTeamUser(parsedUser);
+          }
+        } catch (error) {
+          console.error('Failed to parse team user data:', error);
+        }
+        
         console.log("Current session email:", sessionEmail);
         
         // Set up auth state change listener
@@ -129,7 +156,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const client = ensureSupabase();
       await client.auth.signOut();
       setSessionEmail(null);
+      setUserId(null);
       setUser(null);
+      
+      // Clear team auth if exists
+      sessionStorage.removeItem('teamUser');
+      setTeamUser(null);
     } catch (err) {
       console.error("Sign out error:", err);
     }
@@ -171,7 +203,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!sessionEmail) {
+  // If neither Supabase user nor team user is authenticated
+  if (!sessionEmail && !teamUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
         <div className="glass-card p-6 w-full max-w-md space-y-4">
@@ -208,6 +241,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
               Sign up
             </Button>
           </div>
+          
+          {/* Team Login Button */}
+          <div className="relative my-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-border"></div>
+            </div>
+            <div className="relative flex justify-center text-xs uppercase">
+              <span className="bg-background px-2 text-muted-foreground">Or continue with</span>
+            </div>
+          </div>
+          
+          <Link to="/team/auth">
+            <Button variant="outline" className="w-full rounded-xl">
+              Team Login
+            </Button>
+          </Link>
         </div>
       </div>
     );
@@ -217,9 +266,16 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // In production, uncomment the authorization check below
   console.log("Allowing access for:", sessionEmail);
   
+  const clearTeamAuth = () => {
+    sessionStorage.removeItem('teamUser');
+    setTeamUser(null);
+  };
+  
   const authContextValue = {
     userId,
-    userEmail: sessionEmail
+    userEmail: sessionEmail,
+    teamUser,
+    clearTeamAuth
   };
   
   return (

@@ -55,6 +55,8 @@ export default function Team() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [selectedRole, setSelectedRole] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   
   // Form state for editing user
   const [editFirstName, setEditFirstName] = useState("");
@@ -135,6 +137,25 @@ export default function Team() {
       return;
     }
 
+    // Password validation
+    if (password && password.length < 8) {
+      toast({
+        title: "Validation Error",
+        description: "Password must be at least 8 characters long",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (password && password !== confirmPassword) {
+      toast({
+        title: "Validation Error",
+        description: "Passwords do not match",
+        variant: "destructive"
+      });
+      return;
+    }
+
     try {
       // Create user in users table using admin API client
       const result = await callAdminFunction('create', 'users', {
@@ -146,6 +167,23 @@ export default function Team() {
       
       console.log('Create user result:', result);
       
+      // If password is provided, set it for the user
+      if (password && result.data?.id) {
+        const { setUserPassword } = await import('@/lib/auth/teamAuth');
+        const passwordResult = await setUserPassword(result.data.id, password);
+        
+        if (!passwordResult.success) {
+          toast({
+            title: "Warning",
+            description: "User created but failed to set password: " + (passwordResult.error || "Unknown error"),
+            variant: "destructive"
+          });
+          setDialogOpen(false);
+          loadUsers();
+          return;
+        }
+      }
+      
       toast({
         title: "Success",
         description: "Team member added successfully!",
@@ -154,6 +192,8 @@ export default function Team() {
       setFirstName("");
       setLastName("");
       setEmail("");
+      setPassword("");
+      setConfirmPassword("");
       setDialogOpen(false);
       loadUsers();
     } catch (err: any) {
@@ -299,6 +339,26 @@ export default function Team() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="password">Password (Optional)</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Leave blank for no password login"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="confirmPassword">Confirm Password</Label>
+                <Input
+                  id="confirmPassword"
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm password"
+                />
               </div>
             </div>
             <DialogFooter>

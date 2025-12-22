@@ -17,7 +17,7 @@ interface KeywordData {
   lastChecked: string;
   project: string;
   page: string;
-  position: number;
+  position: number | string; // Can be a number or "No rankings yet"
   previousPosition: number;
 }
 
@@ -55,20 +55,27 @@ export default function Keywords() {
       const { data, error } = await supabase
         .from("keywords")
         .select(`
-          id, 
-          term, 
-          intent, 
-          difficulty, 
-          volume, 
-          target_position,
-          tags,
-          last_checked,
-          project_id, 
-          page_id, 
-          keyword_rankings(position, recorded_at)
+          id,
+          keyword,
+          intent,
+          difficulty,
+          volume,
+          project_id,
+          created_at,
+          projects:projects (
+            id,
+            name
+          ),
+          keyword_rankings:keyword_rankings!keyword_rankings_keyword_id_fkey (
+            id,
+            location,
+            device,
+            position,
+            search_volume,
+            recorded_at
+          )
         `)
-        .order("created_at", { ascending: false })
-        .limit(1, { foreignTable: "keyword_rankings" });
+        .order("created_at", { ascending: false });
       
       setLoading(false);
       
@@ -80,16 +87,17 @@ export default function Keywords() {
       setKeywords(
         (data || []).map((k: any) => ({
           id: k.id,
-          keyword: k.term,
+          keyword: k.keyword,
           intent: k.intent,
           difficulty: k.difficulty ?? 0,
           volume: k.volume ?? 0,
-          targetPosition: k.target_position ?? 10,
-          tags: k.tags ?? [],
-          lastChecked: k.last_checked ?? "",
-          project: k.project_id,
-          page: k.page_id,
-          position: k.keyword_rankings?.[0]?.position ?? 0,
+          targetPosition: 10, // Default target position
+          tags: [], // No tags column in schema
+          lastChecked: k.created_at ?? "",
+          project: k.projects?.name ?? "Unknown project",
+          page: "", // No page_id column in schema
+          position: k.keyword_rankings && k.keyword_rankings.length > 0 ? 
+            k.keyword_rankings[0].position ?? "No rankings yet" : "No rankings yet",
           previousPosition: 0
         }))
       );
@@ -210,7 +218,11 @@ export default function Keywords() {
             </thead>
             <tbody>
               {keywords.map((kw, index) => {
-                const positionChange = kw.previousPosition - kw.position;
+                // Handle positionChange correctly for string positions
+                let positionChange = 0;
+                if (typeof kw.position === 'number' && typeof kw.previousPosition === 'number') {
+                  positionChange = kw.previousPosition - kw.position;
+                }
                 return (
                   <tr
                     key={kw.id}
@@ -221,11 +233,13 @@ export default function Keywords() {
                       <p className="font-medium text-sm">{kw.keyword}</p>
                     </td>
                     <td className="p-4">
-                      <p className="text-sm text-muted-foreground">{kw.project || "—"}</p>
+                      <p className="text-sm text-muted-foreground">{kw.project}</p>
                     </td>
                     <td className="p-4 text-center">
                       <div className="flex items-center justify-center gap-2">
-                        <span className="font-semibold text-lg">{kw.position}</span>
+                        <span className="font-semibold text-lg">
+                          {typeof kw.position === 'number' ? `#${kw.position}` : kw.position}
+                        </span>
                         {positionChange > 0 && (
                           <span className="flex items-center gap-0.5 text-xs text-success">
                             <TrendingUp className="w-3.5 h-3.5" />+{positionChange}

@@ -19,6 +19,7 @@ import LocalSEO from "./pages/LocalSEO";
 import Automation from "./pages/Automation";
 import Chat from "./pages/Chat";
 import Team from "./pages/Team";
+import TeamAuth from "./pages/team/auth";
 import RoleBasedDashboard from "./components/dashboard/RoleBasedDashboard";
 import NotificationSettings from "./pages/NotificationSettings";
 import ProjectSelection from "./pages/ProjectSelection";
@@ -69,6 +70,7 @@ const App = () => (
               <Route path="/automation" element={<Automation />} />
               <Route path="/chat" element={<Chat />} />
               <Route path="/team" element={<Team />} />
+              <Route path="/team/auth" element={<TeamAuth />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
