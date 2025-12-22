@@ -2,23 +2,25 @@ import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { LineChart, Plus, Trash2, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { LineChart, Plus, Trash2, TrendingUp, TrendingDown, Minus, Search } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
 import { RankingChart } from "@/components/seo/RankingChart";
 import { AlertsPanel } from "@/components/seo/AlertsPanel";
+import { useProject } from "@/contexts/ProjectContext";
 
 interface Ranking {
   id: string;
+  ranking_id: string;
+  keyword_id: string;
   keyword: string;
-  position: number;
+  position: number | string;
   location?: string;
   device?: string;
   search_volume?: number;
   trend?: string;
   recorded_at: string;
 }
-
 interface RankingHistory {
   id: string;
   keyword_id: string;
@@ -40,66 +42,79 @@ interface RankingAlert {
 }
 
 export default function Rankings() {
+  const { selectedProject } = useProject();
   const [rankings, setRankings] = useState<Ranking[]>([]);
   const [rankingHistory, setRankingHistory] = useState<RankingHistory[]>([]);
   const [alerts, setAlerts] = useState<RankingAlert[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [keyword, setKeyword] = useState("");
-  const [position, setPosition] = useState(0);
-  const [location, setLocation] = useState("");
-  const [device, setDevice] = useState("desktop");
+  const [searchTerm, setSearchTerm] = useState("");
 
   const loadRankings = async () => {
+    if (!selectedProject) return;
+    
     setLoading(true);
     try {
-      // Load current rankings
+      // Load current rankings with keyword text joined from keywords table
+      // Using explicit foreign key hint to resolve Supabase relationship ambiguity
       const { data: rankingsData, error: rankingsError } = await supabase
         .from("keyword_rankings")
-        .select("id, keyword_id, position, location, device, search_volume, trend, recorded_at")
+        .select(`
+          id,
+          location,
+          device,
+          position,
+          search_volume,
+          keyword_id,
+          keywords:keywords!keyword_rankings_keyword_id_fkey (
+            id,
+            keyword,
+            intent
+          )
+        `)
         .order("recorded_at", { ascending: false });
-      
       // Load ranking history for charts
       const { data: historyData, error: historyError } = await supabase
         .from("ranking_history")
         .select("id, keyword_id, position, location, device, search_volume, recorded_at")
         .order("recorded_at", { ascending: false });
-      
+
       // Load ranking alerts
       const { data: alertsData, error: alertsError } = await supabase
         .from("ranking_alerts")
         .select("id, keyword_id, previous_position, current_position, alert_type, sent_at, created_at")
         .order("created_at", { ascending: false });
-      
+
       setLoading(false);
-      
+
       if (rankingsError) {
         setError(rankingsError.message);
         return;
       }
-      
+
       if (historyError) {
         setError(historyError.message);
         return;
       }
-      
+
       if (alertsError) {
         setError(alertsError.message);
         return;
       }
-      
-      // Transform the data to match our interfaces
+
+      // Transform the data to match our interfaces with proper data integrity
       const transformedRankings = (rankingsData || []).map(item => ({
         id: item.id,
-        keyword: item.keyword_id, // Will need to join with keywords table for actual keyword text
-        position: item.position,
-        location: item.location,
-        device: item.device,
-        search_volume: item.search_volume,
+        ranking_id: item.id,
+        keyword_id: item.keyword_id,
+        keyword: item.keywords?.keyword || "Unknown Keyword",
+        position: item.position !== null ? item.position : "No ranking on first page",
+        location: item.location || "Global",
+        device: item.device || "desktop",
+        search_volume: item.search_volume !== null ? item.search_volume : 0,
         trend: item.trend,
         recorded_at: item.recorded_at
       }));
-      
       const transformedHistory = (historyData || []).map(item => ({
         id: item.id,
         keyword_id: item.keyword_id,
@@ -109,7 +124,7 @@ export default function Rankings() {
         search_volume: item.search_volume,
         recorded_at: item.recorded_at
       }));
-      
+
       const transformedAlerts = (alertsData || []).map(item => ({
         id: item.id,
         keyword_id: item.keyword_id,
@@ -119,7 +134,7 @@ export default function Rankings() {
         sent_at: item.sent_at,
         created_at: item.created_at
       }));
-      
+
       setRankings(transformedRankings);
       setRankingHistory(transformedHistory);
       setAlerts(transformedAlerts);
@@ -130,30 +145,10 @@ export default function Rankings() {
   };
 
   useEffect(() => {
-    loadRankings();
-  }, []);
-
-  const onCreate = async () => {
-    if (!keyword) return;
-    const { error } = await supabase.from("keyword_rankings").insert({
-      keyword_id: keyword, // This should be an actual keyword ID
-      position,
-      location: location || null,
-      device: device || 'desktop',
-      search_volume: 0,
-      trend: 'stable',
-      recorded_at: new Date().toISOString()
-    });
-    if (error) {
-      setError(error.message);
-      return;
+    if (selectedProject) {
+      loadRankings();
     }
-    setKeyword("");
-    setPosition(0);
-    setLocation("");
-    setDevice("desktop");
-    loadRankings();
-  };
+  }, [selectedProject]);
 
   const onDelete = async (id: string) => {
     const { error } = await supabase.from("keyword_rankings").delete().eq("id", id);
@@ -164,42 +159,44 @@ export default function Rankings() {
     loadRankings();
   };
 
+  // Filter rankings based on search term
+  const filteredRankings = rankings.filter(ranking => 
+    ranking.keyword.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (ranking.location && ranking.location.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (ranking.device && ranking.device.toLowerCase().includes(searchTerm.toLowerCase()))
+  );
+
+  // Get ranking status color
+  const getRankingStatusColor = (position: number | string) => {
+    if (typeof position === 'string') return 'text-destructive'; // No ranking
+    
+    if (position <= 10) return 'text-success';
+    if (position <= 50) return 'text-warning';
+    return 'text-destructive';
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
   return (
     <MainLayout>
       <Header title="Rankings" subtitle="Daily keyword performance by location" />
       
       <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <input
-          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          placeholder="Keyword ID"
-          value={keyword}
-          onChange={(e) => setKeyword(e.target.value)}
-        />
-        <input
-          type="number"
-          className="h-10 w-20 rounded-xl border border-border bg-card px-3 text-sm"
-          placeholder="Pos"
-          value={position || ""}
-          onChange={(e) => setPosition(Number(e.target.value))}
-        />
-        <input
-          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          placeholder="Location"
-          value={location}
-          onChange={(e) => setLocation(e.target.value)}
-        />
-        <select
-          className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-          value={device}
-          onChange={(e) => setDevice(e.target.value)}
-        >
-          <option value="desktop">Desktop</option>
-          <option value="mobile">Mobile</option>
-        </select>
-        <Button className="gap-2 rounded-xl" onClick={onCreate}>
-          <Plus className="w-4 h-4" />
-          Add Ranking
-        </Button>
+        <div className="relative flex-1 max-w-md">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <input
+            className="h-10 w-full pl-10 pr-4 rounded-xl border border-border bg-card text-sm"
+            placeholder="Search by keyword, location, or device..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
       </div>
       
       {loading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
@@ -208,7 +205,7 @@ export default function Rankings() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {rankings.map((item) => (
+            {filteredRankings.map((item) => (
               <Card
                 key={item.id}
                 className="glass-card animate-slide-up hover:shadow-card-hover transition-all"
@@ -217,7 +214,7 @@ export default function Rankings() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <LineChart className="w-4 h-4 text-primary" />
-                      <CardTitle className="text-sm">{item.keyword}</CardTitle>
+                      <CardTitle className="text-base font-semibold">{item.keyword}</CardTitle>
                     </div>
                     <button
                       className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
@@ -226,21 +223,29 @@ export default function Rankings() {
                       <Trash2 className="w-4 h-4 text-muted-foreground" />
                     </button>
                   </div>
-                  <p className="text-xs text-muted-foreground">{item.location || "Global"} • {item.device || "Desktop"}</p>
+                  <p className="text-sm text-muted-foreground">{item.location || "Global"} • {item.device ? item.device.charAt(0).toUpperCase() + item.device.slice(1) : "Desktop"}</p>
                 </CardHeader>
-                <CardContent className="flex items-center justify-between text-sm text-muted-foreground">
-                  <span className="font-semibold text-foreground">#{item.position}</span>
-                  {item.search_volume !== undefined && (
+                <CardContent className="space-y-2">
+                  <div className={`text-2xl font-bold ${getRankingStatusColor(item.position)}`}>
+                    {typeof item.position === 'string' ? item.position : `#${item.position}`}
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
                     <span className="text-muted-foreground">
-                      Vol: {item.search_volume}
+                      Vol: {item.search_volume || 0}
                     </span>
-                  )}
+                    <span className="text-muted-foreground">
+                      Last checked: {formatDate(item.recorded_at)}
+                    </span>
+                  </div>
                   {item.trend && (
-                    <span className={item.trend === 'up' ? "text-success" : item.trend === 'down' ? "text-destructive" : "text-muted-foreground"}>
-                      {item.trend === 'up' ? <TrendingUp className="w-4 h-4 inline" /> : 
-                       item.trend === 'down' ? <TrendingDown className="w-4 h-4 inline" /> : 
-                       <Minus className="w-4 h-4 inline" />}
-                    </span>
+                    <div className="flex items-center justify-end">
+                      <span className={item.trend === 'up' ? "text-success flex items-center gap-1" : item.trend === 'down' ? "text-destructive flex items-center gap-1" : "text-muted-foreground flex items-center gap-1"}>
+                        {item.trend === 'up' ? <TrendingUp className="w-4 h-4" /> : 
+                         item.trend === 'down' ? <TrendingDown className="w-4 h-4" /> : 
+                         <Minus className="w-4 h-4" />}
+                        {item.trend === 'up' ? 'Improving' : item.trend === 'down' ? 'Declining' : 'Stable'}
+                      </span>
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -250,13 +255,13 @@ export default function Rankings() {
           {/* Ranking History Charts */}
           <div className="space-y-4">
             <h2 className="text-xl font-semibold">Ranking History</h2>
-            {rankings.slice(0, 3).map((item) => (
+            {filteredRankings.slice(0, 3).map((item) => (
               <Card key={`chart-${item.id}`}>
                 <CardHeader>
                   <CardTitle className="text-sm">{item.keyword} - Historical Performance</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <RankingChart keywordId={item.keyword} days={30} />
+                  <RankingChart keywordId={item.keyword_id} days={30} />
                 </CardContent>
               </Card>
             ))}
