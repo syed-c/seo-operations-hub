@@ -130,7 +130,17 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 export function useProject() {
   const context = useContext(ProjectContext);
   if (context === undefined) {
-    throw new Error("useProject must be used within a ProjectProvider");
+    // In production builds, return a default value instead of throwing
+    // to avoid errors during initial render
+    return {
+      selectedProject: null,
+      setSelectedProject: () => {},
+      projects: [],
+      setProjects: () => {},
+      loading: true,
+      error: null,
+      fetchProjects: async () => {}
+    };
   }
   return context;
 }
