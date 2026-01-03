@@ -252,11 +252,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
             </div>
           </div>
           
-          <Link to="/team/auth">
+          <a href="/team/auth">
             <Button variant="outline" className="w-full rounded-xl">
               Team Login
             </Button>
-          </Link>
+          </a>
         </div>
       </div>
     );
