@@ -439,85 +439,85 @@ export default function Projects() {
           </div>
         ))}
       </div>
-    </MainLayout>
-    
-    {/* Assign Project Dialog */}
-    <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Assign Project</DialogTitle>
-          <DialogDescription>
-            Select a team member to assign this project to.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <Label htmlFor="assign-user">Select Team Member</Label>
-            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-              <SelectTrigger id="assign-user">
-                <SelectValue placeholder="Select a user" />
-              </SelectTrigger>
-              <SelectContent>
-                {teamMembers.map((user) => (
-                  <SelectItem key={user.id} value={user.id}>
-                    {user.first_name && user.last_name 
-                      ? `${user.first_name} ${user.last_name}` 
-                      : user.email}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+      
+      {/* Assign Project Dialog */}
+      <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Assign Project</DialogTitle>
+            <DialogDescription>
+              Select a team member to assign this project to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="assign-user">Select Team Member</Label>
+              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                <SelectTrigger id="assign-user">
+                  <SelectValue placeholder="Select a user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {teamMembers.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.first_name && user.last_name 
+                        ? `${user.first_name} ${user.last_name}` 
+                        : user.email}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
-        </div>
-        <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setAssignDialogOpen(false);
-              setSelectedProjectId(null);
-              setSelectedUserId("");
-            }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            onClick={handleAssignProject} 
-            disabled={!selectedUserId || assignProjectMutation.isPending}
-          >
-            {assignProjectMutation.isPending ? 'Assigning...' : 'Assign'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-    
-    {/* Delete Project Confirmation Dialog */}
-    <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-      <DialogContent>
-        <DialogHeader>
-          <DialogTitle>Confirm Deletion</DialogTitle>
-          <DialogDescription>
-            Are you sure you want to delete this project? This action cannot be undone.
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setDeleteDialogOpen(false);
-              setSelectedProjectId(null);
-            }}
-          >
-            Cancel
-          </Button>
-          <Button 
-            variant="destructive" 
-            onClick={handleDeleteProject} 
-            disabled={deleteProjectMutation.isPending}
-          >
-            {deleteProjectMutation.isPending ? 'Deleting...' : 'Delete'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setAssignDialogOpen(false);
+                setSelectedProjectId(null);
+                setSelectedUserId("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleAssignProject} 
+              disabled={!selectedUserId || assignProjectMutation.isPending}
+            >
+              {assignProjectMutation.isPending ? 'Assigning...' : 'Assign'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Delete Project Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this project? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setDeleteDialogOpen(false);
+                setSelectedProjectId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              variant="destructive" 
+              onClick={handleDeleteProject} 
+              disabled={deleteProjectMutation.isPending}
+            >
+              {deleteProjectMutation.isPending ? 'Deleting...' : 'Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </MainLayout>
   );
 }
