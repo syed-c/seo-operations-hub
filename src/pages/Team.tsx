@@ -63,15 +63,15 @@ export default function Team() {
   const [editRole, setEditRole] = useState("");
 
   const loadRoles = async () => {
-    // Load predefined roles from the PRODUCTION_GUIDE.md
+    // Load predefined roles that match the database schema
     const predefinedRoles = [
       { id: 'super_admin', name: 'Super Admin' },
       { id: 'admin', name: 'Admin' },
       { id: 'seo_lead', name: 'SEO Lead' },
       { id: 'content_lead', name: 'Content Lead' },
       { id: 'backlink_lead', name: 'Backlink Lead' },
+      { id: 'technical_seo', name: 'Technical SEO' },
       { id: 'developer', name: 'Developer' },
-      { id: 'designer', name: 'Designer' },
       { id: 'client', name: 'Client' },
       { id: 'viewer', name: 'Viewer' }
     ];
