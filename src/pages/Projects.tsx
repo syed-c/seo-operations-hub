@@ -58,7 +58,7 @@ export default function Projects() {
   const canCreateEditProjects = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead';
 
   // Fetch team members for project assignment
-  const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
+  const { data: teamMembers = [], isLoading: teamMembersLoading, error: teamMembersError } = useQuery({
     queryKey: ['teamMembers'],
     queryFn: async () => {
       const { data, error } = await supabase
@@ -66,11 +66,19 @@ export default function Projects() {
         .select('id, email, first_name, last_name, role')
         .neq('role', 'Super Admin'); // Exclude super admin from assignment options
       
-      if (error) throw new Error(error.message);
+      if (error) {
+        console.error('Error fetching team members:', error);
+        throw new Error(error.message);
+      }
       return data || [];
     },
     enabled: canCreateEditProjects
   });
+
+  // Log for debugging
+  if (canCreateEditProjects && teamMembersError) {
+    console.error('Team members query error:', teamMembersError);
+  }
 
   // Fetch projects with React Query based on user role
   const { data: projects = [], isLoading, error } = useQuery({
@@ -78,13 +86,13 @@ export default function Projects() {
     queryFn: async () => {
       if (teamUser?.role === 'Developer') {
         // For developers, fetch only assigned projects
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { user } } = await ensureSupabase().auth.getUser();
         
         if (!user) {
           throw new Error('User not authenticated');
         }
         
-        const { data, error } = await supabase
+        const { data, error } = await ensureSupabase()
           .from('projects')
           .select(`
             projects.id, 
@@ -101,7 +109,7 @@ export default function Projects() {
         return data || [];
       } else {
         // For other roles, fetch all projects
-        const { data, error } = await supabase
+        const { data, error } = await ensureSupabase()
           .from("projects")
           .select("id, name, client, status, health_score, created_at")
           .order("created_at", { ascending: false });
@@ -115,7 +123,7 @@ export default function Projects() {
   // Mutation for creating a project
   const createProjectMutation = useMutation({
     mutationFn: async (newProject: Partial<ProjectRecord>) => {
-      const { error } = await supabase.from("projects").insert(newProject);
+      const { error } = await ensureSupabase().from("projects").insert(newProject);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -168,6 +176,7 @@ export default function Projects() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
       setAssignDialogOpen(false);
       setSelectedProjectId(null);
       setSelectedUserId("");
@@ -457,13 +466,27 @@ export default function Projects() {
                   <SelectValue placeholder="Select a user" />
                 </SelectTrigger>
                 <SelectContent>
-                  {teamMembers.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.first_name && user.last_name 
-                        ? `${user.first_name} ${user.last_name}` 
-                        : user.email}
+                  {teamMembersError ? (
+                    <SelectItem value="" disabled>
+                      Error loading team members
                     </SelectItem>
-                  ))}
+                  ) : teamMembersLoading ? (
+                    <SelectItem value="" disabled>
+                      Loading team members...
+                    </SelectItem>
+                  ) : teamMembers.length > 0 ? (
+                    teamMembers.map((user) => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.first_name && user.last_name 
+                          ? `${user.first_name} ${user.last_name}` 
+                          : user.email}
+                      </SelectItem>
+                    ))
+                  ) : (
+                    <SelectItem value="" disabled>
+                      No team members available
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
