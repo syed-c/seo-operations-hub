@@ -35,9 +35,9 @@ import { ProjectProvider } from "./contexts/ProjectContext";
 const queryClient = new QueryClient();
 
 // Wrapper component to provide userId to RoleBasedDashboard
-const DashboardWrapper = ({ userRole }: { userRole: string }) => {
-  const { userId } = useAuth();
-  return <RoleBasedDashboard userRole={userRole} userId={userId || ''} />;
+const DashboardWrapper = () => {
+  const { userId, teamUser } = useAuth();
+  return <RoleBasedDashboard userRole={teamUser?.role || 'Super Admin'} userId={userId || ''} />;
 };
 
 const App = () => (
@@ -51,7 +51,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/project-selection" element={<ProjectSelection />} />
-              <Route path="/dashboard" element={<DashboardWrapper userRole="Super Admin" />} />
+              <Route path="/dashboard" element={<DashboardWrapper />} />
               <Route path="/seo-lead-dashboard" element={<SEOLeadDashboard />} />
               <Route path="/content-lead-dashboard" element={<ContentLeadDashboard />} />
               <Route path="/backlink-lead-dashboard" element={<BacklinkLeadDashboard />} />

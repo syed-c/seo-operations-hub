@@ -75,6 +75,17 @@ export function AuthGate({ children }: { children: ReactNode }) {
           if (storedTeamUser) {
             const parsedUser = JSON.parse(storedTeamUser);
             setTeamUser(parsedUser);
+          } else if (sessionId) {
+            // If no team user in storage, try to fetch user role from database
+            const { data: userData, error: userError } = await client
+              .from('users')
+              .select('id, email, first_name, last_name, role')
+              .eq('id', sessionId)
+              .single();
+            
+            if (!userError && userData) {
+              setTeamUser(userData);
+            }
           }
         } catch (error) {
           console.error('Failed to parse team user data:', error);
@@ -83,7 +94,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
         console.log("Current session email:", sessionEmail);
         
         // Set up auth state change listener
-        const { data: listener } = client.auth.onAuthStateChange((_event, session) => {
+        const { data: listener } = client.auth.onAuthStateChange(async (_event, session) => {
           if (!mounted) return;
           
           const newSessionEmail = session?.user?.email ?? null;
@@ -91,6 +102,34 @@ export function AuthGate({ children }: { children: ReactNode }) {
           console.log("Auth state changed:", { _event, newSessionEmail });
           setSessionEmail(newSessionEmail);
           setUserId(newSessionId);
+          
+          // When a user signs in, check for team user in sessionStorage
+          if (_event === 'SIGNED_IN' || _event === 'INITIAL_SESSION') {
+            try {
+              const storedTeamUser = sessionStorage.getItem('teamUser');
+              if (storedTeamUser) {
+                const parsedUser = JSON.parse(storedTeamUser);
+                setTeamUser(parsedUser);
+              } else if (newSessionId) {
+                // If no team user in storage, try to fetch user role from database
+                const { data: userData, error: userError } = await client
+                  .from('users')
+                  .select('id, email, first_name, last_name, role')
+                  .eq('id', newSessionId)
+                  .single();
+                
+                if (!userError && userData) {
+                  setTeamUser(userData);
+                }
+              }
+            } catch (error) {
+              console.error('Error updating team user on auth state change:', error);
+            }
+          } else if (_event === 'SIGNED_OUT') {
+            // Clear team user on sign out
+            setTeamUser(null);
+            sessionStorage.removeItem('teamUser');
+          }
         });
         
         // Always set loading to false after initialization
@@ -121,6 +160,21 @@ export function AuthGate({ children }: { children: ReactNode }) {
       const { error } = await client.auth.signInWithPassword({ email, password });
       if (error) {
         setError(error.message);
+      } else {
+        // After successful sign in, fetch user data and store in sessionStorage
+        const { data: { user } } = await client.auth.getUser();
+        if (user) {
+          const { data: userData, error: userError } = await client
+            .from('users')
+            .select('id, email, first_name, last_name, role')
+            .eq('id', user.id)
+            .single();
+          
+          if (!userError && userData) {
+            sessionStorage.setItem('teamUser', JSON.stringify(userData));
+            setTeamUser(userData);
+          }
+        }
       }
     } catch (err: any) {
       setError(err.message || "Authentication failed");
