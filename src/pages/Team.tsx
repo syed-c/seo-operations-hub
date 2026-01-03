@@ -160,15 +160,21 @@ export default function Team() {
       const { createRecord } = await import('@/lib/adminApiClient');
       
       // Create auth user via admin function
-      const { data: authResult } = await createRecord('auth_user', {
+      const authUserData: any = {
         email,
-        password: password || null,
         email_confirm: true, // Auto-confirm email for admin-created users
         user_metadata: {
           first_name: firstName || null,
           last_name: lastName || null,
         }
-      });
+      };
+      
+      // Only add password if it's provided to avoid null/undefined issues
+      if (password) {
+        authUserData.password = password;
+      }
+      
+      const { data: authResult } = await createRecord('auth_user', authUserData);
       
       if (!authResult || authResult.length === 0) {
         throw new Error('Failed to create auth user');
@@ -192,7 +198,7 @@ export default function Team() {
       if (insertError) {
         // If custom user creation fails, delete the auth user we just created
         try {
-          await createRecord('auth_user', { action: 'delete', id: userId });
+          await deleteRecords('auth_user', { id: userId });
         } catch (deleteError) {
           console.error('Failed to clean up auth user after creation failure:', deleteError);
         }
