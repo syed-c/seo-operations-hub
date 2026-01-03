@@ -21,13 +21,24 @@ export async function callAdminFunction(action: string, table: string, data?: an
       body: { action, table, data, filters }
     });
 
+    // Check if there's an error from the Edge Function
+    // Note: The Edge Function returns 409 for duplicate emails, which Supabase treats as an error
     if (error) {
       console.error('Error calling admin function:', error);
+      // Check if this is a 409 conflict error (duplicate email)
+      if (error?.status === 409 || error?.message?.includes('email_exists')) {
+        // Return the error as part of the response instead of throwing it
+        return { error: error.message || 'A user with this email already exists', status: 409 };
+      }
       throw new Error(error.message || 'Admin function call failed');
     }
     
     // Check if result contains an error from the edge function
     if (result?.error) {
+      // Check if this is a duplicate email error
+      if (result.error.includes('email_exists') || result.error.includes('A user with this email already exists')) {
+        return { error: result.error, status: 409 };
+      }
       throw new Error(result.error);
     }
     

@@ -172,7 +172,15 @@ export default function Team() {
         authUserData.password = password;
       }
       
-      const { data: authResult } = await adminApiClient1.createRecord('auth_user', authUserData);
+      const authResult = await adminApiClient1.createRecord('auth_user', authUserData);
+      
+      // Check if there was an error returned as part of the response (like 409 duplicate email)
+      if (authResult?.error) {
+        if (authResult.status === 409 || authResult.error.includes('email_exists') || authResult.error.includes('A user with this email already exists')) {
+          throw new Error('A user with this email address already exists');
+        }
+        throw new Error(authResult.error);
+      }
       
       if (!authResult || authResult.length === 0) {
         throw new Error('Failed to create auth user');
@@ -216,14 +224,9 @@ export default function Team() {
       loadUsers();
     } catch (err: any) {
       console.error('Create user error:', err);
-      // Check if it's an email exists error and provide appropriate message
-      const errorMessage = err.message?.includes('email_exists') || err.message?.includes('A user with this email already exists') 
-        ? 'A user with this email address already exists'
-        : err.message || "Failed to add user";
-      
       toast({
         title: "Error",
-        description: errorMessage,
+        description: err.message || "Failed to add user",
         variant: "destructive"
       });
     }
