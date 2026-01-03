@@ -271,10 +271,11 @@ export function AuthGate({ children }: { children: ReactNode }) {
     setTeamUser(null);
   };
   
-  const authContextValue = {
-    userId,
-    userEmail: sessionEmail,
-    teamUser,
+  // Ensure all context values are properly defined
+  const authContextValue: AuthContextType = {
+    userId: userId || null,
+    userEmail: sessionEmail || null,
+    teamUser: teamUser || null,
     clearTeamAuth
   };
   
