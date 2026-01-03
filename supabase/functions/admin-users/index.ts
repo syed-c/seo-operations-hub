@@ -76,8 +76,34 @@ serve(async (req: Request) => {
 
     switch (action) {
       case 'create':
-        console.log('Creating record in', table, 'with data:', data);
-        result = await supabaseAdmin.from(table).insert(data).select();
+        // Check if this is for auth user creation
+        if (table === 'auth_user') {
+          console.log('Creating auth user with data:', data);
+          const { email, password, email_confirm, user_metadata } = data;
+          
+          const { data: authResult, error: authError } = await supabaseAdmin.auth.admin.createUser({
+            email,
+            password: password || undefined, // Only include password if provided
+            emailConfirm: email_confirm !== false, // Default to true if not specified
+            userMetadata: user_metadata || {},
+          });
+          
+          if (authError) {
+            console.error('Auth user creation error:', authError);
+            return new Response(
+              JSON.stringify({ error: authError.message, details: authError }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+          
+          result = { data: [authResult.user] };
+        } else {
+          console.log('Creating record in', table, 'with data:', data);
+          result = await supabaseAdmin.from(table).insert(data).select();
+        }
         break;
       case 'update':
         {
@@ -91,7 +117,34 @@ serve(async (req: Request) => {
         }
         break;
       case 'delete':
-        {
+        // Check if this is for auth user deletion
+        if (table === 'auth_user') {
+          console.log('Deleting auth user with ID:', filters?.id);
+          if (!filters?.id) {
+            return new Response(
+              JSON.stringify({ error: 'User ID is required for auth user deletion' }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+          
+          const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(filters.id);
+          
+          if (authError) {
+            console.error('Auth user deletion error:', authError);
+            return new Response(
+              JSON.stringify({ error: authError.message, details: authError }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+          
+          result = { data: [] };
+        } else {
           let query = supabaseAdmin.from(table).delete();
           if (filters) {
             Object.entries(filters).forEach(([key, value]) => {

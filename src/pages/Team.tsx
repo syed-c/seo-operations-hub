@@ -156,56 +156,28 @@ export default function Team() {
     }
 
     try {
-      // First, create the auth user using Supabase Auth
-      const client = ensureSupabase();
-      let userId: string;
+      // First, create the auth user using the secure admin Edge Function
+      const { createRecord } = await import('@/lib/adminApiClient');
       
-      if (password) {
-        // Create user without password first, then set password
-        const { data, error: authError } = await client.auth.admin.createUser({
-          email,
-          emailConfirm: true, // Auto-confirm email for admin-created users
-          user_metadata: {
-            first_name: firstName || null,
-            last_name: lastName || null,
-          }
-        });
-        
-        if (authError) {
-          throw new Error(authError.message);
+      // Create auth user via admin function
+      const { data: authResult } = await createRecord('auth_user', {
+        email,
+        password: password || null,
+        email_confirm: true, // Auto-confirm email for admin-created users
+        user_metadata: {
+          first_name: firstName || null,
+          last_name: lastName || null,
         }
-        
-        userId = data.user.id;
-        
-        // Now set the password using the team auth function
-        const { setUserPassword } = await import('@/lib/auth/teamAuth');
-        const passwordResult = await setUserPassword(userId, password);
-        
-        if (!passwordResult.success) {
-          // If password setting fails, delete the user we just created
-          await client.auth.admin.deleteUser(userId);
-          throw new Error(passwordResult.error || "Failed to set user password");
-        }
-      } else {
-        // Create user without password (will need to set later or use magic link)
-        const { data, error: authError } = await client.auth.admin.createUser({
-          email,
-          emailConfirm: true, // Auto-confirm email for admin-created users
-          user_metadata: {
-            first_name: firstName || null,
-            last_name: lastName || null,
-          }
-        });
-        
-        if (authError) {
-          throw new Error(authError.message);
-        }
-        
-        userId = data.user.id;
+      });
+      
+      if (!authResult || authResult.length === 0) {
+        throw new Error('Failed to create auth user');
       }
       
+      const userId = authResult[0].id;
+      
       // Now create the entry in the custom users table
-      const { data: newUser, error: insertError } = await client
+      const { data: newUser, error: insertError } = await ensureSupabase()
         .from("users")
         .insert({
           id: userId,
@@ -218,8 +190,12 @@ export default function Team() {
         .single();
       
       if (insertError) {
-        // If custom user creation fails, try to delete the auth user we just created
-        await client.auth.admin.deleteUser(userId);
+        // If custom user creation fails, delete the auth user we just created
+        try {
+          await createRecord('auth_user', { action: 'delete', id: userId });
+        } catch (deleteError) {
+          console.error('Failed to clean up auth user after creation failure:', deleteError);
+        }
         throw new Error(insertError.message);
       }
       
@@ -259,14 +235,9 @@ export default function Team() {
         throw new Error(deleteError.message);
       }
       
-      // Then delete the auth user
-      const client = ensureSupabase();
-      const { error: authDeleteError } = await client.auth.admin.deleteUser(id);
-      
-      if (authDeleteError) {
-        console.error('Error deleting auth user:', authDeleteError);
-        // Don't throw error here as the user entry was already deleted from custom table
-      }
+      // Then delete the auth user using the secure admin function
+      const { deleteRecords } = await import('@/lib/adminApiClient');
+      await deleteRecords('auth_user', { id });
       
       toast({
         title: "Deleted",
