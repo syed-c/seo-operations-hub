@@ -114,6 +114,31 @@ serve(async (req: Request) => {
           result = { data: [authResult.user] };
           console.log('Auth user created successfully, ID:', authResult.user.id);
           
+          // Create record in users table with profile information
+          const { error: userError } = await supabaseAdmin
+            .from('users')
+            .insert({
+              id: authResult.user.id,
+              email: authResult.user.email,
+              first_name: user_metadata?.first_name || null,
+              last_name: user_metadata?.last_name || null,
+              role: user_metadata?.role || null,
+            });
+          
+          if (userError) {
+            console.error('Error storing user profile:', userError);
+            // This is a fatal error, as we need the user profile record
+            return new Response(
+              JSON.stringify({ error: userError.message, details: userError }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          } else {
+            console.log('User profile stored successfully for user:', authResult.user.id);
+          }
+          
           // If a password was provided, also insert into user_credentials table
           if (password) {
             // Hash the password before storing
@@ -130,7 +155,7 @@ serve(async (req: Request) => {
             
             if (credentialError) {
               console.error('Error storing password credentials:', credentialError);
-              // This is not a fatal error, as the auth user is already created
+              // This is not a fatal error, as the user profile is already created
               // We just log it for monitoring
             } else {
               console.log('Password credentials stored successfully for user:', authResult.user.id);
