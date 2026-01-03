@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
-import { supabase } from "@/lib/supabaseClient";
+import { supabase, ensureSupabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/components/AuthGate";
 import {
   DropdownMenu,
@@ -139,7 +139,7 @@ export default function Projects() {
   // Mutation for deleting a project
   const deleteProjectMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("projects").delete().eq("id", id);
+      const { error } = await ensureSupabase().from("projects").delete().eq("id", id);
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -150,7 +150,7 @@ export default function Projects() {
   // Mutation for updating a project
   const updateProjectMutation = useMutation({
     mutationFn: async (updatedProject: ProjectRecord) => {
-      const { error } = await supabase
+      const { error } = await ensureSupabase()
         .from("projects")
         .update({ 
           status: updatedProject.status, 
@@ -169,7 +169,7 @@ export default function Projects() {
   // Mutation for assigning a project to a user
   const assignProjectMutation = useMutation({
     mutationFn: async ({ projectId, userId }: { projectId: string; userId: string }) => {
-      const { error } = await supabase
+      const { error } = await ensureSupabase()
         .from('project_members')
         .insert({ project_id: projectId, user_id: userId, role: 'member' });
       if (error) throw new Error(error.message);
