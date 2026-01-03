@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/components/AuthGate";
 
 type ProjectRecord = {
   id: string;
@@ -27,22 +28,52 @@ const statusColors = {
 
 export default function Projects() {
   const queryClient = useQueryClient();
+  const { teamUser } = useAuth();
   const [name, setName] = useState("");
   const [client, setClient] = useState("");
   const [health, setHealth] = useState(70);
   const [status, setStatus] = useState("active");
+  
+  // Determine if user has permission to create/edit projects
+  const canCreateEditProjects = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead';
 
-  // Fetch projects with React Query
+  // Fetch projects with React Query based on user role
   const { data: projects = [], isLoading, error } = useQuery({
     queryKey: ['projects'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("id, name, client, status, health_score, created_at")
-        .order("created_at", { ascending: false });
-      
-      if (error) throw new Error(error.message);
-      return data || [];
+      if (teamUser?.role === 'Developer') {
+        // For developers, fetch only assigned projects
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          throw new Error('User not authenticated');
+        }
+        
+        const { data, error } = await supabase
+          .from('projects')
+          .select(`
+            projects.id, 
+            projects.name, 
+            projects.client, 
+            projects.status, 
+            projects.health_score, 
+            projects.created_at
+          `)
+          .join('project_members', 'projects.id', 'project_members.project_id')
+          .eq('project_members.user_id', user.id);
+          
+        if (error) throw new Error(error.message);
+        return data || [];
+      } else {
+        // For other roles, fetch all projects
+        const { data, error } = await supabase
+          .from("projects")
+          .select("id, name, client, status, health_score, created_at")
+          .order("created_at", { ascending: false });
+        
+        if (error) throw new Error(error.message);
+        return data || [];
+      }
     }
   });
 
@@ -131,6 +162,7 @@ export default function Projects() {
             Filters
           </Button>
         </div>
+        {canCreateEditProjects && (
         <div className="flex items-center gap-3">
           <input
             className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
@@ -160,6 +192,7 @@ export default function Projects() {
             New Project
           </Button>
         </div>
+        )}
       </div>
 
       {isLoading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
@@ -179,30 +212,40 @@ export default function Projects() {
                   <Globe className="w-6 h-6 text-primary" />
                 </div>
                 <div>
-                  <input
-                    className="font-semibold bg-transparent outline-none"
-                    value={project.name}
-                    onChange={(e) => {
-                      const updatedProjects = projects.map(p => 
-                        p.id === project.id ? { ...p, name: e.target.value } : p
-                      );
-                      // Optimistic update
-                      queryClient.setQueryData(['projects'], updatedProjects);
-                    }}
-                  />
-                  <input
-                    className="text-sm text-muted-foreground bg-transparent outline-none"
-                    value={project.client ?? ""}
-                    onChange={(e) => {
-                      const updatedProjects = projects.map(p => 
-                        p.id === project.id ? { ...p, client: e.target.value } : p
-                      );
-                      // Optimistic update
-                      queryClient.setQueryData(['projects'], updatedProjects);
-                    }}
-                  />
+                  {canCreateEditProjects ? (
+                    <>
+                      <input
+                        className="font-semibold bg-transparent outline-none"
+                        value={project.name}
+                        onChange={(e) => {
+                          const updatedProjects = projects.map(p => 
+                            p.id === project.id ? { ...p, name: e.target.value } : p
+                          );
+                          // Optimistic update
+                          queryClient.setQueryData(['projects'], updatedProjects);
+                        }}
+                      />
+                      <input
+                        className="text-sm text-muted-foreground bg-transparent outline-none"
+                        value={project.client ?? ""}
+                        onChange={(e) => {
+                          const updatedProjects = projects.map(p => 
+                            p.id === project.id ? { ...p, client: e.target.value } : p
+                          );
+                          // Optimistic update
+                          queryClient.setQueryData(['projects'], updatedProjects);
+                        }}
+                      />
+                    </>
+                  ) : (
+                    <>
+                      <div className="font-semibold">{project.name}</div>
+                      <div className="text-sm text-muted-foreground">{project.client ?? ""}</div>
+                    </>
+                  )}
                 </div>
               </div>
+              {canCreateEditProjects && (
               <div className="flex items-center gap-2">
                 <select
                   className={cn("chip text-xs capitalize bg-muted text-foreground")}
@@ -228,6 +271,7 @@ export default function Projects() {
                   <MoreVertical className="w-4 h-4 text-muted-foreground" />
                 </button>
               </div>
+              )}
             </div>
 
             <div className="mb-4">
@@ -292,6 +336,7 @@ export default function Projects() {
             </div>
 
             <div className="flex items-center justify-between pt-3">
+              {canCreateEditProjects && (
               <Button 
                 size="sm" 
                 variant="outline" 
@@ -301,6 +346,7 @@ export default function Projects() {
               >
                 Save
               </Button>
+              )}
             </div>
           </div>
         ))}

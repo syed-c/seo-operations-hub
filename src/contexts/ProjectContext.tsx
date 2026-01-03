@@ -51,14 +51,27 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       
       console.log('User role data:', { userData, userError });
       
-      // Fetch projects from the projects table
-      let query = ensureSupabase().from("projects").select("id, name, client, status, health_score, created_at");
+      // Fetch projects based on user role
+      let query;
       
-      // If user is Super Admin or Admin, we might need to handle differently
-      if (userData && (userData.role === 'Super Admin' || userData.role === 'Admin')) {
-        console.log('User is admin, fetching all projects');
-        // For admins, we should be able to see all projects
-        // The RLS policies should allow this
+      if (userData && userData.role === 'Developer') {
+        // For developers, fetch only assigned projects
+        // Join with project_members table to get projects assigned to the user
+        query = ensureSupabase()
+          .from('projects')
+          .select(`
+            projects.id, 
+            projects.name, 
+            projects.client, 
+            projects.status, 
+            projects.health_score, 
+            projects.created_at
+          `)
+          .join('project_members', 'projects.id', 'project_members.project_id')
+          .eq('project_members.user_id', user.id);
+      } else {
+        // For Super Admin, Admin, and other roles, fetch all projects
+        query = ensureSupabase().from("projects").select("id, name, client, status, health_score, created_at");
       }
       
       const { data, error } = await query.order("created_at", { ascending: false });

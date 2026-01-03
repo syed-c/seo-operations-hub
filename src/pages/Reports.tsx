@@ -5,6 +5,7 @@ import { FileText, Download, Clock, BarChart3, Sparkles, Trash2, Calendar, Trend
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/components/AuthGate";
 
 const typeColors = {
   daily: "bg-info/10 text-info",
@@ -18,29 +19,85 @@ export default function Reports() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ title: "", type: "weekly", projectId: "", status: "ready" });
+  const { teamUser } = useAuth();
+  
+  // Determine if user has permission to create/edit reports
+  const canCreateEditReports = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead' || teamUser?.role === 'Developer';
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("reports")
-        .select(`
-          id, 
-          title, 
-          type, 
-          status, 
-          project_id, 
-          generated_at,
-          summary,
-          changes,
-          improvements,
-          drops,
-          tasks_completed,
-          ranking_trends,
-          backlink_updates,
-          suggested_priorities
-        `)
-        .order("generated_at", { ascending: false });
+      // First, get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        setError('User not authenticated');
+        setLoading(false);
+        return;
+      }
+      
+      // Check user role
+      const { data: userData, error: roleError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      
+      if (roleError) {
+        setError(roleError.message);
+        setLoading(false);
+        return;
+      }
+      
+      let query;
+      
+      if (userData?.role === 'Developer') {
+        // For developers, fetch only reports from assigned projects
+        query = supabase
+          .from('reports')
+          .select(`
+            reports.id, 
+            reports.title, 
+            reports.type, 
+            reports.status, 
+            reports.project_id, 
+            reports.generated_at,
+            reports.summary,
+            reports.changes,
+            reports.improvements,
+            reports.drops,
+            reports.tasks_completed,
+            reports.ranking_trends,
+            reports.backlink_updates,
+            reports.suggested_priorities
+          `)
+          .join('project_members', 'reports.project_id', 'project_members.project_id')
+          .eq('project_members.user_id', user.id)
+          .order("reports.generated_at", { ascending: false });
+      } else {
+        // For other roles, fetch all reports
+        query = supabase
+          .from("reports")
+          .select(`
+            id, 
+            title, 
+            type, 
+            status, 
+            project_id, 
+            generated_at,
+            summary,
+            changes,
+            improvements,
+            drops,
+            tasks_completed,
+            ranking_trends,
+            backlink_updates,
+            suggested_priorities
+          `)
+          .order("generated_at", { ascending: false });
+      }
+      
+      const { data, error } = await query;
       
       setLoading(false);
       
@@ -160,6 +217,7 @@ export default function Reports() {
     <MainLayout>
       <Header title="Reports" subtitle="View automated SEO reports and insights" />
 
+      {canCreateEditReports && (
       <div className="flex items-center gap-3 mb-6 flex-wrap">
         <input
           className="h-10 rounded-xl border border-border bg-card px-3 text-sm flex-1 min-w-[200px]"
@@ -199,6 +257,7 @@ export default function Reports() {
           Generate Sample {form.type}
         </Button>
       </div>
+      )}
 
       {loading && <p className="text-sm text-muted-foreground mb-3">Loading...</p>}
       {error && <p className="text-sm text-destructive mb-3">{error}</p>}
@@ -400,12 +459,14 @@ export default function Reports() {
                     Generating...
                   </div>
                 )}
+                {canCreateEditReports && (
                 <button
                   className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
                   onClick={() => onDelete(report.id)}
                 >
                   <Trash2 className="w-4 h-4 text-muted-foreground" />
                 </button>
+                )}
               </div>
             </div>
           </div>

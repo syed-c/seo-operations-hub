@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink } from "@/components/NavLink";
 import { cn } from "@/lib/utils";
 import {
@@ -49,20 +49,25 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
+import { useAuth } from "@/components/AuthGate";
+import { getNavigationForRole, NavItem as RoleNavItem } from "@/lib/rolePermissions";
 
 interface NavItem {
   title: string;
   href: string;
   icon: React.ElementType;
   badge?: number;
+  allowedRoles?: string[];
 }
 
 interface NavSection {
   title: string;
   items: NavItem[];
+  allowedRoles?: string[];
 }
 
-const navSections: NavSection[] = [
+// Default navigation sections (will be overridden by role-based navigation)
+const defaultNavSections: NavSection[] = [
   {
     title: "Quick Access",
     items: [
@@ -104,11 +109,126 @@ export function Sidebar() {
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectClient, setNewProjectClient] = useState("");
   const [newProjectDescription, setNewProjectDescription] = useState("");
-
+  const { teamUser } = useAuth();
+  const [navSections, setNavSections] = useState<NavSection[]>(defaultNavSections);
+  
+  // Update navigation based on user role
+  useEffect(() => {
+    if (teamUser?.role) {
+      const roleBasedNavItems = getNavigationForRole(teamUser.role);
+      
+      // Map role-based items to NavSection structure
+      const roleBasedSections: NavSection[] = [];
+      
+      // Determine which sections to show based on user role
+      if (teamUser.role === 'Developer') {
+        // For developers, only show specific sections
+        roleBasedSections.push({
+          title: "SEO Modules",
+          items: roleBasedNavItems
+            .filter(item => ['Dashboard', 'Projects', 'Pages'].includes(item.title))
+            .map(item => ({
+              title: item.title,
+              href: item.href,
+              icon: getIconForTitle(item.title),
+            }))
+        });
+        
+        roleBasedSections.push({
+          title: "Operations",
+          items: roleBasedNavItems
+            .filter(item => ['Tasks', 'Reports', 'Chat'].includes(item.title))
+            .map(item => ({
+              title: item.title,
+              href: item.href,
+              icon: getIconForTitle(item.title),
+            }))
+        });
+      } else {
+        // For other roles, organize items into appropriate sections
+        const quickAccessItems = roleBasedNavItems.filter(item => 
+          ['Starred', 'Recent'].includes(item.title)
+        ).map(item => ({
+          title: item.title,
+          href: item.href,
+          icon: getIconForTitle(item.title),
+        }));
+        
+        if (quickAccessItems.length > 0) {
+          roleBasedSections.push({
+            title: "Quick Access",
+            items: quickAccessItems,
+          });
+        }
+        
+        const seoModulesItems = roleBasedNavItems
+          .filter(item => 
+            ['Dashboard', 'Role Dashboard', 'Projects', 'Pages', 'Keywords', 'Rankings', 'Backlinks', 'Local SEO'].includes(item.title)
+          )
+          .map(item => ({
+            title: item.title,
+            href: item.href,
+            icon: getIconForTitle(item.title),
+          }));
+        
+        if (seoModulesItems.length > 0) {
+          roleBasedSections.push({
+            title: "SEO Modules",
+            items: seoModulesItems,
+          });
+        }
+        
+        const operationsItems = roleBasedNavItems
+          .filter(item => 
+            ['Tasks', 'Automation', 'Reports', 'Team Chat', 'Team'].includes(item.title)
+          )
+          .map(item => ({
+            title: item.title,
+            href: item.href,
+            icon: getIconForTitle(item.title),
+          }));
+        
+        if (operationsItems.length > 0) {
+          roleBasedSections.push({
+            title: "Operations",
+            items: operationsItems,
+          });
+        }
+      }
+      
+      setNavSections(roleBasedSections);
+    }
+  }, [teamUser]);
+  
   const toggleSection = (title: string) => {
     setExpandedSections((prev) =>
       prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
     );
+  };
+  
+  // Helper function to get appropriate icon for title
+  const getIconForTitle = (title: string): React.ElementType => {
+    switch(title) {
+      case 'Dashboard':
+      case 'Role Dashboard': return LayoutDashboard;
+      case 'Projects': return FolderKanban;
+      case 'Pages': return FileText;
+      case 'Keywords': return Target;
+      case 'Rankings': return TrendingUp;
+      case 'Backlinks': return Link2;
+      case 'Local SEO': return MapPin;
+      case 'Tasks': return ListTodo;
+      case 'Automation': return Zap;
+      case 'Reports': return BarChart3;
+      case 'Team Chat':
+      case 'Chat': return MessageSquare;
+      case 'Team': return Users;
+      case 'Starred': return Star;
+      case 'Recent': return Clock;
+      case 'Settings': return Settings;
+      case 'Websites': return Globe;
+      default: return LayoutDashboard; // default icon
+    }
   };
 
   const handleCreateProject = async () => {
@@ -329,51 +449,58 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto scrollbar-thin p-3 space-y-4">
-        {navSections.map((section) => (
-          <div key={section.title}>
-            {!collapsed && (
-              <button
-                onClick={() => toggleSection(section.title)}
-                className="flex items-center justify-between w-full px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
-              >
-                {section.title}
-                <ChevronDown
-                  className={cn(
-                    "w-3.5 h-3.5 transition-transform",
-                    expandedSections.includes(section.title) && "rotate-180"
-                  )}
-                />
-              </button>
-            )}
-            {(collapsed || expandedSections.includes(section.title)) && (
-              <div className="mt-1 space-y-0.5">
-                {section.items.map((item) => (
-                  <NavLink
-                    key={item.href}
-                    to={item.href}
+        {navSections.map((section) => {
+          // For developers, hide Quick Access section
+          if (teamUser?.role === 'Developer' && section.title === 'Quick Access') {
+            return null;
+          }
+          
+          return (
+            <div key={section.title}>
+              {!collapsed && (
+                <button
+                  onClick={() => toggleSection(section.title)}
+                  className="flex items-center justify-between w-full px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wider hover:text-foreground transition-colors"
+                >
+                  {section.title}
+                  <ChevronDown
                     className={cn(
-                      "sidebar-item",
-                      collapsed && "justify-center px-2"
+                      "w-3.5 h-3.5 transition-transform",
+                      expandedSections.includes(section.title) && "rotate-180"
                     )}
-                    activeClassName="active"
-                  >
-                    <item.icon className="w-5 h-5 flex-shrink-0" />
-                    {!collapsed && (
-                      <>
-                        <span className="flex-1">{item.title}</span>
-                        {item.badge && (
-                          <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
-                            {item.badge}
-                          </span>
-                        )}
-                      </>
-                    )}
-                  </NavLink>
-                ))}
-              </div>
-            )}
-          </div>
-        ))}
+                  />
+                </button>
+              )}
+              {(collapsed || expandedSections.includes(section.title)) && (
+                <div className="mt-1 space-y-0.5">
+                  {section.items.map((item) => (
+                    <NavLink
+                      key={item.href}
+                      to={item.href}
+                      className={cn(
+                        "sidebar-item",
+                        collapsed && "justify-center px-2"
+                      )}
+                      activeClassName="active"
+                    >
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                      {!collapsed && (
+                        <>
+                          <span className="flex-1">{item.title}</span>
+                          {item.badge && (
+                            <span className="px-2 py-0.5 text-xs font-medium rounded-full bg-primary/10 text-primary">
+                              {item.badge}
+                            </span>
+                          )}
+                        </>
+                      )}
+                    </NavLink>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Footer */}
