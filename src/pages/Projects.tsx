@@ -2,13 +2,29 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
-import { Globe, Plus, Search, Filter, MoreVertical, TrendingUp, Users, Calendar } from "lucide-react";
+import { Globe, Plus, Search, Filter, MoreVertical, TrendingUp, Users, Calendar, UserPlus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/components/AuthGate";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 type ProjectRecord = {
   id: string;
@@ -33,9 +49,28 @@ export default function Projects() {
   const [client, setClient] = useState("");
   const [health, setHealth] = useState(70);
   const [status, setStatus] = useState("active");
+  const [assignDialogOpen, setAssignDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
+  const [selectedUserId, setSelectedUserId] = useState<string>("");
   
   // Determine if user has permission to create/edit projects
   const canCreateEditProjects = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead';
+
+  // Fetch team members for project assignment
+  const { data: teamMembers = [], isLoading: teamMembersLoading } = useQuery({
+    queryKey: ['teamMembers'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('users')
+        .select('id, email, first_name, last_name, role')
+        .neq('role', 'Super Admin'); // Exclude super admin from assignment options
+      
+      if (error) throw new Error(error.message);
+      return data || [];
+    },
+    enabled: canCreateEditProjects
+  });
 
   // Fetch projects with React Query based on user role
   const { data: projects = [], isLoading, error } = useQuery({
@@ -123,6 +158,22 @@ export default function Projects() {
     }
   });
 
+  // Mutation for assigning a project to a user
+  const assignProjectMutation = useMutation({
+    mutationFn: async ({ projectId, userId }: { projectId: string; userId: string }) => {
+      const { error } = await supabase
+        .from('project_members')
+        .insert({ project_id: projectId, user_id: userId, role: 'member' });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      setAssignDialogOpen(false);
+      setSelectedProjectId(null);
+      setSelectedUserId("");
+    }
+  });
+
   const onCreate = () => {
     if (!name) return;
     createProjectMutation.mutate({
@@ -139,6 +190,30 @@ export default function Projects() {
 
   const onUpdate = (project: ProjectRecord) => {
     updateProjectMutation.mutate(project);
+  };
+
+  const handleAssignProject = () => {
+    if (selectedProjectId && selectedUserId) {
+      assignProjectMutation.mutate({ projectId: selectedProjectId, userId: selectedUserId });
+    }
+  };
+
+  const handleDeleteProject = () => {
+    if (selectedProjectId) {
+      deleteProjectMutation.mutate(selectedProjectId);
+      setDeleteDialogOpen(false);
+      setSelectedProjectId(null);
+    }
+  };
+
+  const openAssignDialog = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setAssignDialogOpen(true);
+  };
+
+  const openDeleteDialog = (projectId: string) => {
+    setSelectedProjectId(projectId);
+    setDeleteDialogOpen(true);
   };
 
   const filtered = useMemo(() => projects, [projects]);
@@ -263,13 +338,26 @@ export default function Projects() {
                   <option value="completed">completed</option>
                   <option value="critical">critical</option>
                 </select>
-                <button
-                  className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
-                  onClick={() => onDelete(project.id)}
-                  disabled={deleteProjectMutation.isPending}
-                >
-                  <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                </button>
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
+                      disabled={deleteProjectMutation.isPending}
+                    >
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-48">
+                    <DropdownMenuItem onClick={() => openAssignDialog(project.id)} className="flex items-center gap-2">
+                      <UserPlus className="w-4 h-4" />
+                      Assign Project
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => openDeleteDialog(project.id)} className="flex items-center gap-2 text-destructive">
+                      <Trash2 className="w-4 h-4" />
+                      Delete Project
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
               )}
             </div>
@@ -352,5 +440,84 @@ export default function Projects() {
         ))}
       </div>
     </MainLayout>
+    
+    {/* Assign Project Dialog */}
+    <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Assign Project</DialogTitle>
+          <DialogDescription>
+            Select a team member to assign this project to.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="assign-user">Select Team Member</Label>
+            <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <SelectTrigger id="assign-user">
+                <SelectValue placeholder="Select a user" />
+              </SelectTrigger>
+              <SelectContent>
+                {teamMembers.map((user) => (
+                  <SelectItem key={user.id} value={user.id}>
+                    {user.first_name && user.last_name 
+                      ? `${user.first_name} ${user.last_name}` 
+                      : user.email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setAssignDialogOpen(false);
+              setSelectedProjectId(null);
+              setSelectedUserId("");
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            onClick={handleAssignProject} 
+            disabled={!selectedUserId || assignProjectMutation.isPending}
+          >
+            {assignProjectMutation.isPending ? 'Assigning...' : 'Assign'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    
+    {/* Delete Project Confirmation Dialog */}
+    <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Confirm Deletion</DialogTitle>
+          <DialogDescription>
+            Are you sure you want to delete this project? This action cannot be undone.
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setDeleteDialogOpen(false);
+              setSelectedProjectId(null);
+            }}
+          >
+            Cancel
+          </Button>
+          <Button 
+            variant="destructive" 
+            onClick={handleDeleteProject} 
+            disabled={deleteProjectMutation.isPending}
+          >
+            {deleteProjectMutation.isPending ? 'Deleting...' : 'Delete'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
