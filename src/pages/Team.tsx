@@ -5,7 +5,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Users, Plus, Trash2, Edit3 } from "lucide-react";
 import { supabase, ensureSupabase } from "@/lib/supabaseClient";
-import { callAdminFunction } from "@/lib/adminApiClient";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -157,32 +156,74 @@ export default function Team() {
     }
 
     try {
-      // Create user in users table using admin API client
-      const result = await callAdminFunction('create', 'users', {
-        email,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        role: selectedRole || null,
-      });
+      // First, create the auth user using Supabase Auth
+      const client = ensureSupabase();
+      let userId: string;
       
-      console.log('Create user result:', result);
-      
-      // If password is provided, set it for the user
-      if (password && result.data?.id) {
+      if (password) {
+        // Create user without password first, then set password
+        const { data, error: authError } = await client.auth.admin.createUser({
+          email,
+          emailConfirm: true, // Auto-confirm email for admin-created users
+          user_metadata: {
+            first_name: firstName || null,
+            last_name: lastName || null,
+          }
+        });
+        
+        if (authError) {
+          throw new Error(authError.message);
+        }
+        
+        userId = data.user.id;
+        
+        // Now set the password using the team auth function
         const { setUserPassword } = await import('@/lib/auth/teamAuth');
-        const passwordResult = await setUserPassword(result.data.id, password);
+        const passwordResult = await setUserPassword(userId, password);
         
         if (!passwordResult.success) {
-          toast({
-            title: "Warning",
-            description: "User created but failed to set password: " + (passwordResult.error || "Unknown error"),
-            variant: "destructive"
-          });
-          setDialogOpen(false);
-          loadUsers();
-          return;
+          // If password setting fails, delete the user we just created
+          await client.auth.admin.deleteUser(userId);
+          throw new Error(passwordResult.error || "Failed to set user password");
         }
+      } else {
+        // Create user without password (will need to set later or use magic link)
+        const { data, error: authError } = await client.auth.admin.createUser({
+          email,
+          emailConfirm: true, // Auto-confirm email for admin-created users
+          user_metadata: {
+            first_name: firstName || null,
+            last_name: lastName || null,
+          }
+        });
+        
+        if (authError) {
+          throw new Error(authError.message);
+        }
+        
+        userId = data.user.id;
       }
+      
+      // Now create the entry in the custom users table
+      const { data: newUser, error: insertError } = await client
+        .from("users")
+        .insert({
+          id: userId,
+          email,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          role: selectedRole || null,
+        })
+        .select()
+        .single();
+      
+      if (insertError) {
+        // If custom user creation fails, try to delete the auth user we just created
+        await client.auth.admin.deleteUser(userId);
+        throw new Error(insertError.message);
+      }
+      
+      console.log('Create user result:', newUser);
       
       toast({
         title: "Success",
@@ -208,8 +249,24 @@ export default function Team() {
 
   const onDelete = async (id: string) => {
     try {
-      // Delete from users table using admin API client
-      await callAdminFunction('delete', 'users', undefined, { id });
+      // Delete from custom users table first
+      const { error: deleteError } = await ensureSupabase()
+        .from("users")
+        .delete()
+        .eq("id", id);
+      
+      if (deleteError) {
+        throw new Error(deleteError.message);
+      }
+      
+      // Then delete the auth user
+      const client = ensureSupabase();
+      const { error: authDeleteError } = await client.auth.admin.deleteUser(id);
+      
+      if (authDeleteError) {
+        console.error('Error deleting auth user:', authDeleteError);
+        // Don't throw error here as the user entry was already deleted from custom table
+      }
       
       toast({
         title: "Deleted",
