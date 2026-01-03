@@ -182,31 +182,21 @@ export default function Team() {
         throw new Error(authResult.error);
       }
       
-      if (!authResult || authResult.length === 0) {
+      if (!authResult || !authResult.data || authResult.data.length === 0) {
         throw new Error('Failed to create auth user');
       }
       
-      const userId = authResult[0].id;
+      const userId = authResult.data[0].id;
       
-      // Now create the entry in the custom users table using admin function
-      let newUser;
-      try {
-        newUser = await adminApiClient1.createRecord('users', {
-          id: userId,
-          email,
-          first_name: firstName || null,
-          last_name: lastName || null,
-          role: selectedRole || null,
-        });
-      } catch (insertError: any) {
-        // If custom user creation fails, delete the auth user we just created
-        try {
-          await adminApiClient1.deleteRecords('auth_user', { id: userId });
-        } catch (deleteError) {
-          console.error('Failed to clean up auth user after creation failure:', deleteError);
-        }
-        throw new Error(insertError.message || 'Failed to create user in database');
-      }
+      // User profile and credentials are already created in the Edge Function
+      // Just set newUser to a dummy value to continue with the flow
+      const newUser = {
+        id: userId,
+        email,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        role: selectedRole || null,
+      };
       
       console.log('Create user result:', newUser);
       
