@@ -76,9 +76,10 @@ serve(async (req: Request) => {
 
     switch (action) {
       case 'create':
+        console.log('Processing create action for table:', table);
         // Check if this is for auth user creation
         if (table === 'auth_user') {
-          console.log('Creating auth user with data:', data);
+          console.log('Identified as auth user creation request');
           const { email, password, email_confirm, user_metadata } = data;
           
           const { data: authResult, error: authError } = await supabaseAdmin.auth.admin.createUser({
@@ -100,8 +101,9 @@ serve(async (req: Request) => {
           }
           
           result = { data: [authResult.user] };
+          console.log('Auth user created successfully, ID:', authResult.user.id);
         } else {
-          console.log('Creating record in', table, 'with data:', data);
+          console.log('Processing as regular database insert for table:', table);
           result = await supabaseAdmin.from(table).insert(data).select();
         }
         break;
