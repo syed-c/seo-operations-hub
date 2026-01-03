@@ -97,12 +97,12 @@ export default function Team() {
       
       setLoading(false);
       
-      if (result.error) {
+      if (result?.error) {
         console.error("Error loading users:", result.error);
         return;
       }
       
-      const transformedData = (result.data || []).map((user: any) => ({
+      const transformedData = (result?.data || []).map((user: any) => ({
         id: user.id,
         email: user.email,
         first_name: user.first_name || undefined,
@@ -155,7 +155,7 @@ export default function Team() {
 
     try {
       // First, create the auth user using the secure admin Edge Function
-      const adminApiClient = await import('@/lib/adminApiClient');
+      const adminApiClient1 = await import('@/lib/adminApiClient');
       
       // Create auth user via admin function
       const authUserData: any = {
@@ -172,7 +172,7 @@ export default function Team() {
         authUserData.password = password;
       }
       
-      const { data: authResult } = await adminApiClient.createRecord('auth_user', authUserData);
+      const { data: authResult } = await adminApiClient1.createRecord('auth_user', authUserData);
       
       if (!authResult || authResult.length === 0) {
         throw new Error('Failed to create auth user');
@@ -181,8 +181,7 @@ export default function Team() {
       const userId = authResult[0].id;
       
       // Now create the entry in the custom users table using admin function
-      const adminApiClient = await import('@/lib/adminApiClient');
-      const { data: newUser, error: insertError } = await adminApiClient.createRecord('users', {
+      const { data: newUser, error: insertError } = await adminApiClient1.createRecord('users', {
         id: userId,
         email,
         first_name: firstName || null,
@@ -193,8 +192,7 @@ export default function Team() {
       if (insertError) {
         // If custom user creation fails, delete the auth user we just created
         try {
-          const adminApiClient = await import('@/lib/adminApiClient');
-          await adminApiClient.deleteRecords('auth_user', { id: userId });
+          await adminApiClient1.deleteRecords('auth_user', { id: userId });
         } catch (deleteError) {
           console.error('Failed to clean up auth user after creation failure:', deleteError);
         }
@@ -228,11 +226,11 @@ export default function Team() {
   const onDelete = async (id: string) => {
     try {
       // Delete from custom users table first using admin function
-      const adminApiClient = await import('@/lib/adminApiClient');
-      await adminApiClient.deleteRecords('users', { id });
+      const adminApiClient3 = await import('@/lib/adminApiClient');
+      await adminApiClient3.deleteRecords('users', { id });
       
       // Then delete the auth user using the secure admin function
-      await adminApiClient.deleteRecords('auth_user', { id });
+      await adminApiClient3.deleteRecords('auth_user', { id });
       
       toast({
         title: "Deleted",
@@ -261,8 +259,8 @@ export default function Team() {
     if (!editingUser) return;
     
     try {
-      const adminApiClient = await import('@/lib/adminApiClient');
-      await adminApiClient.updateRecords('users', {
+      const adminApiClient2 = await import('@/lib/adminApiClient');
+      await adminApiClient2.updateRecords('users', {
         first_name: editFirstName || null,
         last_name: editLastName || null,
         role: editRole || null,
