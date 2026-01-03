@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
+import { useAuth } from "@/components/AuthGate";
 
 const priorityColors = {
   low: "bg-muted text-muted-foreground",
@@ -48,14 +49,66 @@ export default function Tasks() {
     status: "todo",
     dueDate: "",
   });
+  const { teamUser } = useAuth();
+  
+  // Determine if user has permission to create/edit tasks
+  const canCreateEditTasks = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead' || teamUser?.role === 'Content Lead' || teamUser?.role === 'Backlink Lead' || teamUser?.role === 'Technical SEO';
 
   const load = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from("tasks")
-        .select("id, title, description, status, priority, type, due_date, project_id, task_assignments(user_id)")
-        .order("created_at", { ascending: false });
+      // First, get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        setError('User not authenticated');
+        setLoading(false);
+        return;
+      }
+      
+      // Check user role
+      const { data: userData, error: roleError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      
+      if (roleError) {
+        setError(roleError.message);
+        setLoading(false);
+        return;
+      }
+      
+      let query;
+      
+      if (userData?.role === 'Developer') {
+        // For developers, fetch only tasks from assigned projects
+        query = supabase
+          .from('tasks')
+          .select(`
+            tasks.id, 
+            tasks.title, 
+            tasks.description, 
+            tasks.status, 
+            tasks.priority, 
+            tasks.type, 
+            tasks.due_date, 
+            tasks.project_id, 
+            task_assignments(user_id)
+          `)
+          .join('projects', 'tasks.project_id', 'projects.id')
+          .join('project_members', 'projects.id', 'project_members.project_id')
+          .eq('project_members.user_id', user.id)
+          .order("tasks.created_at", { ascending: false });
+      } else {
+        // For other roles, fetch all tasks
+        query = supabase
+          .from("tasks")
+          .select("id, title, description, status, priority, type, due_date, project_id, task_assignments(user_id)")
+          .order("created_at", { ascending: false });
+      }
+      
+      const { data, error } = await query;
       
       setLoading(false);
       
@@ -148,6 +201,7 @@ export default function Tasks() {
             Filters
           </Button>
         </div>
+        {canCreateEditTasks && (
         <div className="flex items-center gap-2">
           <input
             className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
@@ -194,6 +248,7 @@ export default function Tasks() {
             New Task
           </Button>
         </div>
+        )}
       </div>
 
       {loading && <p className="text-sm text-muted-foreground mb-3">Loading...</p>}
@@ -254,6 +309,7 @@ export default function Tasks() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-3">
+                      {canCreateEditTasks && (
                       <select
                         className="h-9 rounded-xl border border-border bg-card px-2 text-xs"
                         value={task.status || "todo"}
@@ -264,12 +320,15 @@ export default function Tasks() {
                         <option value="review">Review</option>
                         <option value="done">Done</option>
                       </select>
+                      )}
+                      {canCreateEditTasks && (
                       <button
                         className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
                         onClick={() => onDelete(task.id)}
                       >
                         <Trash2 className="w-4 h-4 text-muted-foreground" />
                       </button>
+                      )}
                     </div>
                   </div>
                 ))}

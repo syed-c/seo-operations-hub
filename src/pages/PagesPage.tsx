@@ -10,6 +10,7 @@ import { RefreshPagesModal } from "@/components/pages/RefreshPagesModal";
 import { useToast } from "@/hooks/use-toast";
 import { usePages, useInvalidatePages } from "@/hooks/usePages";
 import { Project } from "@/types";
+import { useAuth } from "@/components/AuthGate";
 
 export default function PagesPage() {
   const { data: pages = [], isLoading, error } = usePages();
@@ -17,13 +18,52 @@ export default function PagesPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { toast } = useToast();
+  const { teamUser } = useAuth();
+  
+  // Determine if user has permission to refresh data
+  const canRefreshData = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead';
 
   const loadProjects = async () => {
     try {
-      const { data, error } = await supabase
-        .from("projects")
-        .select("id, name, client, status, health_score, created_at")
-        .order("created_at", { ascending: false });
+      // First, get the current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
+      
+      if (userError || !user) {
+        console.error("User not authenticated");
+        return;
+      }
+      
+      // Check user role
+      const { data: userData, error: roleError } = await supabase
+        .from("users")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+      
+      if (roleError) {
+        console.error("Error fetching user role:", roleError.message);
+        return;
+      }
+      
+      let query;
+      
+      if (userData?.role === 'Developer') {
+        // For developers, fetch only assigned projects
+        query = supabase
+          .from('projects')
+          .select("id, name, client, status, health_score, created_at")
+          .join('project_members', 'projects.id', 'project_members.project_id')
+          .eq('project_members.user_id', user.id)
+          .order("created_at", { ascending: false });
+      } else {
+        // For other roles, fetch all projects
+        query = supabase
+          .from("projects")
+          .select("id, name, client, status, health_score, created_at")
+          .order("created_at", { ascending: false });
+      }
+      
+      const { data, error } = await query;
       
       if (error) {
         console.error("Error loading projects:", error.message);
@@ -50,10 +90,12 @@ export default function PagesPage() {
       <Header title="Pages" subtitle="Monitor rankings, content, and technical health by URL" />
       
       <div className="flex items-center gap-3 mb-6">
+        {canRefreshData && (
         <Button className="gap-2 rounded-xl" onClick={() => setIsModalOpen(true)}>
           <RefreshCw className="w-4 h-4" />
           Refresh Data
         </Button>
+        )}
       </div>
       
       {isLoading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}

@@ -2,6 +2,7 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { MessageSquare, Sparkles } from "lucide-react";
+import { useAuth } from "@/components/AuthGate";
 
 const threads = [
   { title: "Project: TechStartup Pro", last: "Ranking uplift summary", unread: 3 },
@@ -10,9 +11,15 @@ const threads = [
 ];
 
 export default function Chat() {
+  const { teamUser } = useAuth();
+  
+  // Determine if user has permission to access chat
+  const canAccessChat = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead' || teamUser?.role === 'Content Lead' || teamUser?.role === 'Backlink Lead' || teamUser?.role === 'Technical SEO' || teamUser?.role === 'Developer';
+  
   return (
     <MainLayout>
       <Header title="Team Chat" subtitle="Project rooms, squads, and AI assistant" />
+      {canAccessChat ? (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {threads.map((thread) => (
           <Card
@@ -35,6 +42,11 @@ export default function Chat() {
           </Card>
         ))}
       </div>
+      ) : (
+        <div className="flex items-center justify-center h-64">
+          <p className="text-muted-foreground">You don't have permission to access this feature.</p>
+        </div>
+      )}
     </MainLayout>
   );
 }
