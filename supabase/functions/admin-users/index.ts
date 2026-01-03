@@ -113,13 +113,66 @@ serve(async (req: Request) => {
           
           result = { data: [authResult.user] };
           console.log('Auth user created successfully, ID:', authResult.user.id);
+          
+          // If a password was provided, also insert into user_credentials table
+          if (password) {
+            // Hash the password before storing
+            const { hash } = await import('https://esm.sh/bcrypt-ts@5.0.0');
+            const passwordHash = await hash(password);
+            
+            // Insert password hash into user_credentials table
+            const { error: credentialError } = await supabaseAdmin
+              .from('user_credentials')
+              .insert({
+                user_id: authResult.user.id,
+                password_hash: passwordHash
+              });
+            
+            if (credentialError) {
+              console.error('Error storing password credentials:', credentialError);
+              // This is not a fatal error, as the auth user is already created
+              // We just log it for monitoring
+            } else {
+              console.log('Password credentials stored successfully for user:', authResult.user.id);
+            }
+          }
         } else {
           console.log('Processing as regular database insert for table:', table);
           result = await supabaseAdmin.from(table).insert(data).select();
         }
         break;
       case 'update':
-        {
+        // Check if this is for auth user update (for password changes)
+        if (table === 'auth_user' && data.password) {
+          console.log('Updating password for auth user with ID:', filters?.id);
+          
+          // Hash the new password
+          const { hash } = await import('https://esm.sh/bcrypt-ts@5.0.0');
+          const passwordHash = await hash(data.password);
+          
+          // Update password hash in user_credentials table
+          const { error: credentialError } = await supabaseAdmin
+            .from('user_credentials')
+            .upsert({  // Use upsert to handle both insert and update
+              user_id: filters.id,
+              password_hash: passwordHash,
+              password_set_at: new Date().toISOString()
+            });
+          
+          if (credentialError) {
+            console.error('Error updating password credentials:', credentialError);
+            return new Response(
+              JSON.stringify({ error: credentialError.message, details: credentialError }),
+              { 
+                status: 400, 
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              }
+            );
+          }
+          
+          // Return success response
+          result = { data: [{ id: filters.id, password_updated: true }] };
+        } else {
           let query = supabaseAdmin.from(table).update(data);
           if (filters) {
             Object.entries(filters).forEach(([key, value]) => {
