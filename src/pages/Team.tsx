@@ -182,11 +182,23 @@ export default function Team() {
         throw new Error(authResult.error);
       }
       
-      if (!authResult || !authResult.data || authResult.data.length === 0) {
-        throw new Error('Failed to create auth user');
+      // Handle different response structures for auth user creation
+      let userId;
+      if (authResult && authResult.data && authResult.data.length > 0) {
+        userId = authResult.data[0].id;
+      } else if (authResult && Array.isArray(authResult) && authResult.length > 0) {
+        // Fallback for different response structure
+        userId = authResult[0].id;
+      } else if (authResult && authResult.id) {
+        // Direct user object response
+        userId = authResult.id;
+      } else {
+        throw new Error('Failed to create auth user - invalid response structure');
       }
       
-      const userId = authResult.data[0].id;
+      if (!userId) {
+        throw new Error('Failed to create auth user - no user ID returned');
+      }
       
       // User profile and credentials are already created in the Edge Function
       // Just set newUser to a dummy value to continue with the flow
