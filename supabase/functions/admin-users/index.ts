@@ -91,13 +91,24 @@ serve(async (req: Request) => {
           
           if (authError) {
             console.error('Auth user creation error:', authError);
-            return new Response(
-              JSON.stringify({ error: authError.message, details: authError }),
-              { 
-                status: 400, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-              }
-            );
+            // Check if it's an email exists error
+            if (authError.code === 'email_exists') {
+              return new Response(
+                JSON.stringify({ error: 'A user with this email already exists', code: 'email_exists' }),
+                { 
+                  status: 409, // Conflict status code for duplicate email
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+              );
+            } else {
+              return new Response(
+                JSON.stringify({ error: authError.message, details: authError }),
+                { 
+                  status: 400, 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                }
+              );
+            }
           }
           
           result = { data: [authResult.user] };
