@@ -85,26 +85,24 @@ export default function Team() {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await ensureSupabase()
-        .from("users")
-        .select(`
-          id, 
-          email, 
-          first_name,
-          last_name,
-          role, 
-          created_at
-        `)
-        .order("created_at", { ascending: false });
+      const { selectRecords } = await import('@/lib/adminApiClient');
+      const result = await selectRecords('users', `
+        id, 
+        email, 
+        first_name,
+        last_name,
+        role, 
+        created_at
+      `);
       
       setLoading(false);
       
-      if (error) {
-        console.error("Error loading users:", error);
+      if (result.error) {
+        console.error("Error loading users:", result.error);
         return;
       }
       
-      const transformedData = (data || []).map((user: any) => ({
+      const transformedData = (result.data || []).map((user: any) => ({
         id: user.id,
         email: user.email,
         first_name: user.first_name || undefined,
@@ -182,22 +180,20 @@ export default function Team() {
       
       const userId = authResult[0].id;
       
-      // Now create the entry in the custom users table
-      const { data: newUser, error: insertError } = await ensureSupabase()
-        .from("users")
-        .insert({
-          id: userId,
-          email,
-          first_name: firstName || null,
-          last_name: lastName || null,
-          role: selectedRole || null,
-        })
-        .select()
-        .single();
+      // Now create the entry in the custom users table using admin function
+      const { createRecord } = await import('@/lib/adminApiClient');
+      const { data: newUser, error: insertError } = await createRecord('users', {
+        id: userId,
+        email,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        role: selectedRole || null,
+      });
       
       if (insertError) {
         // If custom user creation fails, delete the auth user we just created
         try {
+          const { deleteRecords } = await import('@/lib/adminApiClient');
           await deleteRecords('auth_user', { id: userId });
         } catch (deleteError) {
           console.error('Failed to clean up auth user after creation failure:', deleteError);
@@ -231,18 +227,11 @@ export default function Team() {
 
   const onDelete = async (id: string) => {
     try {
-      // Delete from custom users table first
-      const { error: deleteError } = await ensureSupabase()
-        .from("users")
-        .delete()
-        .eq("id", id);
-      
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
+      // Delete from custom users table first using admin function
+      const { deleteRecords } = await import('@/lib/adminApiClient');
+      await deleteRecords('users', { id });
       
       // Then delete the auth user using the secure admin function
-      const { deleteRecords } = await import('@/lib/adminApiClient');
       await deleteRecords('auth_user', { id });
       
       toast({
@@ -272,23 +261,12 @@ export default function Team() {
     if (!editingUser) return;
     
     try {
-      const { error } = await ensureSupabase()
-        .from("users")
-        .update({
-          first_name: editFirstName || null,
-          last_name: editLastName || null,
-          role: editRole || null,
-        })
-        .eq("id", editingUser.id);
-      
-      if (error) {
-        toast({
-          title: "Error",
-          description: error.message,
-          variant: "destructive"
-        });
-        return;
-      }
+      const { updateRecords } = await import('@/lib/adminApiClient');
+      await updateRecords('users', {
+        first_name: editFirstName || null,
+        last_name: editLastName || null,
+        role: editRole || null,
+      }, { id: editingUser.id });
       
       toast({
         title: "Updated",
