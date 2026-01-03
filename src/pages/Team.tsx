@@ -181,22 +181,23 @@ export default function Team() {
       const userId = authResult[0].id;
       
       // Now create the entry in the custom users table using admin function
-      const { data: newUser, error: insertError } = await adminApiClient1.createRecord('users', {
-        id: userId,
-        email,
-        first_name: firstName || null,
-        last_name: lastName || null,
-        role: selectedRole || null,
-      });
-      
-      if (insertError) {
+      let newUser;
+      try {
+        newUser = await adminApiClient1.createRecord('users', {
+          id: userId,
+          email,
+          first_name: firstName || null,
+          last_name: lastName || null,
+          role: selectedRole || null,
+        });
+      } catch (insertError: any) {
         // If custom user creation fails, delete the auth user we just created
         try {
           await adminApiClient1.deleteRecords('auth_user', { id: userId });
         } catch (deleteError) {
           console.error('Failed to clean up auth user after creation failure:', deleteError);
         }
-        throw new Error(insertError.message);
+        throw new Error(insertError.message || 'Failed to create user in database');
       }
       
       console.log('Create user result:', newUser);
@@ -215,9 +216,14 @@ export default function Team() {
       loadUsers();
     } catch (err: any) {
       console.error('Create user error:', err);
+      // Check if it's an email exists error and provide appropriate message
+      const errorMessage = err.message?.includes('email_exists') || err.message?.includes('A user with this email already exists') 
+        ? 'A user with this email address already exists'
+        : err.message || "Failed to add user";
+      
       toast({
         title: "Error",
-        description: err.message || "Failed to add user",
+        description: errorMessage,
         variant: "destructive"
       });
     }
