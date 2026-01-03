@@ -118,7 +118,7 @@ serve(async (req: Request) => {
           if (password) {
             // Hash the password before storing
             const { hash } = await import('https://esm.sh/bcrypt-ts@5.0.0');
-            const passwordHash = await hash(password);
+            const passwordHash = await hash(password, 10); // Use default salt rounds of 10
             
             // Insert password hash into user_credentials table
             const { error: credentialError } = await supabaseAdmin
@@ -148,7 +148,7 @@ serve(async (req: Request) => {
           
           // Hash the new password
           const { hash } = await import('https://esm.sh/bcrypt-ts@5.0.0');
-          const passwordHash = await hash(data.password);
+          const passwordHash = await hash(data.password, 10); // Use default salt rounds of 10
           
           // Update password hash in user_credentials table
           const { error: credentialError } = await supabaseAdmin
