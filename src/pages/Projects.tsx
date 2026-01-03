@@ -202,7 +202,7 @@ export default function Projects() {
   };
 
   const handleAssignProject = () => {
-    if (selectedProjectId && selectedUserId) {
+    if (selectedProjectId && selectedUserId && selectedUserId !== 'error' && selectedUserId !== 'loading' && selectedUserId !== 'no-members') {
       assignProjectMutation.mutate({ projectId: selectedProjectId, userId: selectedUserId });
     }
   };
@@ -461,17 +461,22 @@ export default function Projects() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="assign-user">Select Team Member</Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+              <Select value={selectedUserId} onValueChange={(value) => {
+                // Only update if the value is a valid user ID (not one of our disabled options)
+                if (value !== 'error' && value !== 'loading' && value !== 'no-members') {
+                  setSelectedUserId(value);
+                }
+              }}>
                 <SelectTrigger id="assign-user">
                   <SelectValue placeholder="Select a user" />
                 </SelectTrigger>
                 <SelectContent>
                   {teamMembersError ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="error" disabled>
                       Error loading team members
                     </SelectItem>
                   ) : teamMembersLoading ? (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="loading" disabled>
                       Loading team members...
                     </SelectItem>
                   ) : teamMembers.length > 0 ? (
@@ -483,7 +488,7 @@ export default function Projects() {
                       </SelectItem>
                     ))
                   ) : (
-                    <SelectItem value="" disabled>
+                    <SelectItem value="no-members" disabled>
                       No team members available
                     </SelectItem>
                   )}
@@ -504,7 +509,7 @@ export default function Projects() {
             </Button>
             <Button 
               onClick={handleAssignProject} 
-              disabled={!selectedUserId || assignProjectMutation.isPending}
+              disabled={!selectedUserId || selectedUserId === 'error' || selectedUserId === 'loading' || selectedUserId === 'no-members' || assignProjectMutation.isPending}
             >
               {assignProjectMutation.isPending ? 'Assigning...' : 'Assign'}
             </Button>
