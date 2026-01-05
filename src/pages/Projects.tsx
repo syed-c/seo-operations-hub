@@ -583,8 +583,8 @@ export default function Projects() {
                     {projectMembers.map((member) => (
                       <div key={member.id} className="flex items-center gap-2 bg-muted rounded-full px-3 py-1 text-sm">
                         <span>
-                          {member.first_name && member.last_name
-                            ? `${member.first_name} ${member.last_name}`
+                          {(member.first_name || member.last_name)
+                            ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
                             : member.email}
                         </span>
                         <button 
