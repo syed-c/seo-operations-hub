@@ -10,6 +10,7 @@ import { useAuth } from "@/components/AuthGate";
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogHeader,
   DialogTitle,
   DialogFooter,
@@ -284,7 +285,7 @@ export default function Tasks() {
       console.log('Task created successfully:', data); // Debug log
       
       // Create task assignment if an assignee was selected
-      if (form.assigneeId) {
+      if (form.assigneeId && form.assigneeId !== 'unassigned') {
         const assignmentResult = await supabase.from("task_assignments").insert({ 
           task_id: data?.id, 
           user_id: form.assigneeId 
@@ -375,6 +376,7 @@ export default function Tasks() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>Assign New Task</DialogTitle>
+              <DialogDescription>Create and assign a new task to a team member</DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
               <div className="space-y-2">
@@ -449,15 +451,15 @@ export default function Tasks() {
               <div className="space-y-2">
                 <Label htmlFor="task-assignee">Assign To</Label>
                 <Select 
-                  value={form.assigneeId} 
-                  onValueChange={(value) => setForm({ ...form, assigneeId: value })}
+                  value={form.assigneeId || 'unassigned'} 
+                  onValueChange={(value) => setForm({ ...form, assigneeId: value === 'unassigned' ? '' : value })}
                   disabled={loadingTeamMembers}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a team member" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">Unassigned</SelectItem>
+                    <SelectItem value="unassigned">Unassigned</SelectItem>
                     {loadingTeamMembers && (
                       <SelectItem value="" disabled>
                         Loading team members...
