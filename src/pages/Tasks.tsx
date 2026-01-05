@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/components/AuthGate";
+import { useProject } from "@/contexts/ProjectContext";
 import {
   Dialog,
   DialogContent,
@@ -71,6 +72,7 @@ export default function Tasks() {
   // State for the new task modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { teamUser } = useAuth();
+  const { selectedProject } = useProject();
   
   // Determine if user has permission to create/edit tasks
   const canCreateEditTasks = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead' || teamUser?.role === 'Content Lead' || teamUser?.role === 'Backlink Lead' || teamUser?.role === 'Technical SEO';
@@ -369,7 +371,14 @@ export default function Tasks() {
         </div>
         {canCreateEditTasks && (
         <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <Button className="gap-2 rounded-xl" onClick={() => setIsModalOpen(true)}>
+          <Button className="gap-2 rounded-xl" onClick={() => {
+            // Set the selected project ID when opening the modal
+            setIsModalOpen(true);
+            setForm(prev => ({
+              ...prev,
+              projectId: selectedProject?.id || ""
+            }));
+          }}>
             <Plus className="w-4 h-4" />
             New Task
           </Button>
