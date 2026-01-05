@@ -53,27 +53,57 @@ export default function Reports() {
       
       if (userData?.role === 'Developer') {
         // For developers, fetch only reports from assigned projects
-        query = supabase
+        // First, get the project IDs assigned to the user
+        const { data: projectMemberData, error: projectMemberError } = await supabase
+          .from('project_members')
+          .select('project_id')
+          .eq('user_id', user.id);
+        
+        if (projectMemberError) {
+          setError(projectMemberError.message);
+          setLoading(false);
+          return;
+        }
+        
+        if (!projectMemberData || projectMemberData.length === 0) {
+          // No projects assigned to this user
+          setReports([]);
+          setLoading(false);
+          return;
+        }
+        
+        // Extract project IDs
+        const projectIds = projectMemberData.map(pm => pm.project_id);
+        
+        // Then fetch the reports for those projects
+        const { data, error } = await supabase
           .from('reports')
           .select(`
-            reports.id, 
-            reports.title, 
-            reports.type, 
-            reports.status, 
-            reports.project_id, 
-            reports.generated_at,
-            reports.summary,
-            reports.changes,
-            reports.improvements,
-            reports.drops,
-            reports.tasks_completed,
-            reports.ranking_trends,
-            reports.backlink_updates,
-            reports.suggested_priorities
+            id, 
+            title, 
+            type, 
+            status, 
+            project_id, 
+            generated_at,
+            summary,
+            changes,
+            improvements,
+            drops,
+            tasks_completed,
+            ranking_trends,
+            backlink_updates,
+            suggested_priorities
           `)
-          .join('project_members', 'reports.project_id', 'project_members.project_id')
-          .eq('project_members.user_id', user.id)
-          .order("reports.generated_at", { ascending: false });
+          .in('project_id', projectIds)
+          .order('reports.generated_at', { ascending: false });
+        
+        if (error) {
+          setError(error.message);
+          setLoading(false);
+          return;
+        }
+        
+        setReports(data || []);
       } else {
         // For other roles, fetch all reports
         query = supabase

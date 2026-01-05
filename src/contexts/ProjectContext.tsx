@@ -52,29 +52,60 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
       console.log('User role data:', { userData, userError });
       
       // Fetch projects based on user role
-      let query;
+      let data;
+      let error;
       
       if (userData && userData.role === 'Developer') {
         // For developers, fetch only assigned projects
-        // Join with project_members table to get projects assigned to the user
-        query = ensureSupabase()
-          .from('projects')
-          .select(`
-            projects.id, 
-            projects.name, 
-            projects.client, 
-            projects.status, 
-            projects.health_score, 
-            projects.created_at
-          `)
-          .join('project_members', 'projects.id', 'project_members.project_id')
-          .eq('project_members.user_id', user.id);
+        // First, get the project IDs assigned to the user
+        const { data: projectMemberData, error: projectMemberError } = await ensureSupabase()
+          .from('project_members')
+          .select('project_id')
+          .eq('user_id', user.id);
+        
+        if (projectMemberError) {
+          console.error('Error fetching project members:', projectMemberError);
+          throw new Error(projectMemberError.message);
+        }
+        
+        if (!projectMemberData || projectMemberData.length === 0) {
+          // No projects assigned to this user
+          data = [];
+          error = null;
+        } else {
+          // Extract project IDs
+          const projectIds = projectMemberData.map(pm => pm.project_id);
+          
+          // Then fetch the projects with those IDs
+          const { data: projectsData, error: projectsError } = await ensureSupabase()
+            .from('projects')
+            .select('id, name, client, status, health_score, created_at')
+            .in('id', projectIds)
+            .order('created_at', { ascending: false });
+          
+          if (projectsError) {
+            console.error('Error fetching projects:', projectsError);
+            throw new Error(projectsError.message);
+          }
+          
+          data = projectsData;
+          error = null;
+        }
       } else {
         // For Super Admin, Admin, and other roles, fetch all projects
-        query = ensureSupabase().from("projects").select("id, name, client, status, health_score, created_at");
+        const result = await ensureSupabase()
+          .from('projects')
+          .select('id, name, client, status, health_score, created_at')
+          .order('created_at', { ascending: false });
+        
+        data = result.data;
+        error = result.error;
       }
       
-      const { data, error } = await query.order("created_at", { ascending: false });
+      if (error) {
+        console.error('Error fetching projects:', error);
+        throw new Error(error.message);
+      }
       
       console.log('Projects fetch result:', { data, error });
 

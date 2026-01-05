@@ -83,23 +83,52 @@ export default function Tasks() {
       
       if (userData?.role === 'Developer') {
         // For developers, fetch only tasks from assigned projects
-        query = supabase
+        // First, get the project IDs assigned to the user
+        const { data: projectMemberData, error: projectMemberError } = await supabase
+          .from('project_members')
+          .select('project_id')
+          .eq('user_id', user.id);
+        
+        if (projectMemberError) {
+          setError(projectMemberError.message);
+          setLoading(false);
+          return;
+        }
+        
+        if (!projectMemberData || projectMemberData.length === 0) {
+          // No projects assigned to this user
+          setTasks([]);
+          setLoading(false);
+          return;
+        }
+        
+        // Extract project IDs
+        const projectIds = projectMemberData.map(pm => pm.project_id);
+        
+        // Then fetch the tasks for those projects
+        const { data, error } = await supabase
           .from('tasks')
           .select(`
-            tasks.id, 
-            tasks.title, 
-            tasks.description, 
-            tasks.status, 
-            tasks.priority, 
-            tasks.type, 
-            tasks.due_date, 
-            tasks.project_id, 
+            id, 
+            title, 
+            description, 
+            status, 
+            priority, 
+            type, 
+            due_date, 
+            project_id, 
             task_assignments(user_id)
           `)
-          .join('projects', 'tasks.project_id', 'projects.id')
-          .join('project_members', 'projects.id', 'project_members.project_id')
-          .eq('project_members.user_id', user.id)
-          .order("tasks.created_at", { ascending: false });
+          .in('project_id', projectIds)
+          .order('tasks.created_at', { ascending: false });
+        
+        if (error) {
+          setError(error.message);
+          setLoading(false);
+          return;
+        }
+        
+        setTasks(data || []);
       } else {
         // For other roles, fetch all tasks
         query = supabase
