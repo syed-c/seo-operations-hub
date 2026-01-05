@@ -224,30 +224,47 @@ export default function Tasks() {
           const taskIds = tasksData.map(t => t.id);
           console.log('Fetching assignments for task IDs:', taskIds);
           
+          // For developers, first try to fetch assignments for their tasks
+          // Try with regular supabase client first
           try {
-            const adminApiClient = await import('@/lib/adminApiClient');
-            const result = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id', { task_id: taskIds });
-            
-            if (result?.error) {
-              console.error('Error fetching task assignments:', result.error);
-            } else {
-              taskAssignments = result.data || [];
-              console.log('Fetched assignments:', taskAssignments);
-            }
-          } catch (error) {
-            console.error('Error in admin API call for task assignments:', error);
-            
-            // Fallback to regular supabase client if admin API fails
             const { data: assignmentsData, error: assignmentsError } = await supabase
               .from('task_assignments')
               .select('task_id, user_id')
               .in('task_id', taskIds);
             
             if (assignmentsError) {
-              console.error('Error fetching task assignments:', assignmentsError);
+              console.error('Error fetching task assignments with regular client:', assignmentsError);
             } else {
               taskAssignments = assignmentsData || [];
-              console.log('Fetched assignments with fallback:', taskAssignments);
+              console.log('Fetched assignments with regular client:', taskAssignments);
+            }
+          } catch (error) {
+            console.error('Error with regular client for task assignments:', error);
+          }
+          
+          // If no assignments found with regular client, try admin API as fallback
+          if (taskAssignments.length === 0) {
+            try {
+              // Use admin API to fetch task assignments
+              const adminApiClient = await import('@/lib/adminApiClient');
+              
+              // Since adminApiClient.selectRecords might not support .in() syntax,
+              // we'll use a different approach - fetch all and filter client-side
+              const allAssignmentsResult = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id');
+              
+              if (allAssignmentsResult?.error) {
+                console.error('Error fetching all task assignments:', allAssignmentsResult.error);
+              } else {
+                // Filter the assignments to only include those for our tasks
+                taskAssignments = (allAssignmentsResult.data || []).filter(assignment => 
+                  taskIds.includes(assignment.task_id)
+                );
+                console.log('Fetched assignments with admin API:', taskAssignments);
+              }
+            } catch (error) {
+              console.error('Error in admin API call for task assignments:', error);
+              
+              // If both fail, assignments remain as empty array
             }
           }
         }
