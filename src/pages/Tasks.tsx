@@ -340,13 +340,20 @@ export default function Tasks() {
           console.log('Fetching assignments for task IDs:', taskIds);
           
           try {
+            // Use admin API to fetch task assignments
             const adminApiClient = await import('@/lib/adminApiClient');
-            const result = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id', { task_id: taskIds });
             
-            if (result?.error) {
-              console.error('Error fetching task assignments:', result.error);
+            // Since adminApiClient.selectRecords might not support .in() syntax,
+            // we'll use a different approach - fetch all and filter client-side
+            const allAssignmentsResult = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id');
+            
+            if (allAssignmentsResult?.error) {
+              console.error('Error fetching all task assignments:', allAssignmentsResult.error);
             } else {
-              taskAssignments = result.data || [];
+              // Filter the assignments to only include those for our tasks
+              taskAssignments = (allAssignmentsResult.data || []).filter(assignment => 
+                taskIds.includes(assignment.task_id)
+              );
               console.log('Fetched assignments:', taskAssignments);
             }
           } catch (error) {
