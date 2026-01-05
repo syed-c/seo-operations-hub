@@ -120,7 +120,7 @@ export default function Tasks() {
             task_assignments(user_id)
           `)
           .in('project_id', projectIds)
-          .order('tasks.created_at', { ascending: false });
+          .order('created_at', { ascending: false });
         
         if (error) {
           setError(error.message);
@@ -131,27 +131,26 @@ export default function Tasks() {
         setTasks(data || []);
       } else {
         // For other roles, fetch all tasks
-        query = supabase
-          .from("tasks")
-          .select("id, title, description, status, priority, type, due_date, project_id, task_assignments(user_id)")
-          .order("created_at", { ascending: false });
+        const { data, error } = await supabase
+          .from('tasks')
+          .select('id, title, description, status, priority, type, due_date, project_id, task_assignments(user_id)')
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          setError(error.message);
+          setLoading(false);
+          return;
+        }
+        
+        setTasks(
+          (data || []).map((t) => ({
+            ...t,
+            assignee: t.task_assignments?.[0]?.user_id ?? null,
+          }))
+        );
       }
-      
-      const { data, error } = await query;
       
       setLoading(false);
-      
-      if (error) {
-        setError(error.message);
-        return;
-      }
-      
-      setTasks(
-        (data || []).map((t) => ({
-          ...t,
-          assignee: t.task_assignments?.[0]?.user_id ?? null,
-        }))
-      );
     } catch (err: any) {
       setLoading(false);
       setError(err.message || "Failed to load tasks");
