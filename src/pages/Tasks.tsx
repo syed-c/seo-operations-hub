@@ -1,7 +1,16 @@
 import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
-import { Plus, Search, Filter, MoreHorizontal, Clock, Flag, Trash2, X } from "lucide-react";
+import {
+  Plus,
+  Search,
+  Filter,
+  MoreHorizontal,
+  Clock,
+  Flag,
+  Trash2,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
@@ -18,7 +27,13 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const priorityColors = {
   low: "bg-muted text-muted-foreground",
@@ -49,6 +64,7 @@ type TaskRecord = {
     id: string;
     name: string;
   } | null;
+  projectName?: string | null;
   task_assignments?: Array<{
     user_id: string;
   }>;
@@ -68,45 +84,64 @@ export default function Tasks() {
     dueDate: "",
     assigneeId: "",
   });
-  
+
   // State for the new task modal
   const [isModalOpen, setIsModalOpen] = useState(false);
   const { teamUser } = useAuth();
   const { selectedProject } = useProject();
-  
+
   // Determine if user has permission to create/edit tasks
-  const canCreateEditTasks = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead' || teamUser?.role === 'Content Lead' || teamUser?.role === 'Backlink Lead' || teamUser?.role === 'Technical SEO';
-  
+  const canCreateEditTasks =
+    teamUser?.role === "Super Admin" ||
+    teamUser?.role === "Admin" ||
+    teamUser?.role === "SEO Lead" ||
+    teamUser?.role === "Content Lead" ||
+    teamUser?.role === "Backlink Lead" ||
+    teamUser?.role === "Technical SEO";
+
   // Fetch team members to populate assignee dropdown
-  const [teamMembers, setTeamMembers] = useState<{id: string, email: string, first_name?: string, last_name?: string, role?: string}[]>([]);
+  const [teamMembers, setTeamMembers] = useState<
+    {
+      id: string;
+      email: string;
+      first_name?: string;
+      last_name?: string;
+      role?: string;
+    }[]
+  >([]);
   const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
-  
+
   const loadTeamMembers = async () => {
     if (!canCreateEditTasks) return;
-    
+
     setLoadingTeamMembers(true);
     try {
       // Use admin API to bypass RLS policies
-      const adminApiClient = await import('@/lib/adminApiClient');
-      const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name, role');
-      
+      const adminApiClient = await import("@/lib/adminApiClient");
+      const result = await adminApiClient.selectRecords(
+        "users",
+        "id, email, first_name, last_name, role"
+      );
+
       if (result?.error) {
-        console.error('Error fetching team members:', result.error);
+        console.error("Error fetching team members:", result.error);
         return;
       }
-      
+
       // Filter out Super Admins to match the same logic as in Projects.tsx
       const allUsers = result.data || [];
-      const filteredUsers = allUsers.filter((user: any) => user.role !== 'Super Admin');
-      
+      const filteredUsers = allUsers.filter(
+        (user: any) => user.role !== "Super Admin"
+      );
+
       setTeamMembers(filteredUsers);
     } catch (error) {
-      console.error('Error in loadTeamMembers:', error);
+      console.error("Error in loadTeamMembers:", error);
     } finally {
       setLoadingTeamMembers(false);
     }
   };
-  
+
   useEffect(() => {
     if (canCreateEditTasks) {
       loadTeamMembers();
@@ -117,57 +152,62 @@ export default function Tasks() {
     setLoading(true);
     try {
       // First, get the current user
-      const { data: { user }, error: userError } = await supabase.auth.getUser();
-      
+      const {
+        data: { user },
+        error: userError,
+      } = await supabase.auth.getUser();
+
       if (userError || !user) {
-        setError('User not authenticated');
+        setError("User not authenticated");
         setLoading(false);
         return;
       }
-      
+
       // Check user role
       const { data: userData, error: roleError } = await supabase
         .from("users")
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
-      
+
       if (roleError) {
         setError(roleError.message);
         setLoading(false);
         return;
       }
-      
+
       let query;
-      
-      if (userData?.role === 'Developer') {
+
+      if (userData?.role === "Developer") {
         // For developers, fetch only tasks from assigned projects
         // First, get the project IDs assigned to the user
-        const { data: projectMemberData, error: projectMemberError } = await supabase
-          .from('project_members')
-          .select('project_id')
-          .eq('user_id', user.id);
-        
+        const { data: projectMemberData, error: projectMemberError } =
+          await supabase
+            .from("project_members")
+            .select("project_id")
+            .eq("user_id", user.id);
+
         if (projectMemberError) {
           setError(projectMemberError.message);
           setLoading(false);
           return;
         }
-        
+
         if (!projectMemberData || projectMemberData.length === 0) {
           // No projects assigned to this user
           setTasks([]);
           setLoading(false);
           return;
         }
-        
+
         // Extract project IDs
-        const projectIds = projectMemberData.map(pm => pm.project_id);
-        
+        const projectIds = projectMemberData.map((pm) => pm.project_id);
+
         // Then fetch the tasks for those projects
         const { data, error } = await supabase
-          .from('tasks')
-          .select(`
+          .from("tasks")
+          .select(
+            `
             id, 
             title, 
             description, 
@@ -177,70 +217,105 @@ export default function Tasks() {
             due_date, 
             project_id, 
             task_assignments(user_id)
-          `)
-          .in('project_id', projectIds)
-          .order('created_at', { ascending: false });
-        
+          `
+          )
+          .in("project_id", projectIds)
+          .order("created_at", { ascending: false });
+
         if (error) {
           setError(error.message);
           setLoading(false);
           return;
         }
-        
+
         setTasks(data || []);
       } else {
         // For other roles, fetch all tasks
         const { data, error } = await supabase
-          .from('tasks')
-          .select('id, title, description, status, priority, type, due_date, project_id, task_assignments(user_id)')
-          .order('created_at', { ascending: false });
-        
+          .from("tasks")
+          .select(
+            "id, title, description, status, priority, type, due_date, project_id, task_assignments(user_id)"
+          )
+          .order("created_at", { ascending: false });
+
         if (error) {
           setError(error.message);
           setLoading(false);
           return;
         }
-        
-        // Process the tasks data to include assignee information
-        const tasksWithAssignees = await Promise.all((data || []).map(async (t) => {
-          // Get the assignee user details if assigned
-          let assigneeInfo = null;
-          if (t.task_assignments && t.task_assignments.length > 0) {
-            const assigneeId = t.task_assignments[0]?.user_id;
-            if (assigneeId) {
-              // Try to find the assignee in teamMembers first
-              const localAssignee = teamMembers.find(user => user.id === assigneeId);
-              if (localAssignee) {
-                assigneeInfo = localAssignee;
-              } else {
-                // If not found locally, fetch from admin API
-                try {
-                  const adminApiClient = await import('@/lib/adminApiClient');
-                  const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name', { id: assigneeId });
-                  if (result?.data && result.data.length > 0) {
-                    assigneeInfo = result.data[0];
+
+        // Process the tasks data to include assignee and project information
+        const tasksWithDetails = await Promise.all(
+          (data || []).map(async (t) => {
+            // Get the assignee user details if assigned
+            let assigneeInfo = null;
+            if (t.task_assignments && t.task_assignments.length > 0) {
+              const assigneeId = t.task_assignments[0]?.user_id;
+              if (assigneeId) {
+                // Try to find the assignee in teamMembers first
+                const localAssignee = teamMembers.find(
+                  (user) => user.id === assigneeId
+                );
+                if (localAssignee) {
+                  assigneeInfo = localAssignee;
+                } else {
+                  // If not found locally, fetch from admin API
+                  try {
+                    const adminApiClient = await import("@/lib/adminApiClient");
+                    const result = await adminApiClient.selectRecords(
+                      "users",
+                      "id, email, first_name, last_name",
+                      { id: assigneeId }
+                    );
+                    if (result?.data && result.data.length > 0) {
+                      assigneeInfo = result.data[0];
+                    }
+                  } catch (error) {
+                    console.error("Error fetching assignee details:", error);
                   }
-                } catch (error) {
-                  console.error('Error fetching assignee details:', error);
                 }
               }
             }
-          }
-          
-          return {
-            ...t,
-            assignee: assigneeInfo ? {
-              id: assigneeInfo.id,
-              name: (assigneeInfo.first_name || assigneeInfo.last_name)
-                ? `${assigneeInfo.first_name || ''} ${assigneeInfo.last_name || ''}`.trim()
-                : assigneeInfo.email
-            } : null,
-          };
-        }));
-        
-        setTasks(tasksWithAssignees);
+
+            // Get project name if project_id exists
+            let projectName = null;
+            if (t.project_id) {
+              try {
+                const adminApiClient = await import("@/lib/adminApiClient");
+                const result = await adminApiClient.selectRecords(
+                  "projects",
+                  "name",
+                  { id: t.project_id }
+                );
+                if (result?.data && result.data.length > 0) {
+                  projectName = result.data[0].name;
+                }
+              } catch (error) {
+                console.error("Error fetching project name:", error);
+              }
+            }
+
+            return {
+              ...t,
+              assignee: assigneeInfo
+                ? {
+                    id: assigneeInfo.id,
+                    name:
+                      assigneeInfo.first_name || assigneeInfo.last_name
+                        ? `${assigneeInfo.first_name || ""} ${
+                            assigneeInfo.last_name || ""
+                          }`.trim()
+                        : assigneeInfo.email,
+                  }
+                : null,
+              projectName: projectName || null,
+            };
+          })
+        );
+
+        setTasks(tasksWithDetails);
       }
-      
+
       setLoading(false);
     } catch (err: any) {
       setLoading(false);
@@ -253,16 +328,16 @@ export default function Tasks() {
   }, []);
 
   const onCreate = async () => {
-    console.log('onCreate called', form); // Debug log
+    console.log("onCreate called", form); // Debug log
     if (!form.title.trim()) {
-      console.log('Task title is required'); // Debug log
-      setError('Task title is required');
+      console.log("Task title is required"); // Debug log
+      setError("Task title is required");
       return;
     }
-    
+
     // Clear any previous errors
-    setError('');
-    
+    setError("");
+
     try {
       const { data, error } = await supabase
         .from("tasks")
@@ -277,67 +352,87 @@ export default function Tasks() {
         })
         .select("id")
         .single();
-      
+
       if (error) {
-        console.error('Error creating task:', error); // Debug log
+        console.error("Error creating task:", error); // Debug log
         setError(error.message);
         return;
       }
-      
-      console.log('Task created successfully:', data); // Debug log
-      
+
+      console.log("Task created successfully:", data); // Debug log
+
       // Create task assignment if an assignee was selected
-      if (form.assigneeId && form.assigneeId !== 'unassigned') {
+      if (form.assigneeId && form.assigneeId !== "unassigned") {
         // Use admin API to bypass RLS policies
-        const adminApiClient = await import('@/lib/adminApiClient');
-        const assignmentResult = await adminApiClient.createRecord('task_assignments', {
-          task_id: data?.id, 
-          user_id: form.assigneeId 
-        });
-        
+        const adminApiClient = await import("@/lib/adminApiClient");
+        const assignmentResult = await adminApiClient.createRecord(
+          "task_assignments",
+          {
+            task_id: data?.id,
+            user_id: form.assigneeId,
+          }
+        );
+
         if (assignmentResult?.error) {
-          console.error('Error creating task assignment:', assignmentResult.error); // Debug log
+          console.error(
+            "Error creating task assignment:",
+            assignmentResult.error
+          ); // Debug log
         }
       } else {
         // Create assignment with null user if no assignee was selected
-        const adminApiClient = await import('@/lib/adminApiClient');
-        const assignmentResult = await adminApiClient.createRecord('task_assignments', {
-          task_id: data?.id, 
-          user_id: null 
-        });
-        
+        const adminApiClient = await import("@/lib/adminApiClient");
+        const assignmentResult = await adminApiClient.createRecord(
+          "task_assignments",
+          {
+            task_id: data?.id,
+            user_id: null,
+          }
+        );
+
         if (assignmentResult?.error) {
-          console.error('Error creating task assignment:', assignmentResult.error); // Debug log
+          console.error(
+            "Error creating task assignment:",
+            assignmentResult.error
+          ); // Debug log
         }
       }
-      
-      setForm({ 
-        title: "", 
-        projectId: "", 
-        description: "", 
-        priority: "medium", 
-        type: "general", 
-        status: "todo", 
+
+      setForm({
+        title: "",
+        projectId: "",
+        description: "",
+        priority: "medium",
+        type: "general",
+        status: "todo",
         dueDate: "",
-        assigneeId: ""
+        assigneeId: "",
       });
-      
-      console.log('Form reset and reloading tasks'); // Debug log
+
+      console.log("Form reset and reloading tasks"); // Debug log
+
+      // Close the modal after successful creation
+      setIsModalOpen(false);
+
       load();
     } catch (err) {
-      console.error('Unexpected error in onCreate:', err); // Debug log
-      setError(err instanceof Error ? err.message : 'An error occurred while creating the task');
+      console.error("Unexpected error in onCreate:", err); // Debug log
+      setError(
+        err instanceof Error
+          ? err.message
+          : "An error occurred while creating the task"
+      );
     }
   };
 
   const onDelete = async (id: string) => {
     try {
       // Use admin API to bypass RLS policies
-      const adminApiClient = await import('@/lib/adminApiClient');
-      await adminApiClient.deleteRecord('task_assignments', { task_id: id });
-      await adminApiClient.deleteRecord('tasks', { id });
+      const adminApiClient = await import("@/lib/adminApiClient");
+      await adminApiClient.deleteRecords("task_assignments", { task_id: id });
+      await adminApiClient.deleteRecords("tasks", { id });
     } catch (error) {
-      console.error('Error deleting task:', error);
+      console.error("Error deleting task:", error);
       // Fallback to regular supabase client if admin API fails
       await supabase.from("task_assignments").delete().eq("task_id", id);
       await supabase.from("tasks").delete().eq("id", id);
@@ -364,7 +459,10 @@ export default function Tasks() {
 
   return (
     <MainLayout>
-      <Header title="Tasks" subtitle="Manage and track all SEO tasks across projects" />
+      <Header
+        title="Tasks"
+        subtitle="Manage and track all SEO tasks across projects"
+      />
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
@@ -382,155 +480,202 @@ export default function Tasks() {
           </Button>
         </div>
         {canCreateEditTasks && (
-        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-          <Button className="gap-2 rounded-xl" onClick={() => {
-            // Set the selected project ID when opening the modal
-            setIsModalOpen(true);
-            setForm(prev => ({
-              ...prev,
-              projectId: selectedProject?.id || ""
-            }));
-          }}>
-            <Plus className="w-4 h-4" />
-            New Task
-          </Button>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Assign New Task</DialogTitle>
-              <DialogDescription>Create and assign a new task to a team member</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="task-title">Task Title</Label>
-                <Input
-                  id="task-title"
-                  placeholder="Enter task title"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  className={form.title ? '' : 'border-destructive'}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-project">Project ID</Label>
-                <Input
-                  id="task-project"
-                  placeholder="Auto-filled from selected project"
-                  value={form.projectId}
-                  onChange={(e) => setForm({ ...form, projectId: e.target.value })}
-                  readOnly
-                  className="cursor-not-allowed opacity-75"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-description">Description</Label>
-                <Input
-                  id="task-description"
-                  placeholder="Enter task description"
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
+          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+            <Button
+              className="gap-2 rounded-xl"
+              onClick={() => {
+                // Set the selected project ID when opening the modal
+                setIsModalOpen(true);
+                setForm((prev) => ({
+                  ...prev,
+                  projectId: selectedProject?.id || "",
+                }));
+              }}
+            >
+              <Plus className="w-4 h-4" />
+              New Task
+            </Button>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Assign New Task</DialogTitle>
+                <DialogDescription>
+                  Create and assign a new task to a team member
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="task-priority">Priority</Label>
-                  <Select value={form.priority} onValueChange={(value) => setForm({ ...form, priority: value })}>
+                  <Label htmlFor="task-title">Task Title</Label>
+                  <Input
+                    id="task-title"
+                    placeholder="Enter task title"
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm({ ...form, title: e.target.value })
+                    }
+                    className={form.title ? "" : "border-destructive"}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="task-project">Project ID</Label>
+                  <Input
+                    id="task-project"
+                    placeholder="Auto-filled from selected project"
+                    value={form.projectId}
+                    onChange={(e) =>
+                      setForm({ ...form, projectId: e.target.value })
+                    }
+                    readOnly
+                    className="cursor-not-allowed opacity-75"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="task-description">Description</Label>
+                  <Input
+                    id="task-description"
+                    placeholder="Enter task description"
+                    value={form.description}
+                    onChange={(e) =>
+                      setForm({ ...form, description: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="task-priority">Priority</Label>
+                    <Select
+                      value={form.priority}
+                      onValueChange={(value) =>
+                        setForm({ ...form, priority: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                        <SelectItem value="urgent">Urgent</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="task-type">Type</Label>
+                    <Select
+                      value={form.type}
+                      onValueChange={(value) =>
+                        setForm({ ...form, type: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="general">General</SelectItem>
+                        <SelectItem value="content">Content</SelectItem>
+                        <SelectItem value="technical">Technical</SelectItem>
+                        <SelectItem value="backlinks">Backlinks</SelectItem>
+                        <SelectItem value="local">Local</SelectItem>
+                        <SelectItem value="audit">Audit</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="task-due-date">Due Date</Label>
+                  <Input
+                    id="task-due-date"
+                    type="date"
+                    value={form.dueDate}
+                    onChange={(e) =>
+                      setForm({ ...form, dueDate: e.target.value })
+                    }
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="task-assignee">Assign To</Label>
+                  <Select
+                    value={form.assigneeId || "unassigned"}
+                    onValueChange={(value) =>
+                      setForm({
+                        ...form,
+                        assigneeId: value === "unassigned" ? "" : value,
+                      })
+                    }
+                    disabled={loadingTeamMembers}
+                  >
                     <SelectTrigger>
-                      <SelectValue />
+                      <SelectValue placeholder="Select a team member" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="low">Low</SelectItem>
-                      <SelectItem value="medium">Medium</SelectItem>
-                      <SelectItem value="high">High</SelectItem>
-                      <SelectItem value="urgent">Urgent</SelectItem>
+                      <SelectItem value="unassigned">Unassigned</SelectItem>
+                      {loadingTeamMembers && (
+                        <SelectItem value="loading" disabled>
+                          Loading team members...
+                        </SelectItem>
+                      )}
+                      {teamMembers.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          {member.first_name || member.last_name
+                            ? `${member.first_name || ""} ${
+                                member.last_name || ""
+                              }`.trim()
+                            : member.email}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="task-type">Type</Label>
-                  <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value })}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="general">General</SelectItem>
-                      <SelectItem value="content">Content</SelectItem>
-                      <SelectItem value="technical">Technical</SelectItem>
-                      <SelectItem value="backlinks">Backlinks</SelectItem>
-                      <SelectItem value="local">Local</SelectItem>
-                      <SelectItem value="audit">Audit</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-due-date">Due Date</Label>
-                <Input
-                  id="task-due-date"
-                  type="date"
-                  value={form.dueDate}
-                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="task-assignee">Assign To</Label>
-                <Select 
-                  value={form.assigneeId || 'unassigned'} 
-                  onValueChange={(value) => setForm({ ...form, assigneeId: value === 'unassigned' ? '' : value })}
-                  disabled={loadingTeamMembers}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsModalOpen(false);
+                    setForm({
+                      title: "",
+                      projectId: "",
+                      description: "",
+                      priority: "medium",
+                      type: "general",
+                      status: "todo",
+                      dueDate: "",
+                      assigneeId: "",
+                    });
+                  }}
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a team member" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="unassigned">Unassigned</SelectItem>
-                    {loadingTeamMembers && (
-                      <SelectItem value="loading" disabled>
-                        Loading team members...
-                      </SelectItem>
-                    )}
-                    {teamMembers.map((member) => (
-                      <SelectItem key={member.id} value={member.id}>
-                        {(member.first_name || member.last_name) 
-                          ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
-                          : member.email}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => {
-                setIsModalOpen(false);
-                setForm({
-                  title: "",
-                  projectId: "",
-                  description: "",
-                  priority: "medium",
-                  type: "general",
-                  status: "todo",
-                  dueDate: "",
-                  assigneeId: "",
-                });
-              }}>
-                Cancel
-              </Button>
-              <Button onClick={onCreate}>Assign Task</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+                  Cancel
+                </Button>
+                <Button onClick={onCreate}>Assign Task</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         )}
       </div>
 
-      {loading && <p className="text-sm text-muted-foreground mb-3">Loading...</p>}
+      {loading && (
+        <p className="text-sm text-muted-foreground mb-3">Loading...</p>
+      )}
       {error && <p className="text-sm text-destructive mb-3">{error}</p>}
 
       <div className="grid grid-cols-4 gap-5">
         {["todo", "in-progress", "review", "done"].map((col) => {
           const columnTitle =
-            col === "todo" ? "To Do" : col === "in-progress" ? "In Progress" : col === "review" ? "In Review" : "Completed";
+            col === "todo"
+              ? "To Do"
+              : col === "in-progress"
+              ? "In Progress"
+              : col === "review"
+              ? "In Review"
+              : "Completed";
           const color =
-            col === "todo" ? "bg-muted" : col === "in-progress" ? "bg-info" : col === "review" ? "bg-warning" : "bg-success";
+            col === "todo"
+              ? "bg-muted"
+              : col === "in-progress"
+              ? "bg-info"
+              : col === "review"
+              ? "bg-warning"
+              : "bg-success";
           const items = grouped[col] || [];
           return (
             <div key={col} className="space-y-3">
@@ -538,7 +683,9 @@ export default function Tasks() {
                 <div className="flex items-center gap-2">
                   <div className={cn("w-3 h-3 rounded-full", color)} />
                   <h3 className="font-medium">{columnTitle}</h3>
-                  <span className="text-sm text-muted-foreground">({items.length})</span>
+                  <span className="text-sm text-muted-foreground">
+                    ({items.length})
+                  </span>
                 </div>
                 <button className="w-6 h-6 rounded-md hover:bg-muted flex items-center justify-center">
                   <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
@@ -553,18 +700,36 @@ export default function Tasks() {
                     style={{ animationDelay: `${index * 50}ms` }}
                   >
                     <div className="flex items-start justify-between mb-2">
-                      <span className={cn("chip text-xs", typeColors[(task.type as string) || "general"] || "chip")}>
+                      <span
+                        className={cn(
+                          "chip text-xs",
+                          typeColors[(task.type as string) || "general"] ||
+                            "chip"
+                        )}
+                      >
                         {task.type || "general"}
                       </span>
-                      <span className={cn("chip text-xs", priorityColors[(task.priority as string) || "medium"] || "chip")}>
+                      <span
+                        className={cn(
+                          "chip text-xs",
+                          priorityColors[
+                            (task.priority as string) || "medium"
+                          ] || "chip"
+                        )}
+                      >
                         <Flag className="w-3 h-3" />
                         {task.priority}
                       </span>
                     </div>
                     <h4 className="font-medium text-sm mb-1">{task.title}</h4>
-                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">{task.description}</p>
+                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                      {task.description}
+                    </p>
                     <p className="text-xs text-muted-foreground mb-3">
-                      Project: <span className="text-foreground">{task.project_id || "—"}</span>
+                      Project:{" "}
+                      <span className="text-foreground">
+                        {task.projectName || task.project_id || "—"}
+                      </span>
                     </p>
                     <div className="flex items-center justify-between pt-3 border-t border-border/50">
                       <div className="flex items-center gap-2">
@@ -572,33 +737,56 @@ export default function Tasks() {
                           <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64" />
                           <AvatarFallback>U</AvatarFallback>
                         </Avatar>
-                        <span className="text-xs text-muted-foreground">{task.assignee ? task.assignee.name : "Unassigned"}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {task.assignee ? task.assignee.name : "Unassigned"}
+                        </span>
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="w-3 h-3" />
-                        {task.due_date ? task.due_date.slice(0, 10) : "No due date"}
+                        {task.due_date
+                          ? task.due_date.slice(0, 10)
+                          : "No due date"}
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-3">
                       {canCreateEditTasks && (
-                      <select
-                        className="h-9 rounded-xl border border-border bg-card px-2 text-xs"
-                        value={task.status || "todo"}
-                        onChange={(e) => onUpdateStatus(task, e.target.value)}
-                      >
-                        <option value="todo">To Do</option>
-                        <option value="in-progress">In Progress</option>
-                        <option value="review">Review</option>
-                        <option value="done">Done</option>
-                      </select>
+                        <select
+                          className="h-9 rounded-xl border border-border bg-card px-2 text-xs"
+                          value={task.status || "todo"}
+                          onChange={(e) => onUpdateStatus(task, e.target.value)}
+                        >
+                          <option value="todo">To Do</option>
+                          <option value="in-progress">In Progress</option>
+                          <option value="review">Review</option>
+                          <option value="done">Done</option>
+                        </select>
+                      )}
+                      {!canCreateEditTasks && (
+                        <Button
+                          className="h-8 px-3 text-xs"
+                          onClick={() => {
+                            // Show detailed task info in an alert for now
+                            alert(`Task Details:
+
+Title: ${task.title}
+Description: ${task.description || "N/A"}
+Project: ${task.projectName || task.project_id || "N/A"}
+Status: ${task.status || "N/A"}
+Priority: ${task.priority || "N/A"}
+Due Date: ${task.due_date || "N/A"}
+Assigned To: ${task.assignee?.name || "Unassigned"}`);
+                          }}
+                        >
+                          View Details
+                        </Button>
                       )}
                       {canCreateEditTasks && (
-                      <button
-                        className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
-                        onClick={() => onDelete(task.id)}
-                      >
-                        <Trash2 className="w-4 h-4 text-muted-foreground" />
-                      </button>
+                        <button
+                          className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
+                          onClick={() => onDelete(task.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-muted-foreground" />
+                        </button>
                       )}
                     </div>
                   </div>
