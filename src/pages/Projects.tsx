@@ -56,20 +56,33 @@ export default function Projects() {
   
   // Determine if user has permission to create/edit projects
   const canCreateEditProjects = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead';
+  console.log('Team user role:', teamUser?.role, 'Can create/edit projects:', canCreateEditProjects); // Debug log
 
   // Fetch team members for project assignment
   const { data: teamMembers = [], isLoading: teamMembersLoading, error: teamMembersError } = useQuery({
     queryKey: ['teamMembers'],
     queryFn: async () => {
+      console.log('Fetching team members...'); // Debug log
       // Use admin API to fetch users since RLS restricts direct access to users table
       try {
         const adminApiClient = await import('@/lib/adminApiClient');
         const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name, role');
+        
         if (result?.error) {
+          console.error('Admin API error:', result.error);
           throw new Error(result.error);
         }
+        
+        if (!result || !result.data) {
+          console.warn('No data returned from admin API');
+          return [];
+        }
+        
+        console.log('Raw team members data:', result.data); // Debug log
         // Filter out Super Admins on the client side since the Edge Function only supports equality filters
-        return (result.data || []).filter(user => user.role !== 'Super Admin');
+        const filteredUsers = result.data.filter(user => user && user.role !== 'Super Admin');
+        console.log('Filtered team members:', filteredUsers); // Debug log
+        return filteredUsers;
       } catch (error) {
         console.error('Error fetching team members:', error);
         throw error;
