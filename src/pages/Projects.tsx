@@ -283,6 +283,7 @@ export default function Projects() {
       
       if (!projectMembersData || projectMembersData.length === 0) {
         setProjectMembers([]);
+        setAssignDialogOpen(true);
         return;
       }
       
@@ -291,17 +292,27 @@ export default function Projects() {
       console.log('User IDs to fetch:', userIds); // Debug log
       
       // Then fetch user details separately
-      const { data: usersData, error: usersError } = await ensureSupabase()
-        .from('users')
-        .select('id, email, first_name, last_name')
-        .in('id', userIds);
+      console.log('About to fetch users with IDs:', userIds); // Debug log
       
-      if (usersError) {
-        console.error('Error fetching users data:', usersError);
-        throw usersError;
+      // Use admin API to fetch user details since RLS restricts direct access to users table
+      const adminApiClient = await import('@/lib/adminApiClient');
+      const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name');
+      
+      if (result?.error) {
+        console.error('Admin API error:', result.error);
+        throw new Error(result.error);
       }
       
-      console.log('Users data:', usersData); // Debug log
+      // Filter the users to only include the ones we need
+      const allUsers = result.data || [];
+      const usersData = allUsers.filter(user => userIds.includes(user.id));
+      
+      console.log('Users data from admin API:', usersData); // Debug log
+      console.log('Expected user ID:', userIds[0], 'Found users:', usersData?.map(u => u.id)); // Debug log
+      
+      if (!usersData || usersData.length === 0) {
+        console.warn('No user data returned from admin API for requested IDs');
+      }
       
       // Combine the data
       const combinedData = projectMembersData.map(pm => {
