@@ -189,7 +189,9 @@ export default function Projects() {
     mutationFn: async ({ projectId, userId }: { projectId: string; userId: string }) => {
       const { error } = await ensureSupabase()
         .from('project_members')
-        .insert({ project_id: projectId, user_id: userId, role: 'member' });
+        .insert({ project_id: projectId, user_id: userId, role: 'member' })
+        .select()
+        .single();
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
@@ -216,6 +218,13 @@ export default function Projects() {
       setAssignDialogOpen(false);
       setSelectedProjectId(null);
       setSelectedUserId("");
+    },
+    onError: (error) => {
+      console.error('Error assigning project member:', error);
+      // Check if it's a unique constraint violation (user already assigned)
+      if (error.message.includes('duplicate key value violates unique constraint') || error.message.includes('project_members_project_id_user_id_key')) {
+        alert('This user is already assigned to this project.');
+      }
     }
   });
 
@@ -256,27 +265,43 @@ export default function Projects() {
     
     // Fetch current project members
     try {
-      const { data, error } = await ensureSupabase()
+      // First, get the project members
+      const { data: projectMembersData, error: projectMembersError } = await ensureSupabase()
         .from('project_members')
-        .select(`
-          id,
-          user_id,
-          users (email, first_name, last_name)
-        `)
+        .select('id, user_id')
         .eq('project_id', projectId);
       
-      if (error) throw error;
+      if (projectMembersError) throw projectMembersError;
       
-      // Transform the data to match expected structure
-      const transformedData = data.map(pm => ({
-        id: pm.id,
-        user_id: pm.user_id,
-        email: pm.users?.email,
-        first_name: pm.users?.first_name,
-        last_name: pm.users?.last_name
-      }));
+      if (!projectMembersData || projectMembersData.length === 0) {
+        setProjectMembers([]);
+        return;
+      }
       
-      setProjectMembers(transformedData || []);
+      // Extract user IDs to fetch user details
+      const userIds = projectMembersData.map(pm => pm.user_id);
+      
+      // Then fetch user details separately
+      const { data: usersData, error: usersError } = await ensureSupabase()
+        .from('users')
+        .select('id, email, first_name, last_name')
+        .in('id', userIds);
+      
+      if (usersError) throw usersError;
+      
+      // Combine the data
+      const combinedData = projectMembersData.map(pm => {
+        const user = usersData?.find(u => u.id === pm.user_id);
+        return {
+          id: pm.id,
+          user_id: pm.user_id,
+          email: user?.email,
+          first_name: user?.first_name,
+          last_name: user?.last_name
+        };
+      });
+      
+      setProjectMembers(combinedData || []);
     } catch (error) {
       console.error('Error fetching project members:', error);
       setProjectMembers([]);
