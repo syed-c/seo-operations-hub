@@ -45,8 +45,6 @@ export default function PagesPage() {
         return;
       }
       
-      let query;
-      
       if (userData?.role === 'Developer') {
         // For developers, fetch only assigned projects
         // First, get the project IDs assigned to the user
@@ -84,20 +82,18 @@ export default function PagesPage() {
         setProjects(data || []);
       } else {
         // For other roles, fetch all projects
-        query = supabase
-          .from("projects")
-          .select("id, name, client, status, health_score, created_at")
-          .order("created_at", { ascending: false });
+        const { data, error } = await supabase
+          .from('projects')
+          .select('id, name, client, status, health_score, created_at')
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error loading projects:', error.message);
+          return;
+        }
+        
+        setProjects(data || []);
       }
-      
-      const { data, error } = await query;
-      
-      if (error) {
-        console.error("Error loading projects:", error.message);
-        return;
-      }
-      
-      setProjects(data || []);
     } catch (err: any) {
       console.error("Error loading projects:", err.message || "Failed to load projects");
     }
