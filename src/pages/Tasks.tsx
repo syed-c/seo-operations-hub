@@ -238,10 +238,14 @@ export default function Tasks() {
 
   const onCreate = async () => {
     console.log('onCreate called', form); // Debug log
-    if (!form.title) {
+    if (!form.title.trim()) {
       console.log('Task title is required'); // Debug log
+      setError('Task title is required');
       return;
     }
+    
+    // Clear any previous errors
+    setError('');
     
     try {
       const { data, error } = await supabase
@@ -352,7 +356,7 @@ export default function Tasks() {
         {canCreateEditTasks && (
         <div className="flex items-center gap-2">
           <input
-            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+            className={`h-10 rounded-xl border ${form.title ? 'border-border' : 'border-destructive'} bg-card px-3 text-sm`}
             placeholder="Task title"
             value={form.title}
             onChange={(e) => setForm({ ...form, title: e.target.value })}
