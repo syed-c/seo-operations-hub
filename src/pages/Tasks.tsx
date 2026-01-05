@@ -237,50 +237,74 @@ export default function Tasks() {
   }, []);
 
   const onCreate = async () => {
-    if (!form.title) return;
-    const { data, error } = await supabase
-      .from("tasks")
-      .insert({
-        title: form.title,
-        project_id: form.projectId || null,
-        description: form.description,
-        status: form.status,
-        priority: form.priority,
-        type: form.type,
-        due_date: form.dueDate || null,
-      })
-      .select("id")
-      .single();
-    if (error) {
-      setError(error.message);
+    console.log('onCreate called', form); // Debug log
+    if (!form.title) {
+      console.log('Task title is required'); // Debug log
       return;
     }
     
-    // Create task assignment if an assignee was selected
-    if (form.assigneeId) {
-      await supabase.from("task_assignments").insert({ 
-        task_id: data?.id, 
-        user_id: form.assigneeId 
+    try {
+      const { data, error } = await supabase
+        .from("tasks")
+        .insert({
+          title: form.title,
+          project_id: form.projectId || null,
+          description: form.description,
+          status: form.status,
+          priority: form.priority,
+          type: form.type,
+          due_date: form.dueDate || null,
+        })
+        .select("id")
+        .single();
+      
+      if (error) {
+        console.error('Error creating task:', error); // Debug log
+        setError(error.message);
+        return;
+      }
+      
+      console.log('Task created successfully:', data); // Debug log
+      
+      // Create task assignment if an assignee was selected
+      if (form.assigneeId) {
+        const assignmentResult = await supabase.from("task_assignments").insert({ 
+          task_id: data?.id, 
+          user_id: form.assigneeId 
+        });
+        
+        if (assignmentResult.error) {
+          console.error('Error creating task assignment:', assignmentResult.error); // Debug log
+        }
+      } else {
+        // Create assignment with null user if no assignee was selected
+        const assignmentResult = await supabase.from("task_assignments").insert({ 
+          task_id: data?.id, 
+          user_id: null 
+        });
+        
+        if (assignmentResult.error) {
+          console.error('Error creating task assignment:', assignmentResult.error); // Debug log
+        }
+      }
+      
+      setForm({ 
+        title: "", 
+        projectId: "", 
+        description: "", 
+        priority: "medium", 
+        type: "general", 
+        status: "todo", 
+        dueDate: "",
+        assigneeId: ""
       });
-    } else {
-      // Create assignment with null user if no assignee was selected
-      await supabase.from("task_assignments").insert({ 
-        task_id: data?.id, 
-        user_id: null 
-      });
+      
+      console.log('Form reset and reloading tasks'); // Debug log
+      load();
+    } catch (err) {
+      console.error('Unexpected error in onCreate:', err); // Debug log
+      setError(err instanceof Error ? err.message : 'An error occurred while creating the task');
     }
-    
-    setForm({ 
-      title: "", 
-      projectId: "", 
-      description: "", 
-      priority: "medium", 
-      type: "general", 
-      status: "todo", 
-      dueDate: "",
-      assigneeId: ""
-    });
-    load();
   };
 
   const onDelete = async (id: string) => {
@@ -375,6 +399,9 @@ export default function Tasks() {
           >
             <option value="">Assign to...</option>
             <option value="">Unassigned</option>
+            {loadingTeamMembers && (
+              <option value="" disabled>Loading team members...</option>
+            )}
             {teamMembers.map((member) => (
               <option key={member.id} value={member.id}>
                 {(member.first_name || member.last_name) 
