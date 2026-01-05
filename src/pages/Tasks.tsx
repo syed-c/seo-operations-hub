@@ -1,12 +1,22 @@
 import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
-import { Plus, Search, Filter, MoreHorizontal, Clock, Flag, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, MoreHorizontal, Clock, Flag, Trash2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/lib/supabaseClient";
 import { useAuth } from "@/components/AuthGate";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const priorityColors = {
   low: "bg-muted text-muted-foreground",
@@ -56,6 +66,9 @@ export default function Tasks() {
     dueDate: "",
     assigneeId: "",
   });
+  
+  // State for the new task modal
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const { teamUser } = useAuth();
   
   // Determine if user has permission to create/edit tasks
@@ -354,71 +367,133 @@ export default function Tasks() {
           </Button>
         </div>
         {canCreateEditTasks && (
-        <div className="flex items-center gap-2">
-          <input
-            className={`h-10 rounded-xl border ${form.title ? 'border-border' : 'border-destructive'} bg-card px-3 text-sm`}
-            placeholder="Task title"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-          />
-          <input
-            className="h-10 w-28 rounded-xl border border-border bg-card px-3 text-sm"
-            placeholder="Project ID"
-            value={form.projectId}
-            onChange={(e) => setForm({ ...form, projectId: e.target.value })}
-          />
-          <select
-            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-            value={form.priority}
-            onChange={(e) => setForm({ ...form, priority: e.target.value })}
-          >
-            <option value="low">low</option>
-            <option value="medium">medium</option>
-            <option value="high">high</option>
-            <option value="urgent">urgent</option>
-          </select>
-          <select
-            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-            value={form.type}
-            onChange={(e) => setForm({ ...form, type: e.target.value })}
-          >
-            <option value="general">general</option>
-            <option value="content">content</option>
-            <option value="technical">technical</option>
-            <option value="backlinks">backlinks</option>
-            <option value="local">local</option>
-            <option value="audit">audit</option>
-          </select>
-          <input
-            className="h-10 w-36 rounded-xl border border-border bg-card px-3 text-sm"
-            placeholder="Due date (YYYY-MM-DD)"
-            value={form.dueDate}
-            onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
-          />
-          <select
-            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-            value={form.assigneeId}
-            onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}
-            disabled={loadingTeamMembers}
-          >
-            <option value="">Assign to...</option>
-            <option value="">Unassigned</option>
-            {loadingTeamMembers && (
-              <option value="" disabled>Loading team members...</option>
-            )}
-            {teamMembers.map((member) => (
-              <option key={member.id} value={member.id}>
-                {(member.first_name || member.last_name) 
-                  ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
-                  : member.email}
-              </option>
-            ))}
-          </select>
-          <Button className="gap-2 rounded-xl" onClick={onCreate}>
+        <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Button className="gap-2 rounded-xl" onClick={() => setIsModalOpen(true)}>
             <Plus className="w-4 h-4" />
             New Task
           </Button>
-        </div>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Assign New Task</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="task-title">Task Title</Label>
+                <Input
+                  id="task-title"
+                  placeholder="Enter task title"
+                  value={form.title}
+                  onChange={(e) => setForm({ ...form, title: e.target.value })}
+                  className={form.title ? '' : 'border-destructive'}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="task-project">Project ID</Label>
+                <Input
+                  id="task-project"
+                  placeholder="Enter project ID"
+                  value={form.projectId}
+                  onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="task-description">Description</Label>
+                <Input
+                  id="task-description"
+                  placeholder="Enter task description"
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="task-priority">Priority</Label>
+                  <Select value={form.priority} onValueChange={(value) => setForm({ ...form, priority: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="low">Low</SelectItem>
+                      <SelectItem value="medium">Medium</SelectItem>
+                      <SelectItem value="high">High</SelectItem>
+                      <SelectItem value="urgent">Urgent</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="task-type">Type</Label>
+                  <Select value={form.type} onValueChange={(value) => setForm({ ...form, type: value })}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="general">General</SelectItem>
+                      <SelectItem value="content">Content</SelectItem>
+                      <SelectItem value="technical">Technical</SelectItem>
+                      <SelectItem value="backlinks">Backlinks</SelectItem>
+                      <SelectItem value="local">Local</SelectItem>
+                      <SelectItem value="audit">Audit</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="task-due-date">Due Date</Label>
+                <Input
+                  id="task-due-date"
+                  type="date"
+                  value={form.dueDate}
+                  onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="task-assignee">Assign To</Label>
+                <Select 
+                  value={form.assigneeId} 
+                  onValueChange={(value) => setForm({ ...form, assigneeId: value })}
+                  disabled={loadingTeamMembers}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a team member" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Unassigned</SelectItem>
+                    {loadingTeamMembers && (
+                      <SelectItem value="" disabled>
+                        Loading team members...
+                      </SelectItem>
+                    )}
+                    {teamMembers.map((member) => (
+                      <SelectItem key={member.id} value={member.id}>
+                        {(member.first_name || member.last_name) 
+                          ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
+                          : member.email}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setIsModalOpen(false);
+                setForm({
+                  title: "",
+                  projectId: "",
+                  description: "",
+                  priority: "medium",
+                  type: "general",
+                  status: "todo",
+                  dueDate: "",
+                  assigneeId: "",
+                });
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={onCreate}>Assign Task</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
         )}
       </div>
 
