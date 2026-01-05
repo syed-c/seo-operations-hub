@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { supabase, ensureSupabase } from "@/lib/supabaseClient";
+import { selectRecords } from "@/lib/adminApiClient";
 import { useAuth } from "@/components/AuthGate";
 import {
   DropdownMenu,
@@ -61,16 +62,18 @@ export default function Projects() {
   const { data: teamMembers = [], isLoading: teamMembersLoading, error: teamMembersError } = useQuery({
     queryKey: ['teamMembers'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('users')
-        .select('id, email, first_name, last_name, role')
-        .neq('role', 'Super Admin'); // Exclude super admin from assignment options
-      
-      if (error) {
+      // Use admin API to fetch users since RLS restricts direct access to users table
+      try {
+        const result = await selectRecords('users', 'id, email, first_name, last_name, role');
+        if (result.error) {
+          throw new Error(result.error);
+        }
+        // Filter out Super Admins on the client side since the Edge Function only supports equality filters
+        return (result.data || []).filter(user => user.role !== 'Super Admin');
+      } catch (error) {
         console.error('Error fetching team members:', error);
-        throw new Error(error.message);
+        throw error;
       }
-      return data || [];
     },
     enabled: canCreateEditProjects
   });
