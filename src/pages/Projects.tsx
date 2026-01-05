@@ -8,7 +8,6 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { supabase, ensureSupabase } from "@/lib/supabaseClient";
-import { selectRecords } from "@/lib/adminApiClient";
 import { useAuth } from "@/components/AuthGate";
 import {
   DropdownMenu,
@@ -64,8 +63,9 @@ export default function Projects() {
     queryFn: async () => {
       // Use admin API to fetch users since RLS restricts direct access to users table
       try {
-        const result = await selectRecords('users', 'id, email, first_name, last_name, role');
-        if (result.error) {
+        const adminApiClient = await import('@/lib/adminApiClient');
+        const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name, role');
+        if (result?.error) {
           throw new Error(result.error);
         }
         // Filter out Super Admins on the client side since the Edge Function only supports equality filters
