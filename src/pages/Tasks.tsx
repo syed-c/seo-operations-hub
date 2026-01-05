@@ -461,7 +461,7 @@ export default function Tasks() {
                   <SelectContent>
                     <SelectItem value="unassigned">Unassigned</SelectItem>
                     {loadingTeamMembers && (
-                      <SelectItem value="" disabled>
+                      <SelectItem value="loading" disabled>
                         Loading team members...
                       </SelectItem>
                     )}
