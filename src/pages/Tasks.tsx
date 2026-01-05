@@ -223,16 +223,32 @@ export default function Tasks() {
         if (tasksData && tasksData.length > 0) {
           const taskIds = tasksData.map(t => t.id);
           console.log('Fetching assignments for task IDs:', taskIds);
-          const { data: assignmentsData, error: assignmentsError } = await supabase
-            .from('task_assignments')
-            .select('task_id, user_id')
-            .in('task_id', taskIds);
           
-          if (assignmentsError) {
-            console.error('Error fetching task assignments:', assignmentsError);
-          } else {
-            taskAssignments = assignmentsData || [];
-            console.log('Fetched assignments:', taskAssignments);
+          try {
+            const adminApiClient = await import('@/lib/adminApiClient');
+            const result = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id', { task_id: taskIds });
+            
+            if (result?.error) {
+              console.error('Error fetching task assignments:', result.error);
+            } else {
+              taskAssignments = result.data || [];
+              console.log('Fetched assignments:', taskAssignments);
+            }
+          } catch (error) {
+            console.error('Error in admin API call for task assignments:', error);
+            
+            // Fallback to regular supabase client if admin API fails
+            const { data: assignmentsData, error: assignmentsError } = await supabase
+              .from('task_assignments')
+              .select('task_id, user_id')
+              .in('task_id', taskIds);
+            
+            if (assignmentsError) {
+              console.error('Error fetching task assignments:', assignmentsError);
+            } else {
+              taskAssignments = assignmentsData || [];
+              console.log('Fetched assignments with fallback:', taskAssignments);
+            }
           }
         }
         
@@ -322,16 +338,32 @@ export default function Tasks() {
         if (tasksData && tasksData.length > 0) {
           const taskIds = tasksData.map(t => t.id);
           console.log('Fetching assignments for task IDs:', taskIds);
-          const { data: assignmentsData, error: assignmentsError } = await supabase
-            .from('task_assignments')
-            .select('task_id, user_id')
-            .in('task_id', taskIds);
           
-          if (assignmentsError) {
-            console.error('Error fetching task assignments:', assignmentsError);
-          } else {
-            taskAssignments = assignmentsData || [];
-            console.log('Fetched assignments:', taskAssignments);
+          try {
+            const adminApiClient = await import('@/lib/adminApiClient');
+            const result = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id', { task_id: taskIds });
+            
+            if (result?.error) {
+              console.error('Error fetching task assignments:', result.error);
+            } else {
+              taskAssignments = result.data || [];
+              console.log('Fetched assignments:', taskAssignments);
+            }
+          } catch (error) {
+            console.error('Error in admin API call for task assignments:', error);
+            
+            // Fallback to regular supabase client if admin API fails
+            const { data: assignmentsData, error: assignmentsError } = await supabase
+              .from('task_assignments')
+              .select('task_id, user_id')
+              .in('task_id', taskIds);
+            
+            if (assignmentsError) {
+              console.error('Error fetching task assignments:', assignmentsError);
+            } else {
+              taskAssignments = assignmentsData || [];
+              console.log('Fetched assignments with fallback:', taskAssignments);
+            }
           }
         }
         
