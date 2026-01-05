@@ -201,15 +201,16 @@ export default function Projects() {
       // Update project members state to reflect the new assignment
       if (selectedProjectId && selectedUserId) {
         const selectedUser = teamMembers.find(user => user.id === selectedUserId);
+        console.log('Adding new project member:', selectedUser); // Debug log
         if (selectedUser) {
           setProjectMembers(prev => [
             ...prev,
             {
               id: Date.now().toString(), // Temporary ID until we refetch
               user_id: selectedUser.id,
-              email: selectedUser.email,
-              first_name: selectedUser.first_name,
-              last_name: selectedUser.last_name
+              email: selectedUser.email || '',
+              first_name: selectedUser.first_name || '',
+              last_name: selectedUser.last_name || ''
             }
           ]);
         }
@@ -265,13 +266,20 @@ export default function Projects() {
     
     // Fetch current project members
     try {
+      console.log('Fetching project members for project:', projectId); // Debug log
+      
       // First, get the project members
       const { data: projectMembersData, error: projectMembersError } = await ensureSupabase()
         .from('project_members')
         .select('id, user_id')
         .eq('project_id', projectId);
       
-      if (projectMembersError) throw projectMembersError;
+      if (projectMembersError) {
+        console.error('Error fetching project members:', projectMembersError);
+        throw projectMembersError;
+      }
+      
+      console.log('Project members data:', projectMembersData); // Debug log
       
       if (!projectMembersData || projectMembersData.length === 0) {
         setProjectMembers([]);
@@ -280,6 +288,7 @@ export default function Projects() {
       
       // Extract user IDs to fetch user details
       const userIds = projectMembersData.map(pm => pm.user_id);
+      console.log('User IDs to fetch:', userIds); // Debug log
       
       // Then fetch user details separately
       const { data: usersData, error: usersError } = await ensureSupabase()
@@ -287,20 +296,27 @@ export default function Projects() {
         .select('id, email, first_name, last_name')
         .in('id', userIds);
       
-      if (usersError) throw usersError;
+      if (usersError) {
+        console.error('Error fetching users data:', usersError);
+        throw usersError;
+      }
+      
+      console.log('Users data:', usersData); // Debug log
       
       // Combine the data
       const combinedData = projectMembersData.map(pm => {
         const user = usersData?.find(u => u.id === pm.user_id);
+        console.log('Mapping user:', pm, 'with user data:', user); // Debug log
         return {
           id: pm.id,
           user_id: pm.user_id,
-          email: user?.email,
-          first_name: user?.first_name,
-          last_name: user?.last_name
+          email: user?.email || '',
+          first_name: user?.first_name || '',
+          last_name: user?.last_name || ''
         };
       });
       
+      console.log('Combined data:', combinedData); // Debug log
       setProjectMembers(combinedData || []);
     } catch (error) {
       console.error('Error fetching project members:', error);
@@ -327,6 +343,7 @@ export default function Projects() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
+      console.log('Removing project member with ID:', selectedProjectMemberId); // Debug log
       // Update local state
       setProjectMembers(prev => prev.filter(pm => pm.id !== selectedProjectMemberId));
       setSelectedProjectMemberId(null);
@@ -583,7 +600,7 @@ export default function Projects() {
                     {projectMembers.map((member) => (
                       <div key={member.id} className="flex items-center gap-2 bg-muted rounded-full px-3 py-1 text-sm">
                         <span>
-                          {(member.first_name || member.last_name)
+                          {(member.first_name && member.first_name.trim() !== '') || (member.last_name && member.last_name.trim() !== '')
                             ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
                             : member.email}
                         </span>
