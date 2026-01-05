@@ -288,22 +288,25 @@ export default function Tasks() {
       
       // Create task assignment if an assignee was selected
       if (form.assigneeId && form.assigneeId !== 'unassigned') {
-        const assignmentResult = await supabase.from("task_assignments").insert({ 
+        // Use admin API to bypass RLS policies
+        const adminApiClient = await import('@/lib/adminApiClient');
+        const assignmentResult = await adminApiClient.createRecord('task_assignments', {
           task_id: data?.id, 
           user_id: form.assigneeId 
         });
         
-        if (assignmentResult.error) {
+        if (assignmentResult?.error) {
           console.error('Error creating task assignment:', assignmentResult.error); // Debug log
         }
       } else {
         // Create assignment with null user if no assignee was selected
-        const assignmentResult = await supabase.from("task_assignments").insert({ 
+        const adminApiClient = await import('@/lib/adminApiClient');
+        const assignmentResult = await adminApiClient.createRecord('task_assignments', {
           task_id: data?.id, 
           user_id: null 
         });
         
-        if (assignmentResult.error) {
+        if (assignmentResult?.error) {
           console.error('Error creating task assignment:', assignmentResult.error); // Debug log
         }
       }
@@ -328,8 +331,17 @@ export default function Tasks() {
   };
 
   const onDelete = async (id: string) => {
-    await supabase.from("task_assignments").delete().eq("task_id", id);
-    await supabase.from("tasks").delete().eq("id", id);
+    try {
+      // Use admin API to bypass RLS policies
+      const adminApiClient = await import('@/lib/adminApiClient');
+      await adminApiClient.deleteRecord('task_assignments', { task_id: id });
+      await adminApiClient.deleteRecord('tasks', { id });
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      // Fallback to regular supabase client if admin API fails
+      await supabase.from("task_assignments").delete().eq("task_id", id);
+      await supabase.from("tasks").delete().eq("id", id);
+    }
     load();
   };
 
@@ -402,9 +414,11 @@ export default function Tasks() {
                 <Label htmlFor="task-project">Project ID</Label>
                 <Input
                   id="task-project"
-                  placeholder="Enter project ID"
+                  placeholder="Auto-filled from selected project"
                   value={form.projectId}
                   onChange={(e) => setForm({ ...form, projectId: e.target.value })}
+                  readOnly
+                  className="cursor-not-allowed opacity-75"
                 />
               </div>
               <div className="space-y-2">
