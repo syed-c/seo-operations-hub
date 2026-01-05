@@ -33,7 +33,13 @@ type TaskRecord = {
   type: string | null;
   status: string | null;
   due_date: string | null;
-  assignee?: string | null;
+  assignee?: {
+    id: string;
+    name: string;
+  } | null;
+  task_assignments?: Array<{
+    user_id: string;
+  }>;
 };
 
 export default function Tasks() {
@@ -48,11 +54,48 @@ export default function Tasks() {
     type: "general",
     status: "todo",
     dueDate: "",
+    assigneeId: "",
   });
   const { teamUser } = useAuth();
   
   // Determine if user has permission to create/edit tasks
   const canCreateEditTasks = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead' || teamUser?.role === 'Content Lead' || teamUser?.role === 'Backlink Lead' || teamUser?.role === 'Technical SEO';
+  
+  // Fetch team members to populate assignee dropdown
+  const [teamMembers, setTeamMembers] = useState<{id: string, email: string, first_name?: string, last_name?: string, role?: string}[]>([]);
+  const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
+  
+  const loadTeamMembers = async () => {
+    if (!canCreateEditTasks) return;
+    
+    setLoadingTeamMembers(true);
+    try {
+      // Use admin API to bypass RLS policies
+      const adminApiClient = await import('@/lib/adminApiClient');
+      const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name, role');
+      
+      if (result?.error) {
+        console.error('Error fetching team members:', result.error);
+        return;
+      }
+      
+      // Filter out Super Admins to match the same logic as in Projects.tsx
+      const allUsers = result.data || [];
+      const filteredUsers = allUsers.filter((user: any) => user.role !== 'Super Admin');
+      
+      setTeamMembers(filteredUsers);
+    } catch (error) {
+      console.error('Error in loadTeamMembers:', error);
+    } finally {
+      setLoadingTeamMembers(false);
+    }
+  };
+  
+  useEffect(() => {
+    if (canCreateEditTasks) {
+      loadTeamMembers();
+    }
+  }, [canCreateEditTasks]);
 
   const load = async () => {
     setLoading(true);
@@ -142,12 +185,44 @@ export default function Tasks() {
           return;
         }
         
-        setTasks(
-          (data || []).map((t) => ({
+        // Process the tasks data to include assignee information
+        const tasksWithAssignees = await Promise.all((data || []).map(async (t) => {
+          // Get the assignee user details if assigned
+          let assigneeInfo = null;
+          if (t.task_assignments && t.task_assignments.length > 0) {
+            const assigneeId = t.task_assignments[0]?.user_id;
+            if (assigneeId) {
+              // Try to find the assignee in teamMembers first
+              const localAssignee = teamMembers.find(user => user.id === assigneeId);
+              if (localAssignee) {
+                assigneeInfo = localAssignee;
+              } else {
+                // If not found locally, fetch from admin API
+                try {
+                  const adminApiClient = await import('@/lib/adminApiClient');
+                  const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name', { id: assigneeId });
+                  if (result?.data && result.data.length > 0) {
+                    assigneeInfo = result.data[0];
+                  }
+                } catch (error) {
+                  console.error('Error fetching assignee details:', error);
+                }
+              }
+            }
+          }
+          
+          return {
             ...t,
-            assignee: t.task_assignments?.[0]?.user_id ?? null,
-          }))
-        );
+            assignee: assigneeInfo ? {
+              id: assigneeInfo.id,
+              name: (assigneeInfo.first_name || assigneeInfo.last_name)
+                ? `${assigneeInfo.first_name || ''} ${assigneeInfo.last_name || ''}`.trim()
+                : assigneeInfo.email
+            } : null,
+          };
+        }));
+        
+        setTasks(tasksWithAssignees);
       }
       
       setLoading(false);
@@ -180,10 +255,31 @@ export default function Tasks() {
       setError(error.message);
       return;
     }
-    setForm({ title: "", projectId: "", description: "", priority: "medium", type: "general", status: "todo", dueDate: "" });
-    if (form.projectId) {
-      await supabase.from("task_assignments").insert({ task_id: data?.id, user_id: null });
+    
+    // Create task assignment if an assignee was selected
+    if (form.assigneeId) {
+      await supabase.from("task_assignments").insert({ 
+        task_id: data?.id, 
+        user_id: form.assigneeId 
+      });
+    } else {
+      // Create assignment with null user if no assignee was selected
+      await supabase.from("task_assignments").insert({ 
+        task_id: data?.id, 
+        user_id: null 
+      });
     }
+    
+    setForm({ 
+      title: "", 
+      projectId: "", 
+      description: "", 
+      priority: "medium", 
+      type: "general", 
+      status: "todo", 
+      dueDate: "",
+      assigneeId: ""
+    });
     load();
   };
 
@@ -271,6 +367,22 @@ export default function Tasks() {
             value={form.dueDate}
             onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
           />
+          <select
+            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+            value={form.assigneeId}
+            onChange={(e) => setForm({ ...form, assigneeId: e.target.value })}
+            disabled={loadingTeamMembers}
+          >
+            <option value="">Assign to...</option>
+            <option value="">Unassigned</option>
+            {teamMembers.map((member) => (
+              <option key={member.id} value={member.id}>
+                {(member.first_name || member.last_name) 
+                  ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
+                  : member.email}
+              </option>
+            ))}
+          </select>
           <Button className="gap-2 rounded-xl" onClick={onCreate}>
             <Plus className="w-4 h-4" />
             New Task
@@ -329,7 +441,7 @@ export default function Tasks() {
                           <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64" />
                           <AvatarFallback>U</AvatarFallback>
                         </Avatar>
-                        <span className="text-xs text-muted-foreground">{task.assignee || "Unassigned"}</span>
+                        <span className="text-xs text-muted-foreground">{task.assignee ? task.assignee.name : "Unassigned"}</span>
                       </div>
                       <div className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="w-3 h-3" />
