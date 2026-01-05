@@ -236,8 +236,10 @@ export default function Tasks() {
         
         // Process the tasks data to include assignee and project information for developers
         const tasksWithDetails = await Promise.all((tasksData || []).map(async (t) => {
-          // Find the assignment for this task
-          const taskAssignment = taskAssignments.find(assignment => assignment.task_id === t.id);
+          // Find all assignments for this task
+          const taskAssignmentsForTask = taskAssignments.filter(assignment => assignment.task_id === t.id);
+          // Use the first assignment if there are any
+          const taskAssignment = taskAssignmentsForTask.length > 0 ? taskAssignmentsForTask[0] : null;
           
           // Get the assignee user details if assigned
           let assigneeInfo = null;
@@ -325,8 +327,10 @@ export default function Tasks() {
         // Process the tasks data to include assignee and project information
         const tasksWithDetails = await Promise.all(
           (tasksData || []).map(async (t) => {
-            // Find the assignment for this task
-            const taskAssignment = taskAssignments.find(assignment => assignment.task_id === t.id);
+            // Find all assignments for this task
+            const taskAssignmentsForTask = taskAssignments.filter(assignment => assignment.task_id === t.id);
+            // Use the first assignment if there are any
+            const taskAssignment = taskAssignmentsForTask.length > 0 ? taskAssignmentsForTask[0] : null;
             
             // Get the assignee user details if assigned
             let assigneeInfo = null;
