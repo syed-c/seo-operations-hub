@@ -261,15 +261,22 @@ export default function Projects() {
         .select(`
           id,
           user_id,
-          users.email,
-          users.first_name,
-          users.last_name
+          users (email, first_name, last_name)
         `)
-        .eq('project_id', projectId)
-        .join('users', 'project_members.user_id=users.id');
+        .eq('project_id', projectId);
       
       if (error) throw error;
-      setProjectMembers(data || []);
+      
+      // Transform the data to match expected structure
+      const transformedData = data.map(pm => ({
+        id: pm.id,
+        user_id: pm.user_id,
+        email: pm.users?.email,
+        first_name: pm.users?.first_name,
+        last_name: pm.users?.last_name
+      }));
+      
+      setProjectMembers(transformedData || []);
     } catch (error) {
       console.error('Error fetching project members:', error);
       setProjectMembers([]);
