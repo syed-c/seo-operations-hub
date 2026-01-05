@@ -49,12 +49,39 @@ export default function PagesPage() {
       
       if (userData?.role === 'Developer') {
         // For developers, fetch only assigned projects
-        query = supabase
+        // First, get the project IDs assigned to the user
+        const { data: projectMemberData, error: projectMemberError } = await supabase
+          .from('project_members')
+          .select('project_id')
+          .eq('user_id', user.id);
+        
+        if (projectMemberError) {
+          console.error('Error fetching project members:', projectMemberError);
+          return;
+        }
+        
+        if (!projectMemberData || projectMemberData.length === 0) {
+          // No projects assigned to this user
+          setProjects([]);
+          return;
+        }
+        
+        // Extract project IDs
+        const projectIds = projectMemberData.map(pm => pm.project_id);
+        
+        // Then fetch the projects with those IDs
+        const { data, error } = await supabase
           .from('projects')
-          .select("id, name, client, status, health_score, created_at")
-          .join('project_members', 'projects.id', 'project_members.project_id')
-          .eq('project_members.user_id', user.id)
-          .order("created_at", { ascending: false });
+          .select('id, name, client, status, health_score, created_at')
+          .in('id', projectIds)
+          .order('created_at', { ascending: false });
+        
+        if (error) {
+          console.error('Error loading projects:', error.message);
+          return;
+        }
+        
+        setProjects(data || []);
       } else {
         // For other roles, fetch all projects
         query = supabase
