@@ -53,6 +53,8 @@ export default function Projects() {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [projectMembers, setProjectMembers] = useState<any[]>([]); // Track current project members
+  const [selectedProjectMemberId, setSelectedProjectMemberId] = useState<string | null>(null);
   
   // Determine if user has permission to create/edit projects
   const canCreateEditProjects = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead';
@@ -193,6 +195,24 @@ export default function Projects() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
+      
+      // Update project members state to reflect the new assignment
+      if (selectedProjectId && selectedUserId) {
+        const selectedUser = teamMembers.find(user => user.id === selectedUserId);
+        if (selectedUser) {
+          setProjectMembers(prev => [
+            ...prev,
+            {
+              id: Date.now().toString(), // Temporary ID until we refetch
+              user_id: selectedUser.id,
+              email: selectedUser.email,
+              first_name: selectedUser.first_name,
+              last_name: selectedUser.last_name
+            }
+          ]);
+        }
+      }
+      
       setAssignDialogOpen(false);
       setSelectedProjectId(null);
       setSelectedUserId("");
@@ -231,14 +251,59 @@ export default function Projects() {
     }
   };
 
-  const openAssignDialog = (projectId: string) => {
+  const openAssignDialog = async (projectId: string) => {
     setSelectedProjectId(projectId);
+    
+    // Fetch current project members
+    try {
+      const { data, error } = await ensureSupabase()
+        .from('project_members')
+        .select(`
+          id,
+          user_id,
+          users.email,
+          users.first_name,
+          users.last_name
+        `)
+        .eq('project_id', projectId)
+        .join('users', 'project_members.user_id=users.id');
+      
+      if (error) throw error;
+      setProjectMembers(data || []);
+    } catch (error) {
+      console.error('Error fetching project members:', error);
+      setProjectMembers([]);
+    }
+    
     setAssignDialogOpen(true);
   };
 
   const openDeleteDialog = (projectId: string) => {
     setSelectedProjectId(projectId);
     setDeleteDialogOpen(true);
+  };
+  
+  // Mutation for removing a project member
+  const removeProjectMemberMutation = useMutation({
+    mutationFn: async ({ projectMemberId, userId }: { projectMemberId: string; userId: string }) => {
+      const { error } = await ensureSupabase()
+        .from('project_members')
+        .delete()
+        .eq('id', projectMemberId)
+        .eq('user_id', userId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['projects'] });
+      // Update local state
+      setProjectMembers(prev => prev.filter(pm => pm.id !== selectedProjectMemberId));
+      setSelectedProjectMemberId(null);
+    }
+  });
+  
+  const handleRemoveProjectMember = (projectMemberId: string, userId: string) => {
+    setSelectedProjectMemberId(projectMemberId);
+    removeProjectMemberMutation.mutate({ projectMemberId, userId });
   };
 
   const filtered = useMemo(() => projects, [projects]);
@@ -477,6 +542,33 @@ export default function Projects() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="assign-user">Select Team Member</Label>
+              
+              {/* Show already assigned members */}
+              {projectMembers.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-sm text-muted-foreground mb-1">Assigned members:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {projectMembers.map((member) => (
+                      <div key={member.id} className="flex items-center gap-2 bg-muted rounded-full px-3 py-1 text-sm">
+                        <span>
+                          {member.first_name && member.last_name
+                            ? `${member.first_name} ${member.last_name}`
+                            : member.email}
+                        </span>
+                        <button 
+                          type="button" 
+                          className="text-destructive hover:text-destructive/80"
+                          onClick={() => handleRemoveProjectMember(member.id, member.user_id)}
+                          aria-label="Remove member"
+                        >
+                          ×
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              
               <Select value={selectedUserId} onValueChange={(value) => {
                 // Only update if the value is a valid user ID (not one of our disabled options)
                 if (value !== 'error' && value !== 'loading' && value !== 'no-members') {
@@ -496,13 +588,15 @@ export default function Projects() {
                       Loading team members...
                     </SelectItem>
                   ) : teamMembers.length > 0 ? (
-                    teamMembers.map((user) => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.first_name && user.last_name 
-                          ? `${user.first_name} ${user.last_name}` 
-                          : user.email}
-                      </SelectItem>
-                    ))
+                    teamMembers
+                      .filter(user => !projectMembers.some(pm => pm.user_id === user.id)) // Filter out already assigned users
+                      .map((user) => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.first_name && user.last_name 
+                            ? `${user.first_name} ${user.last_name}` 
+                            : user.email}
+                        </SelectItem>
+                      ))
                   ) : (
                     <SelectItem value="no-members" disabled>
                       No team members available
@@ -510,6 +604,12 @@ export default function Projects() {
                   )}
                 </SelectContent>
               </Select>
+              
+              {/* Show message when all team members are already assigned */}
+              {teamMembers.length > 0 && 
+                teamMembers.filter(user => !projectMembers.some(pm => pm.user_id === user.id)).length === 0 && (
+                <p className="text-sm text-muted-foreground mt-2">All team members are already assigned to this project</p>
+              )}
             </div>
           </div>
           <DialogFooter>
