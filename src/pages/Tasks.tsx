@@ -204,52 +204,58 @@ export default function Tasks() {
         const projectIds = projectMemberData.map((pm) => pm.project_id);
 
         // Then fetch the tasks for those projects
-        const { data, error } = await supabase
+        const { data: tasksData, error: tasksError } = await supabase
           .from("tasks")
           .select(
-            `
-            id, 
-            title, 
-            description, 
-            status, 
-            priority, 
-            type, 
-            due_date, 
-            project_id, 
-            task_assignments(user_id)
-          `
+            `id, title, description, status, priority, type, due_date, project_id`
           )
           .in("project_id", projectIds)
           .order("created_at", { ascending: false });
 
-        if (error) {
-          setError(error.message);
+        if (tasksError) {
+          setError(tasksError.message);
           setLoading(false);
           return;
         }
-                
+        
+        // Fetch task assignments separately
+        let taskAssignments = [];
+        if (tasksData && tasksData.length > 0) {
+          const taskIds = tasksData.map(t => t.id);
+          const { data: assignmentsData, error: assignmentsError } = await supabase
+            .from('task_assignments')
+            .select('task_id, user_id')
+            .in('task_id', taskIds);
+          
+          if (assignmentsError) {
+            console.error('Error fetching task assignments:', assignmentsError);
+          } else {
+            taskAssignments = assignmentsData || [];
+          }
+        }
+        
         // Process the tasks data to include assignee and project information for developers
-        const tasksWithDetails = await Promise.all((data || []).map(async (t) => {
+        const tasksWithDetails = await Promise.all((tasksData || []).map(async (t) => {
+          // Find the assignment for this task
+          const taskAssignment = taskAssignments.find(assignment => assignment.task_id === t.id);
+          
           // Get the assignee user details if assigned
           let assigneeInfo = null;
-          if (t.task_assignments && t.task_assignments.length > 0) {
-            const assigneeId = t.task_assignments[0]?.user_id;
-            if (assigneeId) {
-              // Try to find the assignee in teamMembers first
-              const localAssignee = teamMembers.find(user => user.id === assigneeId);
-              if (localAssignee) {
-                assigneeInfo = localAssignee;
-              } else {
-                // If not found locally, fetch from admin API
-                try {
-                  const adminApiClient = await import('@/lib/adminApiClient');
-                  const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name', { id: assigneeId });
-                  if (result?.data && result.data.length > 0) {
-                    assigneeInfo = result.data[0];
-                  }
-                } catch (error) {
-                  console.error('Error fetching assignee details:', error);
+          if (taskAssignment && taskAssignment.user_id) {
+            // Try to find the assignee in teamMembers first
+            const localAssignee = teamMembers.find(user => user.id === taskAssignment.user_id);
+            if (localAssignee) {
+              assigneeInfo = localAssignee;
+            } else {
+              // If not found locally, fetch from admin API
+              try {
+                const adminApiClient = await import('@/lib/adminApiClient');
+                const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name', { id: taskAssignment.user_id });
+                if (result?.data && result.data.length > 0) {
+                  assigneeInfo = result.data[0];
                 }
+              } catch (error) {
+                console.error('Error fetching assignee details:', error);
               }
             }
           }
@@ -279,54 +285,72 @@ export default function Tasks() {
                 : assigneeInfo.email
             } : null,
             projectName: projectName || null,
+            // Add task_assignments for compatibility
+            task_assignments: taskAssignment ? [{ user_id: taskAssignment.user_id }] : [],
           };
         }));
                 
         setTasks(tasksWithDetails);
       } else {
         // For other roles, fetch all tasks
-        const { data, error } = await supabase
+        const { data: tasksData, error: tasksError } = await supabase
           .from("tasks")
           .select(
-            "id, title, description, status, priority, type, due_date, project_id, task_assignments(user_id)"
+            "id, title, description, status, priority, type, due_date, project_id"
           )
           .order("created_at", { ascending: false });
 
-        if (error) {
-          setError(error.message);
+        if (tasksError) {
+          setError(tasksError.message);
           setLoading(false);
           return;
         }
-
+        
+        // Fetch task assignments separately
+        let taskAssignments = [];
+        if (tasksData && tasksData.length > 0) {
+          const taskIds = tasksData.map(t => t.id);
+          const { data: assignmentsData, error: assignmentsError } = await supabase
+            .from('task_assignments')
+            .select('task_id, user_id')
+            .in('task_id', taskIds);
+          
+          if (assignmentsError) {
+            console.error('Error fetching task assignments:', assignmentsError);
+          } else {
+            taskAssignments = assignmentsData || [];
+          }
+        }
+        
         // Process the tasks data to include assignee and project information
         const tasksWithDetails = await Promise.all(
-          (data || []).map(async (t) => {
+          (tasksData || []).map(async (t) => {
+            // Find the assignment for this task
+            const taskAssignment = taskAssignments.find(assignment => assignment.task_id === t.id);
+            
             // Get the assignee user details if assigned
             let assigneeInfo = null;
-            if (t.task_assignments && t.task_assignments.length > 0) {
-              const assigneeId = t.task_assignments[0]?.user_id;
-              if (assigneeId) {
-                // Try to find the assignee in teamMembers first
-                const localAssignee = teamMembers.find(
-                  (user) => user.id === assigneeId
-                );
-                if (localAssignee) {
-                  assigneeInfo = localAssignee;
-                } else {
-                  // If not found locally, fetch from admin API
-                  try {
-                    const adminApiClient = await import("@/lib/adminApiClient");
-                    const result = await adminApiClient.selectRecords(
-                      "users",
-                      "id, email, first_name, last_name",
-                      { id: assigneeId }
-                    );
-                    if (result?.data && result.data.length > 0) {
-                      assigneeInfo = result.data[0];
-                    }
-                  } catch (error) {
-                    console.error("Error fetching assignee details:", error);
+            if (taskAssignment && taskAssignment.user_id) {
+              // Try to find the assignee in teamMembers first
+              const localAssignee = teamMembers.find(
+                (user) => user.id === taskAssignment.user_id
+              );
+              if (localAssignee) {
+                assigneeInfo = localAssignee;
+              } else {
+                // If not found locally, fetch from admin API
+                try {
+                  const adminApiClient = await import("@/lib/adminApiClient");
+                  const result = await adminApiClient.selectRecords(
+                    "users",
+                    "id, email, first_name, last_name",
+                    { id: taskAssignment.user_id }
+                  );
+                  if (result?.data && result.data.length > 0) {
+                    assigneeInfo = result.data[0];
                   }
+                } catch (error) {
+                  console.error("Error fetching assignee details:", error);
                 }
               }
             }
@@ -363,6 +387,8 @@ export default function Tasks() {
                   }
                 : null,
               projectName: projectName || null,
+              // Add task_assignments for compatibility
+              task_assignments: taskAssignment ? [{ user_id: taskAssignment.user_id }] : [],
             };
           })
         );
