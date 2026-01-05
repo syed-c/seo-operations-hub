@@ -241,6 +241,8 @@ export default function Tasks() {
           // Use the first assignment if there are any
           const taskAssignment = taskAssignmentsForTask.length > 0 ? taskAssignmentsForTask[0] : null;
           
+          console.log('Task:', t.id, 'Assignments found:', taskAssignmentsForTask.length, 'Assignment:', taskAssignment);
+          
           // Get the assignee user details if assigned
           let assigneeInfo = null;
           if (taskAssignment && taskAssignment.user_id) {
@@ -255,6 +257,7 @@ export default function Tasks() {
                 const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name', { id: taskAssignment.user_id });
                 if (result?.data && result.data.length > 0) {
                   assigneeInfo = result.data[0];
+                  console.log('Fetched assignee info:', assigneeInfo);
                 }
               } catch (error) {
                 console.error('Error fetching assignee details:', error);
@@ -278,14 +281,18 @@ export default function Tasks() {
             }
           }
                   
+          const assigneeResult = assigneeInfo ? {
+            id: assigneeInfo.id,
+            name: (assigneeInfo.first_name || assigneeInfo.last_name)
+              ? `${assigneeInfo.first_name || ''} ${assigneeInfo.last_name || ''}`.trim()
+              : assigneeInfo.email
+          } : null;
+          
+          console.log('Task:', t.id, 'Final assignee result:', assigneeResult);
+          
           return {
             ...t,
-            assignee: assigneeInfo ? {
-              id: assigneeInfo.id,
-              name: (assigneeInfo.first_name || assigneeInfo.last_name)
-                ? `${assigneeInfo.first_name || ''} ${assigneeInfo.last_name || ''}`.trim()
-                : assigneeInfo.email
-            } : null,
+            assignee: assigneeResult,
             projectName: projectName || null,
             // Add task_assignments for compatibility
             task_assignments: taskAssignment ? [{ user_id: taskAssignment.user_id }] : [],
@@ -332,6 +339,8 @@ export default function Tasks() {
             // Use the first assignment if there are any
             const taskAssignment = taskAssignmentsForTask.length > 0 ? taskAssignmentsForTask[0] : null;
             
+            console.log('Task:', t.id, 'Assignments found:', taskAssignmentsForTask.length, 'Assignment:', taskAssignment);
+            
             // Get the assignee user details if assigned
             let assigneeInfo = null;
             if (taskAssignment && taskAssignment.user_id) {
@@ -352,6 +361,7 @@ export default function Tasks() {
                   );
                   if (result?.data && result.data.length > 0) {
                     assigneeInfo = result.data[0];
+                    console.log('Fetched assignee info:', assigneeInfo);
                   }
                 } catch (error) {
                   console.error("Error fetching assignee details:", error);
@@ -377,19 +387,23 @@ export default function Tasks() {
               }
             }
 
+            const assigneeResult = assigneeInfo
+              ? {
+                  id: assigneeInfo.id,
+                  name:
+                    assigneeInfo.first_name || assigneeInfo.last_name
+                      ? `${assigneeInfo.first_name || ""} ${
+                          assigneeInfo.last_name || ""
+                        }`.trim()
+                      : assigneeInfo.email,
+                }
+              : null;
+            
+            console.log('Task:', t.id, 'Final assignee result:', assigneeResult);
+            
             return {
               ...t,
-              assignee: assigneeInfo
-                ? {
-                    id: assigneeInfo.id,
-                    name:
-                      assigneeInfo.first_name || assigneeInfo.last_name
-                        ? `${assigneeInfo.first_name || ""} ${
-                            assigneeInfo.last_name || ""
-                          }`.trim()
-                        : assigneeInfo.email,
-                  }
-                : null,
+              assignee: assigneeResult,
               projectName: projectName || null,
               // Add task_assignments for compatibility
               task_assignments: taskAssignment ? [{ user_id: taskAssignment.user_id }] : [],
