@@ -222,6 +222,7 @@ export default function Tasks() {
         let taskAssignments = [];
         if (tasksData && tasksData.length > 0) {
           const taskIds = tasksData.map(t => t.id);
+          console.log('Fetching assignments for task IDs:', taskIds);
           const { data: assignmentsData, error: assignmentsError } = await supabase
             .from('task_assignments')
             .select('task_id, user_id')
@@ -231,6 +232,7 @@ export default function Tasks() {
             console.error('Error fetching task assignments:', assignmentsError);
           } else {
             taskAssignments = assignmentsData || [];
+            console.log('Fetched assignments:', taskAssignments);
           }
         }
         
@@ -319,6 +321,7 @@ export default function Tasks() {
         let taskAssignments = [];
         if (tasksData && tasksData.length > 0) {
           const taskIds = tasksData.map(t => t.id);
+          console.log('Fetching assignments for task IDs:', taskIds);
           const { data: assignmentsData, error: assignmentsError } = await supabase
             .from('task_assignments')
             .select('task_id, user_id')
@@ -328,6 +331,7 @@ export default function Tasks() {
             console.error('Error fetching task assignments:', assignmentsError);
           } else {
             taskAssignments = assignmentsData || [];
+            console.log('Fetched assignments:', taskAssignments);
           }
         }
         
