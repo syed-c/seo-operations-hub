@@ -227,8 +227,62 @@ export default function Tasks() {
           setLoading(false);
           return;
         }
-
-        setTasks(data || []);
+                
+        // Process the tasks data to include assignee and project information for developers
+        const tasksWithDetails = await Promise.all((data || []).map(async (t) => {
+          // Get the assignee user details if assigned
+          let assigneeInfo = null;
+          if (t.task_assignments && t.task_assignments.length > 0) {
+            const assigneeId = t.task_assignments[0]?.user_id;
+            if (assigneeId) {
+              // Try to find the assignee in teamMembers first
+              const localAssignee = teamMembers.find(user => user.id === assigneeId);
+              if (localAssignee) {
+                assigneeInfo = localAssignee;
+              } else {
+                // If not found locally, fetch from admin API
+                try {
+                  const adminApiClient = await import('@/lib/adminApiClient');
+                  const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name', { id: assigneeId });
+                  if (result?.data && result.data.length > 0) {
+                    assigneeInfo = result.data[0];
+                  }
+                } catch (error) {
+                  console.error('Error fetching assignee details:', error);
+                }
+              }
+            }
+          }
+                  
+          // Get project name if project_id exists
+          let projectName = null;
+          if (t.project_id) {
+            try {
+              const adminApiClient = await import('@/lib/adminApiClient');
+              const result = await adminApiClient.selectRecords('projects', 'name', { id: t.project_id });
+              if (result?.data && result.data.length > 0) {
+                projectName = result.data[0].name;
+              } else {
+                console.warn('No project found for ID:', t.project_id);
+              }
+            } catch (error) {
+              console.error('Error fetching project name:', error);
+            }
+          }
+                  
+          return {
+            ...t,
+            assignee: assigneeInfo ? {
+              id: assigneeInfo.id,
+              name: (assigneeInfo.first_name || assigneeInfo.last_name)
+                ? `${assigneeInfo.first_name || ''} ${assigneeInfo.last_name || ''}`.trim()
+                : assigneeInfo.email
+            } : null,
+            projectName: projectName || null,
+          };
+        }));
+                
+        setTasks(tasksWithDetails);
       } else {
         // For other roles, fetch all tasks
         const { data, error } = await supabase
@@ -441,6 +495,37 @@ export default function Tasks() {
   };
 
   const onUpdateStatus = async (task: TaskRecord, status: string) => {
+    // If moving to review status, call webhook
+    if (status === 'review' && task.status !== 'review') {
+      try {
+        const webhookUrl = import.meta.env.VITE_TASK_REVIEW_WEBHOOK_URL;
+        if (webhookUrl) {
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              taskId: task.id,
+              title: task.title,
+              description: task.description,
+              status: status,
+              projectId: task.project_id,
+              assignee: task.assignee,
+            }),
+          });
+          
+          if (!response.ok) {
+            console.error('Webhook call failed:', response.status, response.statusText);
+          } else {
+            console.log('Webhook called successfully for task review');
+          }
+        }
+      } catch (error) {
+        console.error('Error calling webhook:', error);
+      }
+    }
+    
     await supabase.from("tasks").update({ status }).eq("id", task.id);
     load();
   };
@@ -749,24 +834,28 @@ export default function Tasks() {
                       </div>
                     </div>
                     <div className="flex items-center justify-between mt-3">
-                      {canCreateEditTasks && (
+                      {(canCreateEditTasks || (!canCreateEditTasks && task.status !== 'done')) && (
                         <select
                           className="h-9 rounded-xl border border-border bg-card px-2 text-xs"
                           value={task.status || "todo"}
                           onChange={(e) => onUpdateStatus(task, e.target.value)}
+                          disabled={task.status === 'review' || task.status === 'done'}
                         >
                           <option value="todo">To Do</option>
                           <option value="in-progress">In Progress</option>
                           <option value="review">Review</option>
-                          <option value="done">Done</option>
+                          <option value="done" disabled={task.status !== 'review'}>Done</option>
                         </select>
                       )}
-                      {!canCreateEditTasks && (
-                        <Button
-                          className="h-8 px-3 text-xs"
-                          onClick={() => {
-                            // Show detailed task info in an alert for now
-                            alert(`Task Details:
+                      {!canCreateEditTasks && task.status === 'done' && (
+                        <Button className="h-8 px-3 text-xs" disabled>
+                          Completed
+                        </Button>
+                      )}
+                      {!canCreateEditTasks && task.status !== 'done' && (
+                        <Button className="h-8 px-3 text-xs" onClick={() => {
+                          // Show detailed task info in an alert for now
+                          alert(`Task Details:
 
 Title: ${task.title}
 Description: ${task.description || "N/A"}
@@ -775,8 +864,7 @@ Status: ${task.status || "N/A"}
 Priority: ${task.priority || "N/A"}
 Due Date: ${task.due_date || "N/A"}
 Assigned To: ${task.assignee?.name || "Unassigned"}`);
-                          }}
-                        >
+                        }}>
                           View Details
                         </Button>
                       )}
