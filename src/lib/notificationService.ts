@@ -12,7 +12,12 @@ interface NotificationData {
 
 interface TriggerNotificationParams {
   event_type: string;
-  data: Record<string, any>;
+  data: {
+    title?: string;
+    message?: string;
+    type?: 'info' | 'warning' | 'success' | 'error';
+    [key: string]: unknown;
+  };
   user_id?: string;
   project_id?: string;
 }
@@ -66,11 +71,11 @@ export async function triggerNotification(params: TriggerNotificationParams) {
         .from('project_members')
         .select('user_id')
         .eq('project_id', params.project_id);
-      
+
       if (membersError) {
         throw new Error(`Failed to fetch project members: ${membersError.message}`);
       }
-      
+
       userIds = projectMembers?.map(member => member.user_id) || [];
     }
 
