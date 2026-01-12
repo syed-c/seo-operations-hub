@@ -673,7 +673,14 @@ export default function Tasks() {
       try {
         const webhookUrl = import.meta.env.VITE_TASK_REVIEW_WEBHOOK_URL;
         if (webhookUrl) {
-          await fetch(webhookUrl, {
+          console.log('Sending webhook with payload:', {
+            taskId: taskToReview.id,
+            title: taskToReview.title,
+            completion_details: reviewForm.details,
+            completion_doc_url: reviewForm.docUrl,
+          });
+
+          const response = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -684,9 +691,17 @@ export default function Tasks() {
               completion_doc_url: reviewForm.docUrl,
               status: 'review',
               projectId: taskToReview.project_id,
+              projectName: taskToReview.projectName,
               assignee: taskToReview.assignee,
+              submitted_at: new Date().toISOString(),
             }),
           });
+
+          if (!response.ok) {
+            console.error('Webhook failed:', response.status, response.statusText);
+          }
+        } else {
+          console.warn('VITE_TASK_REVIEW_WEBHOOK_URL not defined');
         }
       } catch (webhookErr) {
         console.error('Error calling webhook:', webhookErr);
@@ -699,7 +714,13 @@ export default function Tasks() {
     } catch (err: unknown) {
       console.error("Error submitting review:", err);
       const errorMessage = err instanceof Error ? err.message : "Failed to submit task for review";
-      setError(errorMessage);
+
+      // Specifically handle the missing column error to guide the user
+      if (errorMessage.includes("completion_details")) {
+        setError("Database schema error: The 'completion_details' column is missing. Please ensure the latest migration has been applied in Supabase.");
+      } else {
+        setError(errorMessage);
+      }
     }
   };
 
