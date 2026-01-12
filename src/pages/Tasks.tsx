@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import {
@@ -68,6 +68,8 @@ type TaskRecord = {
   task_assignments?: Array<{
     user_id: string;
   }>;
+  completion_details?: string | null;
+  completion_doc_url?: string | null;
 };
 
 export default function Tasks() {
@@ -87,6 +89,15 @@ export default function Tasks() {
 
   // State for the new task modal
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  // State for the review submission modal
+  const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
+  const [taskToReview, setTaskToReview] = useState<TaskRecord | null>(null);
+  const [reviewForm, setReviewForm] = useState({
+    details: "",
+    docUrl: "",
+  });
+
   const { teamUser } = useAuth();
   const { selectedProject } = useProject();
 
@@ -111,7 +122,7 @@ export default function Tasks() {
   >([]);
   const [loadingTeamMembers, setLoadingTeamMembers] = useState(false);
 
-  const loadTeamMembers = async () => {
+  const loadTeamMembers = useCallback(async () => {
     if (!canCreateEditTasks) return;
 
     setLoadingTeamMembers(true);
@@ -129,9 +140,9 @@ export default function Tasks() {
       }
 
       // Filter out Super Admins to match the same logic as in Projects.tsx
-      const allUsers = result.data || [];
+      const allUsers = (result.data as { id: string; email: string; first_name?: string; last_name?: string; role?: string; }[]) || [];
       const filteredUsers = allUsers.filter(
-        (user: any) => user.role !== "Super Admin"
+        (user) => user.role !== "Super Admin"
       );
 
       setTeamMembers(filteredUsers);
@@ -140,15 +151,13 @@ export default function Tasks() {
     } finally {
       setLoadingTeamMembers(false);
     }
-  };
-
-  useEffect(() => {
-    if (canCreateEditTasks) {
-      loadTeamMembers();
-    }
   }, [canCreateEditTasks]);
 
-  const load = async () => {
+  useEffect(() => {
+    loadTeamMembers();
+  }, [loadTeamMembers]);
+
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       // First, get the current user
@@ -217,13 +226,13 @@ export default function Tasks() {
           setLoading(false);
           return;
         }
-        
+
         // Fetch task assignments separately
         let taskAssignments = [];
         if (tasksData && tasksData.length > 0) {
           const taskIds = tasksData.map(t => t.id);
           console.log('Fetching assignments for task IDs:', taskIds);
-          
+
           // For developers, first try to fetch assignments for their tasks
           // Try with regular supabase client first
           try {
@@ -231,7 +240,7 @@ export default function Tasks() {
               .from('task_assignments')
               .select('task_id, user_id')
               .in('task_id', taskIds);
-            
+
             if (assignmentsError) {
               console.error('Error fetching task assignments with regular client:', assignmentsError);
             } else {
@@ -241,43 +250,43 @@ export default function Tasks() {
           } catch (error) {
             console.error('Error with regular client for task assignments:', error);
           }
-          
+
           // If no assignments found with regular client, try admin API as fallback
           if (taskAssignments.length === 0) {
             try {
               // Use admin API to fetch task assignments
               const adminApiClient = await import('@/lib/adminApiClient');
-              
+
               // Since adminApiClient.selectRecords might not support .in() syntax,
               // we'll use a different approach - fetch all and filter client-side
               const allAssignmentsResult = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id');
-              
+
               if (allAssignmentsResult?.error) {
                 console.error('Error fetching all task assignments:', allAssignmentsResult.error);
               } else {
                 // Filter the assignments to only include those for our tasks
-                taskAssignments = (allAssignmentsResult.data || []).filter(assignment => 
+                taskAssignments = (allAssignmentsResult.data || []).filter(assignment =>
                   taskIds.includes(assignment.task_id)
                 );
                 console.log('Fetched assignments with admin API:', taskAssignments);
               }
             } catch (error) {
               console.error('Error in admin API call for task assignments:', error);
-              
+
               // If both fail, assignments remain as empty array
             }
           }
         }
-        
+
         // Process the tasks data to include assignee and project information for developers
         const tasksWithDetails = await Promise.all((tasksData || []).map(async (t) => {
           // Find all assignments for this task
           const taskAssignmentsForTask = taskAssignments.filter(assignment => assignment.task_id === t.id);
           // Use the first assignment if there are any
           const taskAssignment = taskAssignmentsForTask.length > 0 ? taskAssignmentsForTask[0] : null;
-          
+
           console.log('Task:', t.id, 'Assignments found:', taskAssignmentsForTask.length, 'Assignment:', taskAssignment);
-          
+
           // Get the assignee user details if assigned
           let assigneeInfo = null;
           if (taskAssignment && taskAssignment.user_id) {
@@ -299,7 +308,7 @@ export default function Tasks() {
               }
             }
           }
-                  
+
           // Get project name if project_id exists
           let projectName = null;
           if (t.project_id) {
@@ -315,16 +324,16 @@ export default function Tasks() {
               console.error('Error fetching project name:', error);
             }
           }
-                  
+
           const assigneeResult = assigneeInfo ? {
             id: assigneeInfo.id,
             name: (assigneeInfo.first_name || assigneeInfo.last_name)
               ? `${assigneeInfo.first_name || ''} ${assigneeInfo.last_name || ''}`.trim()
               : assigneeInfo.email
           } : null;
-          
+
           console.log('Task:', t.id, 'Final assignee result:', assigneeResult);
-          
+
           return {
             ...t,
             assignee: assigneeResult,
@@ -333,7 +342,7 @@ export default function Tasks() {
             task_assignments: taskAssignment ? [{ user_id: taskAssignment.user_id }] : [],
           };
         }));
-                
+
         setTasks(tasksWithDetails);
       } else {
         // For other roles, fetch all tasks
@@ -349,39 +358,39 @@ export default function Tasks() {
           setLoading(false);
           return;
         }
-        
+
         // Fetch task assignments separately
         let taskAssignments = [];
         if (tasksData && tasksData.length > 0) {
           const taskIds = tasksData.map(t => t.id);
           console.log('Fetching assignments for task IDs:', taskIds);
-          
+
           try {
             // Use admin API to fetch task assignments
             const adminApiClient = await import('@/lib/adminApiClient');
-            
+
             // Since adminApiClient.selectRecords might not support .in() syntax,
             // we'll use a different approach - fetch all and filter client-side
             const allAssignmentsResult = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id');
-            
+
             if (allAssignmentsResult?.error) {
               console.error('Error fetching all task assignments:', allAssignmentsResult.error);
             } else {
               // Filter the assignments to only include those for our tasks
-              taskAssignments = (allAssignmentsResult.data || []).filter(assignment => 
+              taskAssignments = (allAssignmentsResult.data || []).filter(assignment =>
                 taskIds.includes(assignment.task_id)
               );
               console.log('Fetched assignments:', taskAssignments);
             }
           } catch (error) {
             console.error('Error in admin API call for task assignments:', error);
-            
+
             // Fallback to regular supabase client if admin API fails
             const { data: assignmentsData, error: assignmentsError } = await supabase
               .from('task_assignments')
               .select('task_id, user_id')
               .in('task_id', taskIds);
-            
+
             if (assignmentsError) {
               console.error('Error fetching task assignments:', assignmentsError);
             } else {
@@ -390,7 +399,7 @@ export default function Tasks() {
             }
           }
         }
-        
+
         // Process the tasks data to include assignee and project information
         const tasksWithDetails = await Promise.all(
           (tasksData || []).map(async (t) => {
@@ -398,9 +407,9 @@ export default function Tasks() {
             const taskAssignmentsForTask = taskAssignments.filter(assignment => assignment.task_id === t.id);
             // Use the first assignment if there are any
             const taskAssignment = taskAssignmentsForTask.length > 0 ? taskAssignmentsForTask[0] : null;
-            
+
             console.log('Task:', t.id, 'Assignments found:', taskAssignmentsForTask.length, 'Assignment:', taskAssignment);
-            
+
             // Get the assignee user details if assigned
             let assigneeInfo = null;
             if (taskAssignment && taskAssignment.user_id) {
@@ -449,18 +458,17 @@ export default function Tasks() {
 
             const assigneeResult = assigneeInfo
               ? {
-                  id: assigneeInfo.id,
-                  name:
-                    assigneeInfo.first_name || assigneeInfo.last_name
-                      ? `${assigneeInfo.first_name || ""} ${
-                          assigneeInfo.last_name || ""
-                        }`.trim()
-                      : assigneeInfo.email,
-                }
+                id: assigneeInfo.id,
+                name:
+                  assigneeInfo.first_name || assigneeInfo.last_name
+                    ? `${assigneeInfo.first_name || ""} ${assigneeInfo.last_name || ""
+                      }`.trim()
+                    : assigneeInfo.email,
+              }
               : null;
-            
+
             console.log('Task:', t.id, 'Final assignee result:', assigneeResult);
-            
+
             return {
               ...t,
               assignee: assigneeResult,
@@ -475,15 +483,16 @@ export default function Tasks() {
       }
 
       setLoading(false);
-    } catch (err: any) {
+    } catch (err: unknown) {
       setLoading(false);
-      setError(err.message || "Failed to load tasks");
+      const errorMessage = err instanceof Error ? err.message : "Failed to load tasks";
+      setError(errorMessage);
     }
-  };
+  }, [selectedProject, teamMembers]);
 
   useEffect(() => {
     load();
-  }, []);
+  }, [load]);
 
   const onCreate = async () => {
     console.log("onCreate called", form); // Debug log
@@ -599,39 +608,99 @@ export default function Tasks() {
   };
 
   const onUpdateStatus = async (task: TaskRecord, status: string) => {
-    // If moving to review status, call webhook
-    if (status === 'review' && task.status !== 'review') {
+    // If moving to review status, show modal
+    if (status === 'review') {
+      setTaskToReview(task);
+      setReviewForm({ details: "", docUrl: "" });
+      setIsReviewModalOpen(true);
+      return;
+    }
+
+    // If moving to review status (legacy webhook logic - keeping it for reference or other triggers)
+    // if (status === 'review' && task.status !== 'review') {
+    //   try {
+    //     const webhookUrl = import.meta.env.VITE_TASK_REVIEW_WEBHOOK_URL;
+    //     if (webhookUrl) {
+    //       const response = await fetch(webhookUrl, {
+    //         method: 'POST',
+    //         headers: {
+    //           'Content-Type': 'application/json',
+    //         },
+    //         body: JSON.stringify({
+    //           taskId: task.id,
+    //           title: task.title,
+    //           description: task.description,
+    //           status: status,
+    //           projectId: task.project_id,
+    //           assignee: task.assignee,
+    //         }),
+    //       });
+
+    //       if (!response.ok) {
+    //         console.error('Webhook call failed:', response.status, response.statusText);
+    //       } else {
+    //         console.log('Webhook called successfully for task review');
+    //       }
+    //     }
+    //   } catch (error) {
+    //     console.error('Error calling webhook:', error);
+    //   }
+    // }
+
+    await supabase.from("tasks").update({ status }).eq("id", task.id);
+    load();
+  };
+
+  const handleReviewSubmit = async () => {
+    if (!reviewForm.details.trim()) {
+      setError("Please describe what you actually did (required).");
+      return;
+    }
+
+    if (!taskToReview) return;
+
+    try {
+      const { error: updateError } = await supabase.from("tasks").update({
+        status: 'review',
+        completion_details: reviewForm.details,
+        completion_doc_url: reviewForm.docUrl,
+        updated_at: new Date().toISOString()
+      }).eq("id", taskToReview.id);
+
+      if (updateError) throw updateError;
+
+      // Webhook call logic (moved here from onUpdateStatus)
       try {
         const webhookUrl = import.meta.env.VITE_TASK_REVIEW_WEBHOOK_URL;
         if (webhookUrl) {
-          const response = await fetch(webhookUrl, {
+          await fetch(webhookUrl, {
             method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              taskId: task.id,
-              title: task.title,
-              description: task.description,
-              status: status,
-              projectId: task.project_id,
-              assignee: task.assignee,
+              taskId: taskToReview.id,
+              title: taskToReview.title,
+              description: taskToReview.description,
+              completion_details: reviewForm.details,
+              completion_doc_url: reviewForm.docUrl,
+              status: 'review',
+              projectId: taskToReview.project_id,
+              assignee: taskToReview.assignee,
             }),
           });
-          
-          if (!response.ok) {
-            console.error('Webhook call failed:', response.status, response.statusText);
-          } else {
-            console.log('Webhook called successfully for task review');
-          }
         }
-      } catch (error) {
-        console.error('Error calling webhook:', error);
+      } catch (webhookErr) {
+        console.error('Error calling webhook:', webhookErr);
       }
+
+      setIsReviewModalOpen(false);
+      setTaskToReview(null);
+      setReviewForm({ details: "", docUrl: "" });
+      load();
+    } catch (err: unknown) {
+      console.error("Error submitting review:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to submit task for review";
+      setError(errorMessage);
     }
-    
-    await supabase.from("tasks").update({ status }).eq("id", task.id);
-    load();
   };
 
   const grouped: Record<string, TaskRecord[]> = {
@@ -668,178 +737,224 @@ export default function Tasks() {
             Filters
           </Button>
         </div>
-        {canCreateEditTasks && (
-          <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
-            <Button
-              className="gap-2 rounded-xl"
-              onClick={() => {
-                // Set the selected project ID when opening the modal
-                setIsModalOpen(true);
-                setForm((prev) => ({
-                  ...prev,
-                  projectId: selectedProject?.id || "",
-                }));
-              }}
-            >
-              <Plus className="w-4 h-4" />
-              New Task
-            </Button>
+
+        <div className="flex items-center gap-2">
+          {canCreateEditTasks && (
+            <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+              <Button
+                className="gap-2 rounded-xl"
+                onClick={() => {
+                  setIsModalOpen(true);
+                  setForm((prev) => ({
+                    ...prev,
+                    projectId: selectedProject?.id || "",
+                  }));
+                }}
+              >
+                <Plus className="w-4 h-4" />
+                New Task
+              </Button>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Assign New Task</DialogTitle>
+                  <DialogDescription>
+                    Create and assign a new task to a team member
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="task-title">Task Title</Label>
+                    <Input
+                      id="task-title"
+                      placeholder="Enter task title"
+                      value={form.title}
+                      onChange={(e) =>
+                        setForm({ ...form, title: e.target.value })
+                      }
+                      className={form.title ? "" : "border-destructive"}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="task-project">Project ID</Label>
+                    <Input
+                      id="task-project"
+                      placeholder="Auto-filled from selected project"
+                      value={form.projectId}
+                      onChange={(e) =>
+                        setForm({ ...form, projectId: e.target.value })
+                      }
+                      readOnly
+                      className="cursor-not-allowed opacity-75"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="task-description">Description</Label>
+                    <Input
+                      id="task-description"
+                      placeholder="Enter task description"
+                      value={form.description}
+                      onChange={(e) =>
+                        setForm({ ...form, description: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="task-priority">Priority</Label>
+                      <Select
+                        value={form.priority}
+                        onValueChange={(value) =>
+                          setForm({ ...form, priority: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="low">Low</SelectItem>
+                          <SelectItem value="medium">Medium</SelectItem>
+                          <SelectItem value="high">High</SelectItem>
+                          <SelectItem value="urgent">Urgent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="task-type">Type</Label>
+                      <Select
+                        value={form.type}
+                        onValueChange={(value) =>
+                          setForm({ ...form, type: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general">General</SelectItem>
+                          <SelectItem value="content">Content</SelectItem>
+                          <SelectItem value="technical">Technical</SelectItem>
+                          <SelectItem value="backlinks">Backlinks</SelectItem>
+                          <SelectItem value="local">Local</SelectItem>
+                          <SelectItem value="audit">Audit</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="task-due-date">Due Date</Label>
+                    <Input
+                      id="task-due-date"
+                      type="date"
+                      value={form.dueDate}
+                      onChange={(e) =>
+                        setForm({ ...form, dueDate: e.target.value })
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="task-assignee">Assign To</Label>
+                    <Select
+                      value={form.assigneeId || "unassigned"}
+                      onValueChange={(value) =>
+                        setForm({
+                          ...form,
+                          assigneeId: value === "unassigned" ? "" : value,
+                        })
+                      }
+                      disabled={loadingTeamMembers}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a team member" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="unassigned">Unassigned</SelectItem>
+                        {loadingTeamMembers && (
+                          <SelectItem value="loading" disabled>
+                            Loading team members...
+                          </SelectItem>
+                        )}
+                        {teamMembers.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.first_name || member.last_name
+                              ? `${member.first_name || ""} ${member.last_name || ""
+                                }`.trim()
+                              : member.email}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setIsModalOpen(false);
+                      setForm({
+                        title: "",
+                        projectId: "",
+                        description: "",
+                        priority: "medium",
+                        type: "general",
+                        status: "todo",
+                        dueDate: "",
+                        assigneeId: "",
+                      });
+                    }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button onClick={onCreate}>Assign Task</Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
+
+          {/* Task Review Submission Modal */}
+          <Dialog open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Assign New Task</DialogTitle>
+                <DialogTitle>Submit Task for Review</DialogTitle>
                 <DialogDescription>
-                  Create and assign a new task to a team member
+                  Please describe the work you've completed for: <strong>{taskToReview?.title}</strong>
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <Label htmlFor="task-title">Task Title</Label>
-                  <Input
-                    id="task-title"
-                    placeholder="Enter task title"
-                    value={form.title}
-                    onChange={(e) =>
-                      setForm({ ...form, title: e.target.value })
-                    }
-                    className={form.title ? "" : "border-destructive"}
+                  <Label htmlFor="review-details">What did you actually do? <span className="text-destructive">*</span></Label>
+                  <textarea
+                    id="review-details"
+                    placeholder="Provide a detailed description of your work..."
+                    className="w-full min-h-[120px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    value={reviewForm.details}
+                    onChange={(e) => setReviewForm({ ...reviewForm, details: e.target.value })}
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="task-project">Project ID</Label>
+                  <Label htmlFor="review-doc">Work Document URL (Optional)</Label>
                   <Input
-                    id="task-project"
-                    placeholder="Auto-filled from selected project"
-                    value={form.projectId}
-                    onChange={(e) =>
-                      setForm({ ...form, projectId: e.target.value })
-                    }
-                    readOnly
-                    className="cursor-not-allowed opacity-75"
+                    id="review-doc"
+                    placeholder="https://docs.google.com/..."
+                    value={reviewForm.docUrl}
+                    onChange={(e) => setReviewForm({ ...reviewForm, docUrl: e.target.value })}
                   />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="task-description">Description</Label>
-                  <Input
-                    id="task-description"
-                    placeholder="Enter task description"
-                    value={form.description}
-                    onChange={(e) =>
-                      setForm({ ...form, description: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="task-priority">Priority</Label>
-                    <Select
-                      value={form.priority}
-                      onValueChange={(value) =>
-                        setForm({ ...form, priority: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="low">Low</SelectItem>
-                        <SelectItem value="medium">Medium</SelectItem>
-                        <SelectItem value="high">High</SelectItem>
-                        <SelectItem value="urgent">Urgent</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="task-type">Type</Label>
-                    <Select
-                      value={form.type}
-                      onValueChange={(value) =>
-                        setForm({ ...form, type: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="general">General</SelectItem>
-                        <SelectItem value="content">Content</SelectItem>
-                        <SelectItem value="technical">Technical</SelectItem>
-                        <SelectItem value="backlinks">Backlinks</SelectItem>
-                        <SelectItem value="local">Local</SelectItem>
-                        <SelectItem value="audit">Audit</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="task-due-date">Due Date</Label>
-                  <Input
-                    id="task-due-date"
-                    type="date"
-                    value={form.dueDate}
-                    onChange={(e) =>
-                      setForm({ ...form, dueDate: e.target.value })
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="task-assignee">Assign To</Label>
-                  <Select
-                    value={form.assigneeId || "unassigned"}
-                    onValueChange={(value) =>
-                      setForm({
-                        ...form,
-                        assigneeId: value === "unassigned" ? "" : value,
-                      })
-                    }
-                    disabled={loadingTeamMembers}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select a team member" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="unassigned">Unassigned</SelectItem>
-                      {loadingTeamMembers && (
-                        <SelectItem value="loading" disabled>
-                          Loading team members...
-                        </SelectItem>
-                      )}
-                      {teamMembers.map((member) => (
-                        <SelectItem key={member.id} value={member.id}>
-                          {member.first_name || member.last_name
-                            ? `${member.first_name || ""} ${
-                                member.last_name || ""
-                              }`.trim()
-                            : member.email}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
                 </div>
               </div>
               <DialogFooter>
                 <Button
                   variant="outline"
                   onClick={() => {
-                    setIsModalOpen(false);
-                    setForm({
-                      title: "",
-                      projectId: "",
-                      description: "",
-                      priority: "medium",
-                      type: "general",
-                      status: "todo",
-                      dueDate: "",
-                      assigneeId: "",
-                    });
+                    setIsReviewModalOpen(false);
+                    setTaskToReview(null);
                   }}
                 >
                   Cancel
                 </Button>
-                <Button onClick={onCreate}>Assign Task</Button>
+                <Button onClick={handleReviewSubmit}>Submit for Review</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
-        )}
+        </div>
       </div>
 
       {loading && (
@@ -853,18 +968,18 @@ export default function Tasks() {
             col === "todo"
               ? "To Do"
               : col === "in-progress"
-              ? "In Progress"
-              : col === "review"
-              ? "In Review"
-              : "Completed";
+                ? "In Progress"
+                : col === "review"
+                  ? "In Review"
+                  : "Completed";
           const color =
             col === "todo"
               ? "bg-muted"
               : col === "in-progress"
-              ? "bg-info"
-              : col === "review"
-              ? "bg-warning"
-              : "bg-success";
+                ? "bg-info"
+                : col === "review"
+                  ? "bg-warning"
+                  : "bg-success";
           const items = grouped[col] || [];
           return (
             <div key={col} className="space-y-3">
@@ -893,7 +1008,7 @@ export default function Tasks() {
                         className={cn(
                           "chip text-xs",
                           typeColors[(task.type as string) || "general"] ||
-                            "chip"
+                          "chip"
                         )}
                       >
                         {task.type || "general"}
@@ -902,7 +1017,7 @@ export default function Tasks() {
                         className={cn(
                           "chip text-xs",
                           priorityColors[
-                            (task.priority as string) || "medium"
+                          (task.priority as string) || "medium"
                           ] || "chip"
                         )}
                       >
@@ -958,16 +1073,16 @@ export default function Tasks() {
                       )}
                       {!canCreateEditTasks && task.status !== 'done' && (
                         <Button className="h-8 px-3 text-xs" onClick={() => {
-                          // Show detailed task info in an alert for now
                           alert(`Task Details:
-
 Title: ${task.title}
 Description: ${task.description || "N/A"}
 Project: ${task.projectName || task.project_id || "N/A"}
 Status: ${task.status || "N/A"}
 Priority: ${task.priority || "N/A"}
 Due Date: ${task.due_date || "N/A"}
-Assigned To: ${task.assignee?.name || "Unassigned"}`);
+Assigned To: ${task.assignee?.name || "Unassigned"}
+Details: ${task.completion_details || "N/A"}
+Doc: ${task.completion_doc_url || "N/A"}`);
                         }}>
                           View Details
                         </Button>

@@ -13,6 +13,8 @@ export interface Task {
   created_at: string; // TIMESTAMP WITH TIME ZONE
   updated_at: string; // TIMESTAMP WITH TIME ZONE
   type: 'content' | 'technical' | 'backlinks' | 'local' | 'audit' | 'general' | null;
+  completion_details?: string | null;
+  completion_doc_url?: string | null;
 }
 
 // Helper function to get project IDs for a user based on their role
@@ -22,32 +24,32 @@ const getUserProjectIds = async (userRole: string, userId: string): Promise<stri
     const { data, error } = await safeQuery<{ id: string }[]>(
       supabase.from('projects').select('id')
     );
-    
+
     if (error) {
       console.error('Error fetching all project IDs for Super Admin:', error);
       return [];
     }
-    
+
     return data?.map(project => project.id) || [];
   }
-  
+
   // For other roles, get projects they're assigned to
   const { data, error } = await safeQuery<{ project_id: string }[]>(
     supabase.from('project_members').select('project_id').eq('user_id', userId)
   );
-  
+
   if (error) {
     console.error('Error fetching project IDs for user:', error);
     return [];
   }
-  
+
   return data?.map(member => member.project_id) || [];
 };
 
 // Get recent tasks based on user role
 export const getRecentTasks = async (
-  userRole: string, 
-  userId: string, 
+  userRole: string,
+  userId: string,
   limit: number = 10
 ): Promise<Task[]> => {
   try {
@@ -56,7 +58,7 @@ export const getRecentTasks = async (
       .select('*')
       .order('created_at', { ascending: false })
       .limit(limit);
-    
+
     // Apply role-based filtering
     if (userRole === 'Super Admin') {
       // Super Admin sees all tasks - no filtering needed
@@ -76,27 +78,27 @@ export const getRecentTasks = async (
           .select('task_id')
           .eq('user_id', userId)
       );
-      
+
       if (error) {
         console.error('Error fetching assigned tasks:', error);
         return [];
       }
-      
+
       const taskIds = assignedTasks?.map(assignment => assignment.task_id) || [];
       if (taskIds.length === 0) {
         return []; // No tasks assigned
       }
-      
+
       query = query.in('id', taskIds);
     }
-    
+
     const { data, error } = await safeQuery<Task[]>(query);
-    
+
     if (error) {
       console.error('Error fetching recent tasks:', error);
       return [];
     }
-    
+
     return data || [];
   } catch (error) {
     console.error('Error in getRecentTasks:', error);
@@ -116,27 +118,27 @@ export const getFilteredTasks = async (
 ): Promise<Task[]> => {
   try {
     let query = supabase.from('tasks').select('*');
-    
+
     // Apply status filter
     if (filters.status) {
       query = query.eq('status', filters.status);
     }
-    
+
     // Apply priority filter
     if (filters.priority) {
       query = query.eq('priority', filters.priority);
     }
-    
+
     // Apply due date filter
     if (filters.dueDate) {
       const now = new Date();
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-      
+
       switch (filters.dueDate) {
         case 'overdue':
           // Tasks with due date before today and not done
           query = query.lt('due_date', today.toISOString().split('T')[0])
-                       .neq('status', 'done');
+            .neq('status', 'done');
           break;
         case 'today':
           // Tasks with due date today
@@ -148,7 +150,7 @@ export const getFilteredTasks = async (
           break;
       }
     }
-    
+
     // Apply role-based filtering
     if (userRole === 'Super Admin') {
       // Super Admin sees all tasks - no filtering needed
@@ -167,30 +169,30 @@ export const getFilteredTasks = async (
           .select('task_id')
           .eq('user_id', userId)
       );
-      
+
       if (error) {
         console.error('Error fetching assigned tasks:', error);
         return [];
       }
-      
+
       const taskIds = assignedTasks?.map(assignment => assignment.task_id) || [];
       if (taskIds.length === 0) {
         return []; // No tasks assigned
       }
-      
+
       query = query.in('id', taskIds);
     }
-    
+
     // Order by creation date
     query = query.order('created_at', { ascending: false });
-    
+
     const { data, error } = await safeQuery<Task[]>(query);
-    
+
     if (error) {
       console.error('Error fetching filtered tasks:', error);
       return [];
     }
-    
+
     return data || [];
   } catch (error) {
     console.error('Error in getFilteredTasks:', error);
@@ -202,7 +204,7 @@ export const getFilteredTasks = async (
 export const getTaskCount = async (userRole: string, userId: string): Promise<number> => {
   try {
     let query = supabase.from('tasks').select('*', { count: 'exact', head: true });
-    
+
     // Apply role-based filtering
     if (userRole === 'Super Admin') {
       // Super Admin sees all tasks - no filtering needed
@@ -223,27 +225,27 @@ export const getTaskCount = async (userRole: string, userId: string): Promise<nu
           .select('task_id')
           .eq('user_id', userId)
       );
-      
+
       if (error) {
         console.error('Error fetching assigned tasks:', error);
         return 0;
       }
-      
+
       const taskIds = assignedTasks?.map(assignment => assignment.task_id) || [];
       if (taskIds.length === 0) {
         return 0; // No tasks assigned
       }
-      
+
       query = query.in('id', taskIds);
     }
-    
+
     const { count, error } = await query;
-    
+
     if (error) {
       console.error('Error counting tasks:', error);
       return 0;
     }
-    
+
     return count || 0;
   } catch (error) {
     console.error('Error in getTaskCount:', error);

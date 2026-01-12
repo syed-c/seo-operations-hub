@@ -16,7 +16,7 @@ export default function ProjectSelection() {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [fetchProjects]);
 
   const handleProjectSelect = (project: any) => {
     setSelectedProject(project);
@@ -34,14 +34,14 @@ export default function ProjectSelection() {
 
   return (
     <MainLayout>
-      <Header 
-        title="Select a Project" 
-        subtitle="Choose a project to work on or view general analytics" 
+      <Header
+        title="Select a Project"
+        subtitle="Choose a project to work on or view general analytics"
       />
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {/* General Analytics Card */}
-        <Card 
+        <Card
           className="cursor-pointer hover:shadow-card-hover transition-all border-2 border-dashed border-primary/30 hover:border-primary bg-gradient-to-br from-primary/5 to-transparent animate-slide-up"
           onClick={handleGeneralSelect}
         >
@@ -69,10 +69,10 @@ export default function ProjectSelection() {
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Project Cards */}
         {projects.map((project, index) => (
-          <Card 
+          <Card
             key={project.id}
             className={cn(
               "cursor-pointer hover:shadow-card-hover transition-all animate-slide-up",
@@ -131,8 +131,8 @@ export default function ProjectSelection() {
                 <div className="flex items-center gap-1">
                   <Calendar className="w-3.5 h-3.5" />
                   <span>
-                    {project.created_at 
-                      ? new Date(project.created_at).toLocaleDateString() 
+                    {project.created_at
+                      ? new Date(project.created_at).toLocaleDateString()
                       : "—"}
                   </span>
                 </div>
@@ -140,9 +140,9 @@ export default function ProjectSelection() {
             </CardContent>
           </Card>
         ))}
-        
+
         {/* Create New Project Card */}
-        <Card 
+        <Card
           className="cursor-pointer hover:shadow-card-hover transition-all border-2 border-dashed hover:border-primary/50 flex flex-col items-center justify-center text-center min-h-[200px] animate-slide-up"
           style={{ animationDelay: `${(projects.length + 1) * 50}ms` }}
           onClick={handleCreateProject}
