@@ -152,7 +152,7 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [fetchProjects]);
 
   const value = {
     selectedProject,

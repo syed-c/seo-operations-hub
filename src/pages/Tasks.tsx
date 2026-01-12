@@ -259,7 +259,7 @@ export default function Tasks() {
 
               // Since adminApiClient.selectRecords might not support .in() syntax,
               // we'll use a different approach - fetch all and filter client-side
-              const allAssignmentsResult = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id');
+              const allAssignmentsResult = await adminApiClient.selectRecords<{ task_id: string; user_id: string }>('task_assignments', 'task_id, user_id');
 
               if (allAssignmentsResult?.error) {
                 console.error('Error fetching all task assignments:', allAssignmentsResult.error);
@@ -298,7 +298,7 @@ export default function Tasks() {
               // If not found locally, fetch from admin API
               try {
                 const adminApiClient = await import('@/lib/adminApiClient');
-                const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name', { id: taskAssignment.user_id });
+                const result = await adminApiClient.selectRecords<{ id: string; email: string; first_name: string; last_name: string }>('users', 'id, email, first_name, last_name', { id: taskAssignment.user_id });
                 if (result?.data && result.data.length > 0) {
                   assigneeInfo = result.data[0];
                   console.log('Fetched assignee info:', assigneeInfo);
@@ -314,7 +314,7 @@ export default function Tasks() {
           if (t.project_id) {
             try {
               const adminApiClient = await import('@/lib/adminApiClient');
-              const result = await adminApiClient.selectRecords('projects', 'name', { id: t.project_id });
+              const result = await adminApiClient.selectRecords<{ name: string }>('projects', 'name', { id: t.project_id });
               if (result?.data && result.data.length > 0) {
                 projectName = result.data[0].name;
               } else {
@@ -369,9 +369,7 @@ export default function Tasks() {
             // Use admin API to fetch task assignments
             const adminApiClient = await import('@/lib/adminApiClient');
 
-            // Since adminApiClient.selectRecords might not support .in() syntax,
-            // we'll use a different approach - fetch all and filter client-side
-            const allAssignmentsResult = await adminApiClient.selectRecords('task_assignments', 'task_id, user_id');
+            const allAssignmentsResult = await adminApiClient.selectRecords<{ task_id: string; user_id: string }>('task_assignments', 'task_id, user_id');
 
             if (allAssignmentsResult?.error) {
               console.error('Error fetching all task assignments:', allAssignmentsResult.error);
@@ -423,7 +421,7 @@ export default function Tasks() {
                 // If not found locally, fetch from admin API
                 try {
                   const adminApiClient = await import("@/lib/adminApiClient");
-                  const result = await adminApiClient.selectRecords(
+                  const result = await adminApiClient.selectRecords<{ id: string; email: string; first_name: string; last_name: string }>(
                     "users",
                     "id, email, first_name, last_name",
                     { id: taskAssignment.user_id }
@@ -443,7 +441,7 @@ export default function Tasks() {
             if (t.project_id) {
               try {
                 const adminApiClient = await import("@/lib/adminApiClient");
-                const result = await adminApiClient.selectRecords(
+                const result = await adminApiClient.selectRecords<{ name: string }>(
                   "projects",
                   "name",
                   { id: t.project_id }
@@ -488,7 +486,7 @@ export default function Tasks() {
       const errorMessage = err instanceof Error ? err.message : "Failed to load tasks";
       setError(errorMessage);
     }
-  }, [selectedProject, teamMembers]);
+  }, [teamMembers]);
 
   useEffect(() => {
     load();
