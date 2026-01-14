@@ -245,23 +245,42 @@ export default function Tasks() {
       } else {
         // All other roles (Backlink Lead, SEO Lead, Content Lead, etc.) see ONLY their assigned tasks
         // First get task IDs assigned to this user
-        const { data: assignments } = await supabase
+        console.log('=== FETCHING TASKS FOR NON-ADMIN USER ===');
+        console.log('User ID:', user.id);
+        console.log('User Role:', userRole);
+
+        const { data: assignments, error: assignmentsError } = await supabase
           .from("task_assignments")
           .select("task_id")
           .eq("user_id", user.id);
 
+        console.log('Assignments query result:', { assignments, assignmentsError });
+        console.log('Number of assignments:', assignments?.length || 0);
+
+        if (assignmentsError) {
+          console.error('Error fetching task assignments:', assignmentsError);
+          setError(`Failed to fetch task assignments: ${assignmentsError.message}`);
+          setLoading(false);
+          return;
+        }
+
         if (!assignments || assignments.length === 0) {
+          console.warn('No task assignments found for user:', user.id);
           setTasks([]);
           setLoading(false);
           return;
         }
 
         const taskIds = assignments.map(a => a.task_id);
+        console.log('Task IDs to fetch:', taskIds);
+
         const result = await supabase
           .from("tasks")
           .select("id, title, description, status, priority, type, due_date, project_id")
           .in("id", taskIds)
           .order("created_at", { ascending: false });
+
+        console.log('Tasks query result:', { data: result.data, error: result.error });
 
         tasksData = result.data;
         tasksError = result.error;
@@ -706,41 +725,50 @@ export default function Tasks() {
       // Webhook call for backlink leads
       try {
         const webhookUrl = import.meta.env.VITE_BACKLINK_REVIEW_WEBHOOK_URL;
+        console.log('=== BACKLINK WEBHOOK DEBUG ===');
+        console.log('Webhook URL:', webhookUrl);
+        console.log('Webhook URL defined:', !!webhookUrl);
+
         if (webhookUrl) {
-          console.log('Sending backlink webhook with payload:', {
+          const payload = {
             taskId: taskToReview.id,
             title: taskToReview.title,
+            description: taskToReview.description,
+            status: 'review',
+            projectId: taskToReview.project_id,
+            projectName: taskToReview.projectName,
+            assignee: taskToReview.assignee,
             backlink_summary: backlinkReviewForm.summary,
-            submission_type: submissionType,
-          });
+            backlink_links_created: backlinkReviewForm.linkTypes.create ? linksCreated : null,
+            backlink_links_indexed: backlinkReviewForm.linkTypes.index ? linksIndexed : null,
+            backlink_submission_type: submissionType,
+            submitted_at: new Date().toISOString(),
+          };
+
+          console.log('Sending backlink webhook with payload:', payload);
 
           const response = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              taskId: taskToReview.id,
-              title: taskToReview.title,
-              description: taskToReview.description,
-              status: 'review',
-              projectId: taskToReview.project_id,
-              projectName: taskToReview.projectName,
-              assignee: taskToReview.assignee,
-              backlink_summary: backlinkReviewForm.summary,
-              backlink_links_created: backlinkReviewForm.linkTypes.create ? linksCreated : null,
-              backlink_links_indexed: backlinkReviewForm.linkTypes.index ? linksIndexed : null,
-              backlink_submission_type: submissionType,
-              submitted_at: new Date().toISOString(),
-            }),
+            body: JSON.stringify(payload),
           });
+
+          console.log('Webhook response status:', response.status);
+          console.log('Webhook response ok:', response.ok);
+
+          const responseText = await response.text();
+          console.log('Webhook response body:', responseText);
 
           if (!response.ok) {
             console.error('Backlink webhook failed:', response.status, response.statusText);
+          } else {
+            console.log('✅ Backlink webhook called successfully!');
           }
         } else {
-          console.warn('VITE_BACKLINK_REVIEW_WEBHOOK_URL not defined');
+          console.warn('⚠️ VITE_BACKLINK_REVIEW_WEBHOOK_URL not defined');
         }
       } catch (webhookErr) {
-        console.error('Error calling backlink webhook:', webhookErr);
+        console.error('❌ Error calling backlink webhook:', webhookErr);
       }
 
       setIsBacklinkReviewModalOpen(false);
