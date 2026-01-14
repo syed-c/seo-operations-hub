@@ -180,12 +180,11 @@ export default function Tasks() {
 
   const load = useCallback(async () => {
     setLoading(true);
+    setError("");
+
     try {
-      // First, get the current user
-      const {
-        data: { user },
-        error: userError,
-      } = await supabase.auth.getUser();
+      // Get current user
+      const { data: { user }, error: userError } = await supabase.auth.getUser();
 
       if (userError || !user) {
         setError("User not authenticated");
@@ -193,7 +192,7 @@ export default function Tasks() {
         return;
       }
 
-      // Check user role
+      // Get user role
       const { data: userData, error: roleError } = await supabase
         .from("users")
         .select("role")
@@ -206,301 +205,160 @@ export default function Tasks() {
         return;
       }
 
-      let query;
+      const userRole = userData?.role;
 
-      if (userData?.role === "Developer") {
-        // For developers, fetch only tasks from assigned projects
-        // First, get the project IDs assigned to the user
-        const { data: projectMemberData, error: projectMemberError } =
-          await supabase
-            .from("project_members")
-            .select("project_id")
-            .eq("user_id", user.id);
+      // Determine task filtering strategy based on role
+      let tasksData;
+      let tasksError;
 
-        if (projectMemberError) {
-          setError(projectMemberError.message);
-          setLoading(false);
-          return;
-        }
+      if (userRole === "Super Admin") {
+        // Super Admin sees ALL tasks
+        const result = await supabase
+          .from("tasks")
+          .select("id, title, description, status, priority, type, due_date, project_id")
+          .order("created_at", { ascending: false });
 
-        if (!projectMemberData || projectMemberData.length === 0) {
-          // No projects assigned to this user
+        tasksData = result.data;
+        tasksError = result.error;
+      } else if (userRole === "Admin") {
+        // Admin sees tasks from their assigned projects
+        const { data: projectMembers } = await supabase
+          .from("project_members")
+          .select("project_id")
+          .eq("user_id", user.id);
+
+        if (!projectMembers || projectMembers.length === 0) {
           setTasks([]);
           setLoading(false);
           return;
         }
 
-        // Extract project IDs
-        const projectIds = projectMemberData.map((pm) => pm.project_id);
-
-        // Then fetch the tasks for those projects
-        const { data: tasksData, error: tasksError } = await supabase
+        const projectIds = projectMembers.map(pm => pm.project_id);
+        const result = await supabase
           .from("tasks")
-          .select(
-            `id, title, description, status, priority, type, due_date, project_id`
-          )
+          .select("id, title, description, status, priority, type, due_date, project_id")
           .in("project_id", projectIds)
           .order("created_at", { ascending: false });
 
-        if (tasksError) {
-          setError(tasksError.message);
+        tasksData = result.data;
+        tasksError = result.error;
+      } else {
+        // All other roles (Backlink Lead, SEO Lead, Content Lead, etc.) see ONLY their assigned tasks
+        // First get task IDs assigned to this user
+        const { data: assignments } = await supabase
+          .from("task_assignments")
+          .select("task_id")
+          .eq("user_id", user.id);
+
+        if (!assignments || assignments.length === 0) {
+          setTasks([]);
           setLoading(false);
           return;
         }
 
-        // Fetch task assignments separately
-        let taskAssignments = [];
-        if (tasksData && tasksData.length > 0) {
-          const taskIds = tasksData.map(t => t.id);
-          console.log('Fetching assignments for task IDs:', taskIds);
-
-          // For developers, first try to fetch assignments for their tasks
-          // Try with regular supabase client first
-          try {
-            const { data: assignmentsData, error: assignmentsError } = await supabase
-              .from('task_assignments')
-              .select('task_id, user_id')
-              .in('task_id', taskIds);
-
-            if (assignmentsError) {
-              console.error('Error fetching task assignments with regular client:', assignmentsError);
-            } else {
-              taskAssignments = assignmentsData || [];
-              console.log('Fetched assignments with regular client:', taskAssignments);
-            }
-          } catch (error) {
-            console.error('Error with regular client for task assignments:', error);
-          }
-
-          // If no assignments found with regular client, try admin API as fallback
-          if (taskAssignments.length === 0) {
-            try {
-              // Use admin API to fetch task assignments
-              const adminApiClient = await import('@/lib/adminApiClient');
-
-              // Since adminApiClient.selectRecords might not support .in() syntax,
-              // we'll use a different approach - fetch all and filter client-side
-              const allAssignmentsResult = await adminApiClient.selectRecords<{ task_id: string; user_id: string }>('task_assignments', 'task_id, user_id');
-
-              if (allAssignmentsResult?.error) {
-                console.error('Error fetching all task assignments:', allAssignmentsResult.error);
-              } else {
-                // Filter the assignments to only include those for our tasks
-                taskAssignments = (allAssignmentsResult.data || []).filter(assignment =>
-                  taskIds.includes(assignment.task_id)
-                );
-                console.log('Fetched assignments with admin API:', taskAssignments);
-              }
-            } catch (error) {
-              console.error('Error in admin API call for task assignments:', error);
-
-              // If both fail, assignments remain as empty array
-            }
-          }
-        }
-
-        // Process the tasks data to include assignee and project information for developers
-        const tasksWithDetails = await Promise.all((tasksData || []).map(async (t) => {
-          // Find all assignments for this task
-          const taskAssignmentsForTask = taskAssignments.filter(assignment => assignment.task_id === t.id);
-          // Use the first assignment if there are any
-          const taskAssignment = taskAssignmentsForTask.length > 0 ? taskAssignmentsForTask[0] : null;
-
-          console.log('Task:', t.id, 'Assignments found:', taskAssignmentsForTask.length, 'Assignment:', taskAssignment);
-
-          // Get the assignee user details if assigned
-          let assigneeInfo = null;
-          if (taskAssignment && taskAssignment.user_id) {
-            // Try to find the assignee in teamMembers first
-            const localAssignee = teamMembers.find(user => user.id === taskAssignment.user_id);
-            if (localAssignee) {
-              assigneeInfo = localAssignee;
-            } else {
-              // If not found locally, fetch from admin API
-              try {
-                const adminApiClient = await import('@/lib/adminApiClient');
-                const result = await adminApiClient.selectRecords<{ id: string; email: string; first_name: string; last_name: string }>('users', 'id, email, first_name, last_name', { id: taskAssignment.user_id });
-                if (result?.data && result.data.length > 0) {
-                  assigneeInfo = result.data[0];
-                  console.log('Fetched assignee info:', assigneeInfo);
-                }
-              } catch (error) {
-                console.error('Error fetching assignee details:', error);
-              }
-            }
-          }
-
-          // Get project name if project_id exists
-          let projectName = null;
-          if (t.project_id) {
-            try {
-              const adminApiClient = await import('@/lib/adminApiClient');
-              const result = await adminApiClient.selectRecords<{ name: string }>('projects', 'name', { id: t.project_id });
-              if (result?.data && result.data.length > 0) {
-                projectName = result.data[0].name;
-              } else {
-                console.warn('No project found for ID:', t.project_id);
-              }
-            } catch (error) {
-              console.error('Error fetching project name:', error);
-            }
-          }
-
-          const assigneeResult = assigneeInfo ? {
-            id: assigneeInfo.id,
-            name: (assigneeInfo.first_name || assigneeInfo.last_name)
-              ? `${assigneeInfo.first_name || ''} ${assigneeInfo.last_name || ''}`.trim()
-              : assigneeInfo.email
-          } : null;
-
-          console.log('Task:', t.id, 'Final assignee result:', assigneeResult);
-
-          return {
-            ...t,
-            assignee: assigneeResult,
-            projectName: projectName || null,
-            // Add task_assignments for compatibility
-            task_assignments: taskAssignment ? [{ user_id: taskAssignment.user_id }] : [],
-          };
-        }));
-
-        setTasks(tasksWithDetails);
-      } else {
-        // For other roles, fetch all tasks
-        const { data: tasksData, error: tasksError } = await supabase
+        const taskIds = assignments.map(a => a.task_id);
+        const result = await supabase
           .from("tasks")
-          .select(
-            "id, title, description, status, priority, type, due_date, project_id"
-          )
+          .select("id, title, description, status, priority, type, due_date, project_id")
+          .in("id", taskIds)
           .order("created_at", { ascending: false });
 
-        if (tasksError) {
-          setError(tasksError.message);
-          setLoading(false);
-          return;
-        }
-
-        // Fetch task assignments separately
-        let taskAssignments = [];
-        if (tasksData && tasksData.length > 0) {
-          const taskIds = tasksData.map(t => t.id);
-          console.log('Fetching assignments for task IDs:', taskIds);
-
-          try {
-            // Use admin API to fetch task assignments
-            const adminApiClient = await import('@/lib/adminApiClient');
-
-            const allAssignmentsResult = await adminApiClient.selectRecords<{ task_id: string; user_id: string }>('task_assignments', 'task_id, user_id');
-
-            if (allAssignmentsResult?.error) {
-              console.error('Error fetching all task assignments:', allAssignmentsResult.error);
-            } else {
-              // Filter the assignments to only include those for our tasks
-              taskAssignments = (allAssignmentsResult.data || []).filter(assignment =>
-                taskIds.includes(assignment.task_id)
-              );
-              console.log('Fetched assignments:', taskAssignments);
-            }
-          } catch (error) {
-            console.error('Error in admin API call for task assignments:', error);
-
-            // Fallback to regular supabase client if admin API fails
-            const { data: assignmentsData, error: assignmentsError } = await supabase
-              .from('task_assignments')
-              .select('task_id, user_id')
-              .in('task_id', taskIds);
-
-            if (assignmentsError) {
-              console.error('Error fetching task assignments:', assignmentsError);
-            } else {
-              taskAssignments = assignmentsData || [];
-              console.log('Fetched assignments with fallback:', taskAssignments);
-            }
-          }
-        }
-
-        // Process the tasks data to include assignee and project information
-        const tasksWithDetails = await Promise.all(
-          (tasksData || []).map(async (t) => {
-            // Find all assignments for this task
-            const taskAssignmentsForTask = taskAssignments.filter(assignment => assignment.task_id === t.id);
-            // Use the first assignment if there are any
-            const taskAssignment = taskAssignmentsForTask.length > 0 ? taskAssignmentsForTask[0] : null;
-
-            console.log('Task:', t.id, 'Assignments found:', taskAssignmentsForTask.length, 'Assignment:', taskAssignment);
-
-            // Get the assignee user details if assigned
-            let assigneeInfo = null;
-            if (taskAssignment && taskAssignment.user_id) {
-              // Try to find the assignee in teamMembers first
-              const localAssignee = teamMembers.find(
-                (user) => user.id === taskAssignment.user_id
-              );
-              if (localAssignee) {
-                assigneeInfo = localAssignee;
-              } else {
-                // If not found locally, fetch from admin API
-                try {
-                  const adminApiClient = await import("@/lib/adminApiClient");
-                  const result = await adminApiClient.selectRecords<{ id: string; email: string; first_name: string; last_name: string }>(
-                    "users",
-                    "id, email, first_name, last_name",
-                    { id: taskAssignment.user_id }
-                  );
-                  if (result?.data && result.data.length > 0) {
-                    assigneeInfo = result.data[0];
-                    console.log('Fetched assignee info:', assigneeInfo);
-                  }
-                } catch (error) {
-                  console.error("Error fetching assignee details:", error);
-                }
-              }
-            }
-
-            // Get project name if project_id exists
-            let projectName = null;
-            if (t.project_id) {
-              try {
-                const adminApiClient = await import("@/lib/adminApiClient");
-                const result = await adminApiClient.selectRecords<{ name: string }>(
-                  "projects",
-                  "name",
-                  { id: t.project_id }
-                );
-                if (result?.data && result.data.length > 0) {
-                  projectName = result.data[0].name;
-                }
-              } catch (error) {
-                console.error("Error fetching project name:", error);
-              }
-            }
-
-            const assigneeResult = assigneeInfo
-              ? {
-                id: assigneeInfo.id,
-                name:
-                  assigneeInfo.first_name || assigneeInfo.last_name
-                    ? `${assigneeInfo.first_name || ""} ${assigneeInfo.last_name || ""
-                      }`.trim()
-                    : assigneeInfo.email,
-              }
-              : null;
-
-            console.log('Task:', t.id, 'Final assignee result:', assigneeResult);
-
-            return {
-              ...t,
-              assignee: assigneeResult,
-              projectName: projectName || null,
-              // Add task_assignments for compatibility
-              task_assignments: taskAssignment ? [{ user_id: taskAssignment.user_id }] : [],
-            };
-          })
-        );
-
-        setTasks(tasksWithDetails);
+        tasksData = result.data;
+        tasksError = result.error;
       }
 
+      if (tasksError) {
+        setError(tasksError.message);
+        setLoading(false);
+        return;
+      }
+
+      if (!tasksData || tasksData.length === 0) {
+        setTasks([]);
+        setLoading(false);
+        return;
+      }
+
+      // Fetch task assignments for all tasks
+      const taskIds = tasksData.map(t => t.id);
+      const { data: taskAssignments } = await supabase
+        .from('task_assignments')
+        .select('task_id, user_id')
+        .in('task_id', taskIds);
+
+      // Fetch project names for all unique project IDs
+      const projectIds = [...new Set(tasksData.map(t => t.project_id).filter(Boolean))];
+      const projectNamesMap = new Map<string, string>();
+
+      if (projectIds.length > 0) {
+        try {
+          const adminApiClient = await import('@/lib/adminApiClient');
+          const result = await adminApiClient.selectRecords<{ id: string; name: string }>('projects', 'id, name');
+          if (result?.data) {
+            result.data.forEach(p => projectNamesMap.set(p.id, p.name));
+          }
+        } catch (error) {
+          console.error('Error fetching project names:', error);
+        }
+      }
+
+      // Build assignee info map
+      const userIds = [...new Set((taskAssignments || []).map(a => a.user_id).filter(Boolean))];
+      const assigneeInfoMap = new Map<string, { id: string; name: string }>();
+
+      // First check teamMembers
+      teamMembers.forEach(member => {
+        if (userIds.includes(member.id)) {
+          assigneeInfoMap.set(member.id, {
+            id: member.id,
+            name: (member.first_name || member.last_name)
+              ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
+              : member.email
+          });
+        }
+      });
+
+      // Fetch missing users
+      const missingUserIds = userIds.filter(id => !assigneeInfoMap.has(id));
+      if (missingUserIds.length > 0) {
+        try {
+          const adminApiClient = await import('@/lib/adminApiClient');
+          const result = await adminApiClient.selectRecords<{ id: string; email: string; first_name: string; last_name: string }>(
+            'users',
+            'id, email, first_name, last_name'
+          );
+          if (result?.data) {
+            result.data.forEach(user => {
+              if (missingUserIds.includes(user.id)) {
+                assigneeInfoMap.set(user.id, {
+                  id: user.id,
+                  name: (user.first_name || user.last_name)
+                    ? `${user.first_name || ''} ${user.last_name || ''}`.trim()
+                    : user.email
+                });
+              }
+            });
+          }
+        } catch (error) {
+          console.error('Error fetching user details:', error);
+        }
+      }
+
+      // Build final tasks with details
+      const tasksWithDetails = tasksData.map(task => {
+        const assignment = (taskAssignments || []).find(a => a.task_id === task.id);
+        const assignee = assignment?.user_id ? assigneeInfoMap.get(assignment.user_id) || null : null;
+        const projectName = task.project_id ? projectNamesMap.get(task.project_id) || null : null;
+
+        return {
+          ...task,
+          assignee,
+          projectName,
+          task_assignments: assignment ? [{ user_id: assignment.user_id }] : [],
+        };
+      });
+
+      setTasks(tasksWithDetails);
       setLoading(false);
     } catch (err: unknown) {
       setLoading(false);
@@ -511,6 +369,41 @@ export default function Tasks() {
 
   useEffect(() => {
     load();
+  }, [load]);
+
+  // Real-time subscriptions for instant updates
+  useEffect(() => {
+    // Subscribe to tasks table changes
+    const tasksChannel = supabase
+      .channel('tasks-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'tasks' },
+        (payload) => {
+          console.log('Tasks table changed:', payload);
+          load(); // Reload tasks when any task is created, updated, or deleted
+        }
+      )
+      .subscribe();
+
+    // Subscribe to task_assignments table changes
+    const assignmentsChannel = supabase
+      .channel('assignments-changes')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'task_assignments' },
+        (payload) => {
+          console.log('Task assignments changed:', payload);
+          load(); // Reload tasks when assignments change
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscriptions on unmount
+    return () => {
+      tasksChannel.unsubscribe();
+      assignmentsChannel.unsubscribe();
+    };
   }, [load]);
 
   const onCreate = async () => {
