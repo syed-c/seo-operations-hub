@@ -34,6 +34,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { LinkSheetEditor } from "@/components/ui/LinkSheetEditor";
 
 const priorityColors = {
   low: "bg-muted text-muted-foreground",
@@ -70,6 +72,10 @@ type TaskRecord = {
   }>;
   completion_details?: string | null;
   completion_doc_url?: string | null;
+  backlink_summary?: string | null;
+  backlink_links_created?: Array<{ url: string }> | null;
+  backlink_links_indexed?: Array<{ url: string }> | null;
+  backlink_submission_type?: 'create' | 'index' | 'both' | null;
 };
 
 export default function Tasks() {
@@ -98,6 +104,18 @@ export default function Tasks() {
     docUrl: "",
   });
 
+  // State for backlink lead review modal
+  const [isBacklinkReviewModalOpen, setIsBacklinkReviewModalOpen] = useState(false);
+  const [backlinkReviewForm, setBacklinkReviewForm] = useState({
+    summary: "",
+    linkTypes: {
+      create: false,
+      index: false,
+    },
+    linksCreated: [] as Array<{ id: string; url: string }>,
+    linksIndexed: [] as Array<{ id: string; url: string }>,
+  });
+
   const { teamUser } = useAuth();
   const { selectedProject } = useProject();
 
@@ -109,6 +127,9 @@ export default function Tasks() {
     teamUser?.role === "Content Lead" ||
     teamUser?.role === "Backlink Lead" ||
     teamUser?.role === "Technical SEO";
+
+  // Check if user is a backlink lead
+  const isBacklinkLead = teamUser?.role === "Backlink Lead";
 
   // Fetch team members to populate assignee dropdown
   const [teamMembers, setTeamMembers] = useState<
@@ -606,11 +627,24 @@ export default function Tasks() {
   };
 
   const onUpdateStatus = async (task: TaskRecord, status: string) => {
-    // If moving to review status, show modal
+    // If moving to review status, show appropriate modal based on user role
     if (status === 'review') {
       setTaskToReview(task);
-      setReviewForm({ details: "", docUrl: "" });
-      setIsReviewModalOpen(true);
+
+      if (isBacklinkLead) {
+        // Show backlink-specific review modal
+        setBacklinkReviewForm({
+          summary: "",
+          linkTypes: { create: false, index: false },
+          linksCreated: [],
+          linksIndexed: [],
+        });
+        setIsBacklinkReviewModalOpen(true);
+      } else {
+        // Show standard review modal
+        setReviewForm({ details: "", docUrl: "" });
+        setIsReviewModalOpen(true);
+      }
       return;
     }
 
@@ -719,6 +753,116 @@ export default function Tasks() {
       } else {
         setError(errorMessage);
       }
+    }
+  };
+
+  const handleBacklinkReviewSubmit = async () => {
+    // Validation
+    if (!backlinkReviewForm.summary.trim()) {
+      setError("Please provide a summary of what you did (required).");
+      return;
+    }
+
+    if (!backlinkReviewForm.linkTypes.create && !backlinkReviewForm.linkTypes.index) {
+      setError("Please select at least one link type (Links Created or Links Indexed).");
+      return;
+    }
+
+    if (backlinkReviewForm.linkTypes.create && backlinkReviewForm.linksCreated.filter(l => l.url.trim()).length === 0) {
+      setError("Please add at least one link for 'Links Created'.");
+      return;
+    }
+
+    if (backlinkReviewForm.linkTypes.index && backlinkReviewForm.linksIndexed.filter(l => l.url.trim()).length === 0) {
+      setError("Please add at least one link for 'Links Indexed'.");
+      return;
+    }
+
+    if (!taskToReview) return;
+
+    try {
+      // Determine submission type
+      let submissionType: 'create' | 'index' | 'both' = 'create';
+      if (backlinkReviewForm.linkTypes.create && backlinkReviewForm.linkTypes.index) {
+        submissionType = 'both';
+      } else if (backlinkReviewForm.linkTypes.index) {
+        submissionType = 'index';
+      }
+
+      // Filter out empty URLs
+      const linksCreated = backlinkReviewForm.linksCreated
+        .filter(l => l.url.trim())
+        .map(l => ({ url: l.url.trim() }));
+
+      const linksIndexed = backlinkReviewForm.linksIndexed
+        .filter(l => l.url.trim())
+        .map(l => ({ url: l.url.trim() }));
+
+      // Update task in database
+      const { error: updateError } = await supabase.from("tasks").update({
+        status: 'review',
+        backlink_summary: backlinkReviewForm.summary,
+        backlink_links_created: backlinkReviewForm.linkTypes.create ? linksCreated : null,
+        backlink_links_indexed: backlinkReviewForm.linkTypes.index ? linksIndexed : null,
+        backlink_submission_type: submissionType,
+        updated_at: new Date().toISOString()
+      }).eq("id", taskToReview.id);
+
+      if (updateError) throw updateError;
+
+      // Webhook call for backlink leads
+      try {
+        const webhookUrl = import.meta.env.VITE_BACKLINK_REVIEW_WEBHOOK_URL;
+        if (webhookUrl) {
+          console.log('Sending backlink webhook with payload:', {
+            taskId: taskToReview.id,
+            title: taskToReview.title,
+            backlink_summary: backlinkReviewForm.summary,
+            submission_type: submissionType,
+          });
+
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              taskId: taskToReview.id,
+              title: taskToReview.title,
+              description: taskToReview.description,
+              status: 'review',
+              projectId: taskToReview.project_id,
+              projectName: taskToReview.projectName,
+              assignee: taskToReview.assignee,
+              backlink_summary: backlinkReviewForm.summary,
+              backlink_links_created: backlinkReviewForm.linkTypes.create ? linksCreated : null,
+              backlink_links_indexed: backlinkReviewForm.linkTypes.index ? linksIndexed : null,
+              backlink_submission_type: submissionType,
+              submitted_at: new Date().toISOString(),
+            }),
+          });
+
+          if (!response.ok) {
+            console.error('Backlink webhook failed:', response.status, response.statusText);
+          }
+        } else {
+          console.warn('VITE_BACKLINK_REVIEW_WEBHOOK_URL not defined');
+        }
+      } catch (webhookErr) {
+        console.error('Error calling backlink webhook:', webhookErr);
+      }
+
+      setIsBacklinkReviewModalOpen(false);
+      setTaskToReview(null);
+      setBacklinkReviewForm({
+        summary: "",
+        linkTypes: { create: false, index: false },
+        linksCreated: [],
+        linksIndexed: [],
+      });
+      load();
+    } catch (err: unknown) {
+      console.error("Error submitting backlink review:", err);
+      const errorMessage = err instanceof Error ? err.message : "Failed to submit task for review";
+      setError(errorMessage);
     }
   };
 
@@ -970,6 +1114,124 @@ export default function Tasks() {
                   Cancel
                 </Button>
                 <Button onClick={handleReviewSubmit}>Submit for Review</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Backlink Lead Review Submission Modal */}
+          <Dialog open={isBacklinkReviewModalOpen} onOpenChange={setIsBacklinkReviewModalOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Submit Backlink Task for Review</DialogTitle>
+                <DialogDescription>
+                  Please provide details about your backlink work for: <strong>{taskToReview?.title}</strong>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 py-4">
+                {/* Summary */}
+                <div className="space-y-2">
+                  <Label htmlFor="backlink-summary">
+                    Summary <span className="text-destructive">*</span>
+                  </Label>
+                  <textarea
+                    id="backlink-summary"
+                    placeholder="Describe what you did for this task..."
+                    className="w-full min-h-[100px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    value={backlinkReviewForm.summary}
+                    onChange={(e) => setBacklinkReviewForm({ ...backlinkReviewForm, summary: e.target.value })}
+                  />
+                </div>
+
+                {/* Link Type Selection */}
+                <div className="space-y-3">
+                  <Label>
+                    Link Type <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="link-type-create"
+                        checked={backlinkReviewForm.linkTypes.create}
+                        onCheckedChange={(checked) =>
+                          setBacklinkReviewForm({
+                            ...backlinkReviewForm,
+                            linkTypes: { ...backlinkReviewForm.linkTypes, create: checked as boolean },
+                          })
+                        }
+                      />
+                      <label
+                        htmlFor="link-type-create"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Links Created
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="link-type-index"
+                        checked={backlinkReviewForm.linkTypes.index}
+                        onCheckedChange={(checked) =>
+                          setBacklinkReviewForm({
+                            ...backlinkReviewForm,
+                            linkTypes: { ...backlinkReviewForm.linkTypes, index: checked as boolean },
+                          })
+                        }
+                      />
+                      <label
+                        htmlFor="link-type-index"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Links Indexed
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Links Created Table */}
+                {backlinkReviewForm.linkTypes.create && (
+                  <div className="space-y-2">
+                    <Label>Links Created <span className="text-destructive">*</span></Label>
+                    <LinkSheetEditor
+                      links={backlinkReviewForm.linksCreated}
+                      onChange={(links) =>
+                        setBacklinkReviewForm({ ...backlinkReviewForm, linksCreated: links })
+                      }
+                      placeholder="Enter URL where you created a link..."
+                    />
+                  </div>
+                )}
+
+                {/* Links Indexed Table */}
+                {backlinkReviewForm.linkTypes.index && (
+                  <div className="space-y-2">
+                    <Label>Links Indexed <span className="text-destructive">*</span></Label>
+                    <LinkSheetEditor
+                      links={backlinkReviewForm.linksIndexed}
+                      onChange={(links) =>
+                        setBacklinkReviewForm({ ...backlinkReviewForm, linksIndexed: links })
+                      }
+                      placeholder="Enter URL of your blog where links were indexed..."
+                    />
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsBacklinkReviewModalOpen(false);
+                    setTaskToReview(null);
+                    setBacklinkReviewForm({
+                      summary: "",
+                      linkTypes: { create: false, index: false },
+                      linksCreated: [],
+                      linksIndexed: [],
+                    });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleBacklinkReviewSubmit}>Submit for Review</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
