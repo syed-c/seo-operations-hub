@@ -244,43 +244,33 @@ export default function Tasks() {
         tasksError = result.error;
       } else {
         // All other roles (Backlink Lead, SEO Lead, Content Lead, etc.) see ONLY their assigned tasks
-        // First get task IDs assigned to this user
-        console.log('=== FETCHING TASKS FOR NON-ADMIN USER ===');
-        console.log('User ID:', user.id);
-        console.log('User Role:', userRole);
+        // Use adminApiClient to bypass RLS on task_assignments
+        const adminApiClient = await import('@/lib/adminApiClient');
+        const assignmentsResult = await adminApiClient.selectRecords<{ task_id: string }>(
+          "task_assignments",
+          "task_id",
+          { user_id: user.id }
+        );
 
-        const { data: assignments, error: assignmentsError } = await supabase
-          .from("task_assignments")
-          .select("task_id")
-          .eq("user_id", user.id);
-
-        console.log('Assignments query result:', { assignments, assignmentsError });
-        console.log('Number of assignments:', assignments?.length || 0);
-
-        if (assignmentsError) {
-          console.error('Error fetching task assignments:', assignmentsError);
-          setError(`Failed to fetch task assignments: ${assignmentsError.message}`);
+        if (assignmentsResult?.error) {
+          setError(`Failed to fetch task assignments: ${assignmentsResult.error}`);
           setLoading(false);
           return;
         }
 
-        if (!assignments || assignments.length === 0) {
-          console.warn('No task assignments found for user:', user.id);
+        const assignments = assignmentsResult?.data || [];
+        if (assignments.length === 0) {
           setTasks([]);
           setLoading(false);
           return;
         }
 
         const taskIds = assignments.map(a => a.task_id);
-        console.log('Task IDs to fetch:', taskIds);
-
         const result = await supabase
           .from("tasks")
           .select("id, title, description, status, priority, type, due_date, project_id")
           .in("id", taskIds)
           .order("created_at", { ascending: false });
-
-        console.log('Tasks query result:', { data: result.data, error: result.error });
 
         tasksData = result.data;
         tasksError = result.error;
@@ -298,16 +288,16 @@ export default function Tasks() {
         return;
       }
 
-      // Fetch task assignments for all tasks
+      // Fetch task assignments for all tasks using adminApiClient to bypass RLS
       const taskIds = tasksData.map(t => t.id);
-      console.log('Fetching assignments for task IDs:', taskIds);
-      const { data: taskAssignments, error: assignmentsFetchError } = await supabase
-        .from('task_assignments')
-        .select('task_id, user_id')
-        .in('task_id', taskIds);
+      const adminApiClient = await import('@/lib/adminApiClient');
+      const assignmentsResult = await adminApiClient.selectRecords<{ task_id: string; user_id: string }>(
+        'task_assignments',
+        'task_id, user_id'
+      );
 
-      console.log('Fetched task assignments:', taskAssignments);
-      if (assignmentsFetchError) console.error('Error fetching assignments:', assignmentsFetchError);
+      // Filter assignments for the tasks we actually have
+      const taskAssignments = (assignmentsResult?.data || []).filter(a => taskIds.includes(a.task_id));
 
       // Fetch project names for all unique project IDs
       const projectIds = [...new Set(tasksData.map(t => t.project_id).filter(Boolean))];
@@ -373,12 +363,6 @@ export default function Tasks() {
         const assignee = assignment?.user_id ? assigneeInfoMap.get(assignment.user_id) || null : null;
         const projectName = task.project_id ? projectNamesMap.get(task.project_id) || null : null;
 
-        if (assignment?.user_id) {
-          console.log(`Task ${task.id} has assignment to user ${assignment.user_id}. Resolved assignee:`, assignee);
-        } else {
-          console.log(`Task ${task.id} has no assignment or user_id is null.`);
-        }
-
         return {
           ...task,
           assignee,
@@ -436,9 +420,7 @@ export default function Tasks() {
   }, [load]);
 
   const onCreate = async () => {
-    console.log("onCreate called", form); // Debug log
     if (!form.title.trim()) {
-      console.log("Task title is required"); // Debug log
       setError("Task title is required");
       return;
     }
@@ -470,13 +452,7 @@ export default function Tasks() {
       console.log("Task created successfully:", data); // Debug log
 
       // Create task assignment if an assignee was selected
-      console.log('=== CREATING TASK ASSIGNMENT ===');
-      console.log('Form assigneeId:', form.assigneeId);
-      console.log('Assignee selected:', form.assigneeId && form.assigneeId !== "unassigned");
-
       if (form.assigneeId && form.assigneeId !== "unassigned") {
-        console.log('Creating assignment for user:', form.assigneeId);
-
         // Use admin API to bypass RLS policies
         const adminApiClient = await import("@/lib/adminApiClient");
         const assignmentResult = await adminApiClient.createRecord(
@@ -487,19 +463,13 @@ export default function Tasks() {
           }
         );
 
-        console.log('Assignment creation result:', assignmentResult);
-
         if (assignmentResult?.error) {
           console.error(
             "Error creating task assignment:",
             assignmentResult.error
           ); // Debug log
-        } else {
-          console.log('✅ Task assignment created successfully!');
         }
       } else {
-        console.log('No assignee selected or assignee is "unassigned"');
-
         // Create assignment with null user if no assignee was selected
         const adminApiClient = await import("@/lib/adminApiClient");
         const assignmentResult = await adminApiClient.createRecord(
@@ -509,8 +479,6 @@ export default function Tasks() {
             user_id: null,
           }
         );
-
-        console.log('Null assignment creation result:', assignmentResult);
 
         if (assignmentResult?.error) {
           console.error(
