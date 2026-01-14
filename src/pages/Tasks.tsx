@@ -300,10 +300,14 @@ export default function Tasks() {
 
       // Fetch task assignments for all tasks
       const taskIds = tasksData.map(t => t.id);
-      const { data: taskAssignments } = await supabase
+      console.log('Fetching assignments for task IDs:', taskIds);
+      const { data: taskAssignments, error: assignmentsFetchError } = await supabase
         .from('task_assignments')
         .select('task_id, user_id')
         .in('task_id', taskIds);
+
+      console.log('Fetched task assignments:', taskAssignments);
+      if (assignmentsFetchError) console.error('Error fetching assignments:', assignmentsFetchError);
 
       // Fetch project names for all unique project IDs
       const projectIds = [...new Set(tasksData.map(t => t.project_id).filter(Boolean))];
@@ -368,6 +372,12 @@ export default function Tasks() {
         const assignment = (taskAssignments || []).find(a => a.task_id === task.id);
         const assignee = assignment?.user_id ? assigneeInfoMap.get(assignment.user_id) || null : null;
         const projectName = task.project_id ? projectNamesMap.get(task.project_id) || null : null;
+
+        if (assignment?.user_id) {
+          console.log(`Task ${task.id} has assignment to user ${assignment.user_id}. Resolved assignee:`, assignee);
+        } else {
+          console.log(`Task ${task.id} has no assignment or user_id is null.`);
+        }
 
         return {
           ...task,
@@ -460,7 +470,13 @@ export default function Tasks() {
       console.log("Task created successfully:", data); // Debug log
 
       // Create task assignment if an assignee was selected
+      console.log('=== CREATING TASK ASSIGNMENT ===');
+      console.log('Form assigneeId:', form.assigneeId);
+      console.log('Assignee selected:', form.assigneeId && form.assigneeId !== "unassigned");
+
       if (form.assigneeId && form.assigneeId !== "unassigned") {
+        console.log('Creating assignment for user:', form.assigneeId);
+
         // Use admin API to bypass RLS policies
         const adminApiClient = await import("@/lib/adminApiClient");
         const assignmentResult = await adminApiClient.createRecord(
@@ -471,13 +487,19 @@ export default function Tasks() {
           }
         );
 
+        console.log('Assignment creation result:', assignmentResult);
+
         if (assignmentResult?.error) {
           console.error(
             "Error creating task assignment:",
             assignmentResult.error
           ); // Debug log
+        } else {
+          console.log('✅ Task assignment created successfully!');
         }
       } else {
+        console.log('No assignee selected or assignee is "unassigned"');
+
         // Create assignment with null user if no assignee was selected
         const adminApiClient = await import("@/lib/adminApiClient");
         const assignmentResult = await adminApiClient.createRecord(
@@ -487,6 +509,8 @@ export default function Tasks() {
             user_id: null,
           }
         );
+
+        console.log('Null assignment creation result:', assignmentResult);
 
         if (assignmentResult?.error) {
           console.error(
