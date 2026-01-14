@@ -738,29 +738,40 @@ export default function Tasks() {
           };
 
           console.log('Sending backlink webhook with payload:', payload);
+          console.log('Payload as JSON string:', JSON.stringify(payload));
 
           const response = await fetch(webhookUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
             body: JSON.stringify(payload),
           });
 
           console.log('Webhook response status:', response.status);
           console.log('Webhook response ok:', response.ok);
+          console.log('Webhook response headers:', response.headers);
 
           const responseText = await response.text();
           console.log('Webhook response body:', responseText);
 
           if (!response.ok) {
             console.error('Backlink webhook failed:', response.status, response.statusText);
+            console.error('Response body:', responseText);
           } else {
             console.log('✅ Backlink webhook called successfully!');
+            console.log('Response:', responseText);
           }
         } else {
           console.warn('⚠️ VITE_BACKLINK_REVIEW_WEBHOOK_URL not defined');
         }
       } catch (webhookErr) {
         console.error('❌ Error calling backlink webhook:', webhookErr);
+        if (webhookErr instanceof Error) {
+          console.error('Error message:', webhookErr.message);
+          console.error('Error stack:', webhookErr.stack);
+        }
       }
 
       setIsBacklinkReviewModalOpen(false);
