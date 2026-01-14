@@ -15,6 +15,10 @@ export interface Task {
   type: 'content' | 'technical' | 'backlinks' | 'local' | 'audit' | 'general' | null;
   completion_details?: string | null;
   completion_doc_url?: string | null;
+  backlink_summary?: string | null;
+  backlink_links_created?: Array<{ url: string }> | null;
+  backlink_links_indexed?: Array<{ url: string }> | null;
+  backlink_submission_type?: 'create' | 'index' | 'both' | null;
 }
 
 // Helper function to get project IDs for a user based on their role
