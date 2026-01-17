@@ -122,7 +122,7 @@ export default function PagesPage() {
       </div>
       
       {isLoading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
-      {error && <p className="text-sm text-destructive mb-4">{error.message || error}</p>}
+      {error && <p className="text-sm text-destructive mb-4">{error instanceof Error ? error.message : String(error)}</p>}
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {pages.map((page) => (

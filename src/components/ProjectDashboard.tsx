@@ -45,15 +45,21 @@ export function ProjectDashboard() {
   };
 
   const handleFetchData = async () => {
-    if (!selectedProject || !selectedProject.id || !selectedProject.user_id) return;
+    if (!selectedProject || !selectedProject.id) return;
     
     try {
       setIsLoading(true);
       setError(null);
       
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+      
       // Import the function dynamically to avoid importing it at module level
       const { getStoredGoogleToken } = await import('@/services/googleSearchConsoleService');
-      const token = await getStoredGoogleToken(selectedProject.user_id);
+      const token = await getStoredGoogleToken(user.id);
       if (!token) {
         throw new Error('No Google token found');
       }

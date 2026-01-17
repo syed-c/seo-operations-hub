@@ -183,15 +183,17 @@ export default function Team() {
       }
       
       // Handle different response structures for auth user creation
-      let userId;
-      if (authResult && authResult.data && authResult.data.length > 0) {
-        userId = authResult.data[0].id;
-      } else if (authResult && Array.isArray(authResult) && authResult.length > 0) {
+      let userId: string | undefined;
+      const authData = authResult as { data?: Array<{ id: string }>; id?: string } | Array<{ id: string }>;
+      
+      if (authData && typeof authData === 'object' && 'data' in authData && authData.data && authData.data.length > 0) {
+        userId = authData.data[0].id;
+      } else if (Array.isArray(authData) && authData.length > 0) {
         // Fallback for different response structure
-        userId = authResult[0].id;
-      } else if (authResult && authResult.id) {
+        userId = authData[0].id;
+      } else if (authData && typeof authData === 'object' && 'id' in authData && authData.id) {
         // Direct user object response
-        userId = authResult.id;
+        userId = authData.id;
       } else {
         throw new Error('Failed to create auth user - invalid response structure');
       }
