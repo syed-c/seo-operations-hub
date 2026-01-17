@@ -82,7 +82,8 @@ export default function Projects() {
         
         console.log('Raw team members data:', result.data); // Debug log
         // Filter out Super Admins on the client side since the Edge Function only supports equality filters
-        const filteredUsers = result.data.filter(user => user && user.role !== 'Super Admin');
+        const typedData = result.data as Array<{ id: string; email: string; first_name?: string; last_name?: string; role?: string }>;
+        const filteredUsers = typedData.filter(user => user && user.role !== 'Super Admin');
         console.log('Filtered team members:', filteredUsers); // Debug log
         return filteredUsers;
       } catch (error) {
@@ -317,7 +318,7 @@ export default function Projects() {
       }
       
       // Filter the users to only include the ones we need
-      const allUsers = result.data || [];
+      const allUsers = (result.data || []) as Array<{ id: string; email: string; first_name?: string; last_name?: string }>;
       const usersData = allUsers.filter(user => userIds.includes(user.id));
       
       console.log('Users data from admin API:', usersData); // Debug log
