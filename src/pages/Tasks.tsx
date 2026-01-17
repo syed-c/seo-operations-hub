@@ -740,6 +740,8 @@ export default function Tasks() {
             backlink_submission_type: submissionType,
             backlink_links_created: submissionType === 'index' ? [] : linksCreated,
             backlink_links_indexed: submissionType === 'create' ? [] : linksIndexed,
+            backlink_links_created_count: (submissionType === 'index' ? [] : linksCreated).length,
+            backlink_links_indexed_count: (submissionType === 'create' ? [] : linksIndexed).length,
             submitted_at: new Date().toISOString(),
           };
 
