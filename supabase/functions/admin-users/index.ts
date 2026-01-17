@@ -85,8 +85,8 @@ serve(async (req: Request) => {
           const { data: authResult, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password: password || undefined, // Only include password if provided
-            emailConfirm: email_confirm !== false, // Default to true if not specified
-            userMetadata: user_metadata || {},
+            email_confirm: email_confirm !== false, // Default to true if not specified
+            user_metadata: user_metadata || {},
           });
           
           if (authError) {

@@ -1,14 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { supabase, ensureSupabase } from "@/lib/supabaseClient";
-
-interface Project {
-  id: string;
-  name: string;
-  client?: string;
-  status?: string;
-  health_score?: number;
-  created_at?: string;
-}
+import { Project } from "@/types";
 
 interface ProjectContextType {
   selectedProject: Project | null;
