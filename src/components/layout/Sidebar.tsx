@@ -94,7 +94,7 @@ const defaultNavSections: NavSection[] = [
     items: [
       { title: "Tasks", href: "/tasks", icon: ListTodo, badge: 23 },
       { title: "Automation", href: "/automation", icon: Zap },
-      { title: "Reports", href: "/reports", icon: BarChart3 },
+      { title: "Reports", href: "/backlink-reports", icon: BarChart3 },
       { title: "Team Chat", href: "/chat", icon: MessageSquare, badge: 5 },
       { title: "Team", href: "/team", icon: Users },
     ],
