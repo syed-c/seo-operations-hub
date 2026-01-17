@@ -6,14 +6,14 @@ import { useRoleTasks } from "@/hooks/useRoleTasks";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import { KPICard } from "@/components/dashboard/KPICard";
-import { 
-  MousePointerClick, 
-  Eye, 
-  TrendingUp, 
-  Wrench, 
-  FileText, 
-  Link2, 
-  MapPin, 
+import {
+  MousePointerClick,
+  Eye,
+  TrendingUp,
+  Wrench,
+  FileText,
+  Link2,
+  MapPin,
   AlertCircle,
   Users,
   Target,
@@ -33,6 +33,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BacklinkReportsDashboard } from "@/components/reports/BacklinkReportsDashboard";
 
 interface UserRole {
   id: string;
@@ -48,7 +49,7 @@ interface DashboardProps {
 const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
   const [role, setRole] = useState<string>(userRole);
   const [availableRoles, setAvailableRoles] = useState<UserRole[]>([]);
-  
+
   // Use the new hook for dashboard data
   const { data, loading, error } = useRoleDashboardData(role, userId);
 
@@ -59,12 +60,12 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
           .from('roles')
           .select('id, name, description')
           .order('name');
-        
+
         if (error) {
           console.error('Error fetching roles:', error);
           return;
         }
-        
+
         setAvailableRoles(data || []);
       } catch (err) {
         console.error('Error:', err);
@@ -89,14 +90,14 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
   };
 
   const kpiData = getKpiData();
-  
+
   // Show loading state
   if (loading) {
     return (
       <MainLayout>
-        <Header 
-          title={`${role} Dashboard`} 
-          subtitle={`Performance overview for ${role} role`} 
+        <Header
+          title={`${role} Dashboard`}
+          subtitle={`Performance overview for ${role} role`}
         />
         <div className="flex items-center justify-center h-64">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
@@ -104,14 +105,14 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
       </MainLayout>
     );
   }
-  
+
   // Show error state
   if (error) {
     return (
       <MainLayout>
-        <Header 
-          title={`${role} Dashboard`} 
-          subtitle={`Performance overview for ${role} role`} 
+        <Header
+          title={`${role} Dashboard`}
+          subtitle={`Performance overview for ${role} role`}
         />
         <div className="p-4 bg-red-50 border border-red-200 rounded-md">
           <p className="text-red-800">Error loading dashboard data: {error}</p>
@@ -164,6 +165,14 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
 
     return (
       <div className="space-y-6">
+        {/* Backlink Reports Section for relevant roles */}
+        {['Super Admin', 'SEO Lead', 'Backlink Lead', 'Manager'].includes(userRole) && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium">Backlink Automation Reports</h3>
+            <BacklinkReportsDashboard />
+          </div>
+        )}
+
         {/* Time Filter */}
         <div className="flex justify-end">
           <Select value={timeFilter || "all"} onValueChange={(value) => setTimeFilter(value === "all" ? undefined : value as any)}>
@@ -314,10 +323,10 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
         'review': { label: 'Review', color: 'bg-yellow-100 text-yellow-800', icon: EyeIcon },
         'done': { label: 'Done', color: 'bg-green-100 text-green-800', icon: CheckCircle },
       };
-      
+
       const config = statusConfig[status as keyof typeof statusConfig] || { label: status, color: 'bg-gray-100 text-gray-800', icon: Circle };
       const Icon = config.icon;
-      
+
       return (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
           <Icon className="mr-1.5 h-3 w-3" />
@@ -334,9 +343,9 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
         'high': { label: 'High', color: 'bg-yellow-100 text-yellow-800' },
         'urgent': { label: 'Urgent', color: 'bg-red-100 text-red-800' },
       };
-      
+
       const config = priorityConfig[priority as keyof typeof priorityConfig] || { label: priority, color: 'bg-gray-100 text-gray-800' };
-      
+
       return (
         <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${config.color}`}>
           {config.label}
@@ -360,7 +369,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
               <SelectItem value="done">Done</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Select value={filters.priority || "all"} onValueChange={(value) => updateFilters({ ...filters, priority: value === "all" ? undefined : value as any })}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Priority" />
@@ -373,7 +382,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
               <SelectItem value="urgent">Urgent</SelectItem>
             </SelectContent>
           </Select>
-          
+
           <Select value={filters.dueDate || "all"} onValueChange={(value) => updateFilters({ ...filters, dueDate: value === "all" ? undefined : value as any })}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Due Date" />
@@ -385,7 +394,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
               <SelectItem value="upcoming">Upcoming</SelectItem>
             </SelectContent>
           </Select>
-          
+
           {(filters.status || filters.priority || filters.dueDate) && (
             <Button variant="outline" onClick={clearFilters}>
               Clear Filters
@@ -456,7 +465,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
             { label: "Billing & Invoices", icon: BarChart3 },
           ]
         };
-      
+
       case 'SEO Lead':
         return {
           overview: "As an SEO Lead, you manage multiple projects and coordinate team efforts. Track keyword rankings, monitor traffic growth, and ensure all SEO initiatives are aligned with business goals.",
@@ -467,7 +476,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
             { label: "Team Performance", icon: Users },
           ]
         };
-      
+
       case 'Content Lead':
         return {
           overview: "As a Content Lead, you oversee content strategy and production. Monitor content performance, track publishing schedules, and ensure all content meets SEO standards.",
@@ -478,7 +487,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
             { label: "Content Calendar", icon: Calendar },
           ]
         };
-      
+
       case 'Backlink Lead':
         return {
           overview: "As a Backlink Lead, you focus on link building and competitor analysis. Track backlink growth, monitor domain authority, and identify new link building opportunities.",
@@ -489,7 +498,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
             { label: "Backlink Report", icon: BarChart3 },
           ]
         };
-      
+
       case 'Developer':
         return {
           overview: "As a Developer, you handle technical SEO implementation. Monitor site performance, fix technical issues, and ensure optimal crawlability and indexation.",
@@ -500,7 +509,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
             { label: "Security Check", icon: Shield },
           ]
         };
-      
+
       case 'Client':
         return {
           overview: "As a Client, you can view project progress and performance metrics. Track your organic traffic growth, keyword rankings, and completed tasks.",
@@ -511,7 +520,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
             { label: "View Tasks", icon: ListTodo },
           ]
         };
-      
+
       default:
         return {
           overview: "Welcome to your dashboard. Select a role to see role-specific metrics and actions.",
@@ -524,11 +533,11 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
 
   return (
     <MainLayout>
-      <Header 
-        title={`${role} Dashboard`} 
-        subtitle={`Performance overview for ${role} role`} 
+      <Header
+        title={`${role} Dashboard`}
+        subtitle={`Performance overview for ${role} role`}
       />
-      
+
       {/* Role Selector */}
       <div className="mb-6">
         <div className="flex flex-wrap gap-2">
@@ -551,7 +560,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
           <TabsTrigger value="analytics">Analytics</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
         </TabsList>
-        
+
         <TabsContent value="overview" className="space-y-6">
           {/* KPI Cards Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -582,7 +591,7 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
                 </CardContent>
               </Card>
             </div>
-            
+
             <div>
               <Card>
                 <CardHeader>
@@ -591,9 +600,9 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
                 <CardContent>
                   <div className="space-y-3">
                     {roleContent.quickActions.map((action, index) => (
-                      <Button 
-                        key={index} 
-                        className="w-full justify-start gap-2" 
+                      <Button
+                        key={index}
+                        className="w-full justify-start gap-2"
                         variant="outline"
                       >
                         <action.icon className="w-4 h-4" />
@@ -606,11 +615,11 @@ const RoleBasedDashboard = ({ userRole, userId }: DashboardProps) => {
             </div>
           </div>
         </TabsContent>
-        
+
         <TabsContent value="analytics" className="space-y-6">
           <AnalyticsTab userRole={role} userId={userId} />
         </TabsContent>
-        
+
         <TabsContent value="tasks" className="space-y-6">
           <TasksTab userRole={role} userId={userId} />
         </TabsContent>

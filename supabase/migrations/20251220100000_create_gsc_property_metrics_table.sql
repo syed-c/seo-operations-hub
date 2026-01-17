@@ -21,12 +21,14 @@ CREATE INDEX IF NOT EXISTS idx_gsc_property_metrics_date ON gsc_property_metrics
 ALTER TABLE gsc_property_metrics ENABLE ROW LEVEL SECURITY;
 
 -- Create policies using our security definer functions
+DROP POLICY IF EXISTS "Users can access project gsc property metrics" ON gsc_property_metrics;
 CREATE POLICY "Users can access project gsc property metrics" ON gsc_property_metrics
   FOR ALL USING (
     check_user_in_project(project_id, auth.uid())
   );
 
 -- Admins can manage all gsc property metrics
+DROP POLICY IF EXISTS "Admins can manage all gsc property metrics" ON gsc_property_metrics;
 CREATE POLICY "Admins can manage all gsc property metrics" ON gsc_property_metrics
   FOR ALL USING (
     EXISTS (

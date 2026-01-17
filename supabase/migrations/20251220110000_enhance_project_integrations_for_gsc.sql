@@ -22,6 +22,15 @@ WHERE service_name IN ('google_search_console', 'google_analytics', 'google_busi
 AND provider IS NULL;
 
 -- Add constraint to ensure provider and service_name are consistent
-ALTER TABLE project_integrations 
-ADD CONSTRAINT chk_provider_service_name_consistency 
-CHECK (provider IS NULL OR provider = service_name);
+-- Add constraint to ensure provider and service_name are consistent
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.table_constraints 
+        WHERE constraint_name = 'chk_provider_service_name_consistency'
+    ) THEN
+        ALTER TABLE project_integrations 
+        ADD CONSTRAINT chk_provider_service_name_consistency 
+        CHECK (provider IS NULL OR provider = service_name);
+    END IF;
+END $$;
