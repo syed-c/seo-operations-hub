@@ -34,7 +34,7 @@ import {
   Folder,
 } from 'lucide-react';
 import { useBacklinkReport } from '@/hooks/useBacklinkReports';
-import { BacklinkReportStatus, BacklinkReportPayload } from '@/types';
+import { BacklinkReportStatus, BacklinkReportPayload, IndexedBlogsSummary, CreatedLinksSummary } from '@/types';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
 
@@ -71,8 +71,8 @@ export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: Backlin
   const [copied, setCopied] = useState(false);
 
   const handleCopyJson = () => {
-    if (report?.payload) {
-      navigator.clipboard.writeText(JSON.stringify(report.payload, null, 2));
+    if (report?.report_payload) {
+      navigator.clipboard.writeText(JSON.stringify(report.report_payload, null, 2));
       setCopied(true);
       toast({ title: 'Copied to clipboard' });
       setTimeout(() => setCopied(false), 2000);
@@ -83,7 +83,9 @@ export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: Backlin
 
   const status = report?.status ? statusConfig[report.status] : null;
   const StatusIcon = status?.icon || AlertCircle;
-  const payload = report?.payload as BacklinkReportPayload | null;
+  const payload = report?.report_payload as BacklinkReportPayload | null;
+  const createdLinks = report?.created_links_summary as CreatedLinksSummary | null;
+  const indexedBlogs = report?.indexed_blogs_summary as IndexedBlogsSummary | null;
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -140,41 +142,41 @@ export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: Backlin
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Calendar className="w-4 h-4" />
-                  <span>{new Date(report.created_at).toLocaleString()}</span>
+                  <span>{new Date(report.submitted_at).toLocaleString()}</span>
                 </div>
               </div>
 
-              {/* Summary Stats */}
-              {payload?.summary && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-2xl font-bold">{payload.summary.total_created_links}</p>
-                      <p className="text-xs text-muted-foreground">Total Links</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-2xl font-bold text-success">{payload.summary.working_links}</p>
-                      <p className="text-xs text-muted-foreground">Working</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className={cn('text-2xl font-bold', payload.summary.dead_links > 0 && 'text-destructive')}>
-                        {payload.summary.dead_links}
-                      </p>
-                      <p className="text-xs text-muted-foreground">Dead</p>
-                    </CardContent>
-                  </Card>
-                  <Card>
-                    <CardContent className="p-4 text-center">
-                      <p className="text-2xl font-bold">{payload.summary.total_indexed_blogs}</p>
-                      <p className="text-xs text-muted-foreground">Blogs</p>
-                    </CardContent>
-                  </Card>
-                </div>
-              )}
+              {/* Summary Stats - using actual DB columns */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold">{report.total_links_checked || 0}</p>
+                    <p className="text-xs text-muted-foreground">Total Links</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className="text-2xl font-bold text-success">{report.total_working || 0}</p>
+                    <p className="text-xs text-muted-foreground">Working</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className={cn('text-2xl font-bold', (report.total_dead || 0) > 0 && 'text-destructive')}>
+                      {report.total_dead || 0}
+                    </p>
+                    <p className="text-xs text-muted-foreground">Dead</p>
+                  </CardContent>
+                </Card>
+                <Card>
+                  <CardContent className="p-4 text-center">
+                    <p className={cn('text-2xl font-bold', report.health_percentage < 80 ? 'text-warning' : 'text-success')}>
+                      {report.health_percentage || 0}%
+                    </p>
+                    <p className="text-xs text-muted-foreground">Health</p>
+                  </CardContent>
+                </Card>
+              </div>
 
               {/* Tabs for Details */}
               <Tabs defaultValue="created_links" className="w-full">
@@ -186,124 +188,146 @@ export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: Backlin
 
                 {/* Created Links Tab */}
                 <TabsContent value="created_links" className="mt-4 space-y-2">
-                  {payload?.created_links?.length === 0 ? (
+                  {!createdLinks || createdLinks.total === 0 ? (
                     <p className="text-muted-foreground text-center py-4">No created links in this report</p>
                   ) : (
-                    payload?.created_links?.map((link, idx) => (
-                      <Card key={idx} className="p-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <Link className={cn('w-4 h-4 flex-shrink-0', link.status === 'working' ? 'text-success' : 'text-destructive')} />
-                            <a
-                              href={link.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm truncate hover:underline"
-                            >
-                              {link.url}
-                            </a>
+                    <div className="space-y-3">
+                      <div className="flex gap-4 text-sm mb-4">
+                        <span className="text-success">✓ Working: {createdLinks.working}</span>
+                        <span className="text-destructive">✗ Dead: {createdLinks.dead}</span>
+                        <span>Total: {createdLinks.total}</span>
+                      </div>
+                      {createdLinks.dead_list?.map((link, idx) => (
+                        <Card key={idx} className="p-3 border-l-4 border-l-destructive">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Link className="w-4 h-4 flex-shrink-0 text-destructive" />
+                              <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm truncate hover:underline"
+                              >
+                                {link.url}
+                              </a>
+                            </div>
+                            <Badge variant="destructive" className="flex-shrink-0 ml-2">
+                              Dead
+                            </Badge>
                           </div>
-                          <Badge variant={link.status === 'working' ? 'default' : 'destructive'} className="flex-shrink-0 ml-2">
-                            {link.status}
-                          </Badge>
-                        </div>
-                        {link.anchor_text && (
                           <p className="text-xs text-muted-foreground mt-1 ml-6">
-                            Anchor: "{link.anchor_text}"
+                            Reason: {link.reason}
                           </p>
-                        )}
-                      </Card>
-                    ))
+                        </Card>
+                      ))}
+                    </div>
                   )}
                 </TabsContent>
 
                 {/* Indexed Blogs Tab */}
                 <TabsContent value="indexed_blogs" className="mt-4 space-y-2">
-                  {payload?.indexed_blogs?.length === 0 ? (
+                  {!indexedBlogs || indexedBlogs.total_blogs === 0 ? (
                     <p className="text-muted-foreground text-center py-4">No indexed blogs in this report</p>
                   ) : (
-                    payload?.indexed_blogs?.map((blog, idx) => (
-                      <Card key={idx} className="p-3">
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-2 min-w-0 flex-1">
-                            <FileText className={cn('w-4 h-4 flex-shrink-0', blog.is_indexed ? 'text-success' : 'text-warning')} />
-                            <a
-                              href={blog.blog_url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-sm truncate hover:underline"
-                            >
-                              {blog.blog_url}
-                            </a>
+                    <div className="space-y-3">
+                      <div className="flex gap-4 text-sm mb-4">
+                        <span className="text-success">Healthy: {indexedBlogs.healthy_blogs}</span>
+                        <span className="text-warning">Warning: {indexedBlogs.warning_blogs}</span>
+                        <span className="text-destructive">Critical: {indexedBlogs.critical_blogs}</span>
+                      </div>
+                      {indexedBlogs.blog_details?.map((blog, idx) => (
+                        <Card key={idx} className={cn('p-3 border-l-4', 
+                          blog.blog_status === 'critical' ? 'border-l-destructive' : 
+                          blog.blog_status === 'warning' ? 'border-l-warning' : 'border-l-success'
+                        )}>
+                          <div className="flex items-center justify-between mb-2">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <FileText className={cn('w-4 h-4 flex-shrink-0', 
+                                blog.blog_status === 'critical' ? 'text-destructive' :
+                                blog.blog_status === 'warning' ? 'text-warning' : 'text-success'
+                              )} />
+                              <a
+                                href={blog.blog_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm truncate hover:underline font-medium"
+                              >
+                                {blog.blog_title || blog.blog_url}
+                              </a>
+                            </div>
+                            <Badge variant={blog.blog_status === 'critical' ? 'destructive' : blog.blog_status === 'warning' ? 'secondary' : 'default'} className="flex-shrink-0 ml-2">
+                              {blog.blog_status}
+                            </Badge>
                           </div>
-                          <Badge variant={blog.is_indexed ? 'default' : 'secondary'} className="flex-shrink-0 ml-2">
-                            {blog.is_indexed ? 'Indexed' : 'Not Indexed'}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-muted-foreground ml-6">
-                          {blog.interlink_count} interlinks ({blog.interlinks?.filter(i => i.status === 'dead').length || 0} dead)
-                        </p>
-                      </Card>
-                    ))
+                          <p className="text-xs text-muted-foreground ml-6 mb-2">
+                            {blog.total_interlinks} interlinks ({blog.working_interlinks} working, {blog.dead_interlinks} dead)
+                          </p>
+                          {blog.issues.length > 0 && (
+                            <div className="ml-6 text-xs text-destructive">
+                              {blog.issues.map((issue, i) => (
+                                <p key={i}>• {issue}</p>
+                              ))}
+                            </div>
+                          )}
+                        </Card>
+                      ))}
+                    </div>
                   )}
                 </TabsContent>
 
-                {/* Issues Tab */}
+                {/* Issues Tab - using requires_attention from indexed_blogs_summary */}
                 <TabsContent value="issues" className="mt-4 space-y-3">
-                  {payload?.requires_attention && payload.requires_attention.length > 0 && (
+                  {indexedBlogs?.requires_attention && indexedBlogs.requires_attention.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="font-semibold text-sm flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-warning" />
-                        Requires Attention
+                        Blogs Requiring Attention ({indexedBlogs.requires_attention.length})
                       </h4>
-                      {payload.requires_attention.map((issue, idx) => (
+                      {indexedBlogs.requires_attention.map((url, idx) => (
                         <Card key={idx} className="p-3 border-l-4 border-l-warning">
-                          <p className="text-sm font-medium">{issue.message}</p>
-                          {issue.url && (
-                            <a
-                              href={issue.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-muted-foreground hover:underline flex items-center gap-1 mt-1"
-                            >
-                              {issue.url}
-                              <ExternalLink className="w-3 h-3" />
-                            </a>
-                          )}
-                          <Badge variant="outline" className="mt-2 text-xs">
-                            {issue.type.replace(/_/g, ' ')}
-                          </Badge>
+                          <a
+                            href={url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm hover:underline flex items-center gap-1"
+                          >
+                            {url}
+                            <ExternalLink className="w-3 h-3" />
+                          </a>
                         </Card>
                       ))}
                     </div>
                   )}
 
-                  {payload?.issues && payload.issues.length > 0 && (
+                  {createdLinks?.dead_list && createdLinks.dead_list.length > 0 && (
                     <div className="space-y-2">
                       <h4 className="font-semibold text-sm flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 text-destructive" />
-                        All Issues ({payload.issues.length})
+                        Dead Created Links ({createdLinks.dead_list.length})
                       </h4>
-                      {payload.issues.map((issue, idx) => (
-                        <Card key={idx} className={cn('p-3 border-l-4', issue.severity === 'critical' ? 'border-l-destructive' : 'border-l-warning')}>
-                          <p className="text-sm">{issue.message}</p>
-                          <div className="flex gap-2 mt-2">
-                            <Badge variant={issue.severity === 'critical' ? 'destructive' : 'secondary'} className="text-xs">
-                              {issue.severity}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs">
-                              {issue.type.replace(/_/g, ' ')}
-                            </Badge>
-                          </div>
+                      {createdLinks.dead_list.map((link, idx) => (
+                        <Card key={idx} className="p-3 border-l-4 border-l-destructive">
+                          <a
+                            href={link.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm hover:underline"
+                          >
+                            {link.url}
+                          </a>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {link.reason} (Status: {link.status})
+                          </p>
                         </Card>
                       ))}
                     </div>
                   )}
 
-                  {(!payload?.issues || payload.issues.length === 0) && (!payload?.requires_attention || payload.requires_attention.length === 0) && (
+                  {(!indexedBlogs?.requires_attention || indexedBlogs.requires_attention.length === 0) && 
+                   (!createdLinks?.dead_list || createdLinks.dead_list.length === 0) && (
                     <div className="text-center py-8">
                       <CheckCircle className="w-12 h-12 mx-auto text-success mb-2" />
-                      <p className="text-muted-foreground">No issues found!</p>
+                      <p className="text-muted-foreground">No critical issues found!</p>
                     </div>
                   )}
                 </TabsContent>
@@ -328,7 +352,7 @@ export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: Backlin
                       {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </Button>
                     <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-xs max-h-96">
-                      {JSON.stringify(payload, null, 2)}
+                      {JSON.stringify(report.report_payload, null, 2)}
                     </pre>
                   </div>
                 </CollapsibleContent>
