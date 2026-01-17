@@ -103,18 +103,21 @@ export default function Rankings() {
       }
 
       // Transform the data to match our interfaces with proper data integrity
-      const transformedRankings = (rankingsData || []).map(item => ({
-        id: item.id,
-        ranking_id: item.id,
-        keyword_id: item.keyword_id,
-        keyword: item.keywords?.keyword || "Unknown Keyword",
-        position: item.position !== null ? item.position : "No ranking on first page",
-        location: item.location || "Global",
-        device: item.device || "desktop",
-        search_volume: item.search_volume !== null ? item.search_volume : 0,
-        trend: item.trend,
-        recorded_at: item.recorded_at
-      }));
+      const transformedRankings = (rankingsData || []).map((item: any) => {
+        const keywords = item.keywords as { id: string; keyword: string; intent: string } | null;
+        return {
+          id: item.id,
+          ranking_id: item.id,
+          keyword_id: item.keyword_id,
+          keyword: keywords?.keyword || "Unknown Keyword",
+          position: item.position !== null ? item.position : "No ranking on first page",
+          location: item.location || "Global",
+          device: item.device || "desktop",
+          search_volume: item.search_volume !== null ? item.search_volume : 0,
+          trend: undefined as string | undefined,
+          recorded_at: new Date().toISOString()
+        };
+      });
       const transformedHistory = (historyData || []).map(item => ({
         id: item.id,
         keyword_id: item.keyword_id,

@@ -28,21 +28,26 @@ export function GoogleSearchConsoleConnect() {
     if (!selectedProject || !selectedProject.id) return;
     
     try {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
       // Check if user has Google token (more reliable than project integration state)
       const { data } = await supabase
         .from('user_tokens')
         .select('id')
         .eq('provider', 'google')
+        .eq('user_id', user.id)
         .limit(1);
       
-      const isConnected = data?.length > 0;
+      const isConnected = (data?.length ?? 0) > 0;
       setIsConnected(isConnected);
       
       // If connected, fetch sites to display them
       if (isConnected) {
         // Import token function dynamically to avoid importing at module level
         const { getStoredGoogleToken } = await import('@/services/googleSearchConsoleService');
-        const token = await getStoredGoogleToken(selectedProject.user_id);
+        const token = await getStoredGoogleToken(user.id);
         if (token) {
           const sites = await fetchSearchConsoleSites(token.access_token);
           setSites(sites);
@@ -83,13 +88,17 @@ export function GoogleSearchConsoleConnect() {
   };
 
   const fetchAnalyticsData = async (accessToken: string, siteUrl: string) => {
-    if (!selectedProject || !selectedProject.id || !selectedProject.user_id) return;
+    if (!selectedProject || !selectedProject.id) return;
     
     try {
+      // Get the current user
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      
       // Import token function dynamically
       const { getStoredGoogleToken } = await import('@/services/googleSearchConsoleService');
       // Extract account email from token
-      const token = await getStoredGoogleToken(selectedProject.user_id);
+      const token = await getStoredGoogleToken(user.id);
       const accountEmail = token?.account_email || '';
       
       // Use the new combined function to fetch both property and page data
