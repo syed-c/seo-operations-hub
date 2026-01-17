@@ -144,69 +144,129 @@ serve(async (req: Request) => {
       auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
     });
 
-    // Parse the incoming report data
+    // Parse the incoming request
     const body = await req.json();
-    console.log('Received backlink report data:', JSON.stringify(body).substring(0, 500));
+    console.log('Received payload:', JSON.stringify(body).substring(0, 500));
 
-    const { 
-      task_id, 
-      project_id, 
-      assignee_id, 
-      status, 
-      summary, 
-      payload 
-    } = body;
+    // Determine if this is a direct call or a webhook
+    let reportData;
+    let isWebhook = false;
 
-    if (!task_id || !project_id || !assignee_id || !status || !payload) {
+    if (body.type === 'INSERT' && body.table === 'backlink_reports' && body.record) {
+      // Database Webhook
+      isWebhook = true;
+      reportData = body.record;
+      console.log('Processing Webhook Insert for Report:', reportData.id);
+    } else {
+      // Fallback: Direct call (assumes body IS the report data)
+      // NOTE: In the new architecture, we should rely on the DB Insert.
+      // However, if the user manually calls this, we might want to support it.
+      // But for now, let's assume if it is NOT a webhook, it might be a payload to INSERT.
+      // But the requirement says "Function should: Fetch full report... Perform automation".
+      // Let's strictly support the Webhook format or a format that provides `record`.
+
+      // If the body has task_id etc, it's attempting to insert.
+      // We'll skip that logic to avoid duplication with the webhook flow.
       return new Response(
-        JSON.stringify({ error: 'Missing required fields: task_id, project_id, assignee_id, status, payload' }),
+        JSON.stringify({ error: 'This function now expects a Supabase Database Webhook payload (INSERT on backlink_reports)' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    // 1. Insert the backlink report
-    const { data: reportData, error: reportError } = await supabaseAdmin
-      .from('backlink_reports')
-      .insert({
-        task_id,
-        project_id,
-        assignee_id,
-        status,
-        summary: summary || payload.summary,
-        payload,
-        processed_at: new Date().toISOString(),
-      })
-      .select()
-      .single();
+    const {
+      id: reportId,
+      task_id,
+      project_id,
+      assignee_id,
+      status,
+      // Handle both new and legacy schema
+      payload: rawPayload,
+      report_payload: legacyPayload,
+      // Handle both summary locations
+      summary: rawSummary,
+      created_links_summary,
+      indexed_blogs_summary
+    } = reportData;
 
-    if (reportError) {
-      console.error('Error inserting report:', reportError);
+    // Normalize Payload
+    let payload: BacklinkReportPayload;
+
+    // Check if we have the new standard payload
+    if (rawPayload && Object.keys(rawPayload).length > 0) {
+      payload = rawPayload;
+    }
+    // Fallback to legacy structure
+    else if (legacyPayload && Object.keys(legacyPayload).length > 0) {
+      const p = legacyPayload;
+      payload = {
+        created_links: p.created_links?.dead_list ? p.created_links.dead_list.map((l: any) => ({ ...l, status: 'dead' })) : [], // Partial mapping
+        indexed_blogs: p.indexed_blogs?.blog_details ? p.indexed_blogs.blog_details.map((b: any) => ({
+          blog_url: b.blog_url,
+          is_indexed: false, // Default or derived
+          interlink_count: b.total_interlinks || 0,
+          interlinks: b.interlinks || []
+        })) : [],
+        issues: p.requires_attention ? p.requires_attention.map((url: string) => ({ type: 'attention', severity: 'warning', url, message: 'Requires attention' })) : [],
+        requires_attention: [],
+        summary: {
+          total_created_links: p.overall_summary?.total_links_checked || 0,
+          working_links: p.overall_summary?.total_working || 0,
+          dead_links: p.overall_summary?.total_dead || 0,
+          total_indexed_blogs: p.indexed_blogs?.total_blogs || 0,
+          indexed_count: 0,
+          not_indexed_count: 0,
+          total_interlinks: p.overall_summary?.total_interlinks || 0,
+          working_interlinks: 0,
+          dead_interlinks: 0
+        }
+      };
+
+      // Attempt to clean up summary if generic summary exists
+      if (p.summary) {
+        payload.summary = { ...payload.summary, ...p.summary };
+      }
+    } else {
+      // Empty default
+      payload = {
+        created_links: [],
+        indexed_blogs: [],
+        issues: [],
+        requires_attention: [],
+        summary: {
+          total_created_links: 0, working_links: 0, dead_links: 0,
+          total_indexed_blogs: 0, indexed_count: 0, not_indexed_count: 0,
+          total_interlinks: 0, working_interlinks: 0, dead_interlinks: 0
+        }
+      };
+    }
+
+    if (!reportId || !task_id || !project_id || !assignee_id || !status) {
+      console.error('Missing fields in record:', reportData);
       return new Response(
-        JSON.stringify({ error: 'Failed to insert report', details: reportError }),
+        JSON.stringify({ error: 'Missing required fields in record' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
-    console.log('Report inserted:', reportData.id);
-
-    // 2. Update the original task status from 'review' to 'completed'
+    // 1. Update the original task status
+    // Move to 'completed' and set badge
     const { error: taskUpdateError } = await supabaseAdmin
       .from('tasks')
       .update({
         status: 'completed',
-        backlink_report_status: status, // Store the report status for badge display
+        backlink_report_status: status,
         updated_at: new Date().toISOString(),
       })
       .eq('id', task_id);
 
     if (taskUpdateError) {
       console.error('Error updating task:', taskUpdateError);
-      // Continue even if task update fails
+      // We continue automation even if task update fails, but log it.
     } else {
-      console.log('Task updated to completed with status badge:', status);
+      console.log(`Task ${task_id} updated to completed with status ${status}`);
     }
 
-    // 3. Generate follow-up tasks if status is critical or warning
+    // 2. Generate Follow-up Tasks
     let followUpTasksCreated = 0;
     if (status === 'critical' || status === 'warning') {
       const followUpTasks = determineFollowUpTasks(payload as BacklinkReportPayload, status);
@@ -222,7 +282,7 @@ serve(async (req: Request) => {
             priority: task.priority,
             type: task.type,
             status: 'todo',
-            parent_report_id: reportData.id,
+            parent_report_id: reportId,
             created_at: new Date().toISOString(),
             updated_at: new Date().toISOString(),
           });
@@ -235,46 +295,49 @@ serve(async (req: Request) => {
         }
       }
 
-      // Update report to mark that follow-up tasks were created
+      // Update report to indicate follow-up tasks were created
       if (followUpTasksCreated > 0) {
         await supabaseAdmin
           .from('backlink_reports')
           .update({ follow_up_tasks_created: true })
-          .eq('id', reportData.id);
+          .eq('id', reportId);
       }
     }
 
-    // 4. Create notifications
+    // 3. Create Notifications
     const notifications = [];
 
-    // Notification for assignee
+    // Assignee Notification
     notifications.push({
       user_id: assignee_id,
       type: 'backlink_report',
       title: `Backlink Report Generated: ${status.toUpperCase()}`,
-      message: status === 'critical' 
+      message: status === 'critical'
         ? `Your backlink report has critical issues. ${followUpTasksCreated} follow-up tasks have been created.`
         : status === 'warning'
-        ? `Your backlink report has warnings. ${followUpTasksCreated} follow-up tasks have been created.`
-        : 'Your backlink report shows all links are healthy!',
-      data: { report_id: reportData.id, status },
+          ? `Your backlink report has warnings. ${followUpTasksCreated} follow-up tasks have been created.`
+          : 'Your backlink report shows all links are healthy!',
+      data: { report_id: reportId, status },
       read: false,
-      created_at: new Date().toISOString(),
     });
 
-    // Get project managers and super admins to notify
+    // Notify Managers
     const { data: managersData } = await supabaseAdmin
       .from('project_members')
       .select('user_id, users:user_id (role)')
       .eq('project_id', project_id)
-      .in('role', ['manager', 'admin']);
+      .in('role', ['manager', 'admin']); // Assuming 'role' is stored in project_members or joined. 
+    // NOTE: In the provided DB schema, project_members only has role if it has a role column, 
+    // or we might need to check the users table. 
+    // The schema shows: project_members(user_id, project_id, role).
 
-    const { data: superAdminsData } = await supabaseAdmin
-      .from('users')
-      .select('id')
-      .eq('role', 'Super Admin');
+    // However, existing code used: .select('user_id, users:user_id (role)'). 
+    // If project_members has 'role', we can filter by it directly. 
+    // If not, we rely on users table role.
+    // Let's assume the previous code was roughly correct but verify if 'admin' is a valid role in project_members.
+    // The snippet shows `.in('role', ['manager', 'admin'])`. 
+    // I'll keep this logic but handle potential empty results gracefully.
 
-    // Add notifications for managers
     if (managersData) {
       for (const manager of managersData) {
         if (manager.user_id !== assignee_id) {
@@ -283,32 +346,37 @@ serve(async (req: Request) => {
             type: 'backlink_report',
             title: `New Backlink Report: ${status.toUpperCase()}`,
             message: `A ${status} backlink report has been generated for your project.`,
-            data: { report_id: reportData.id, status, project_id },
+            data: { report_id: reportId, status, project_id },
             read: false,
-            created_at: new Date().toISOString(),
           });
         }
       }
     }
 
-    // Add notifications for super admins (only for critical)
-    if (superAdminsData && status === 'critical') {
-      for (const admin of superAdminsData) {
-        if (admin.id !== assignee_id) {
-          notifications.push({
-            user_id: admin.id,
-            type: 'backlink_report',
-            title: `Critical Backlink Report Alert`,
-            message: `A critical backlink report has been generated and requires attention.`,
-            data: { report_id: reportData.id, status, project_id },
-            read: false,
-            created_at: new Date().toISOString(),
-          });
+    // Notify Super Admins (Critical only)
+    if (status === 'critical') {
+      const { data: superAdminsData } = await supabaseAdmin
+        .from('users')
+        .select('id')
+        .eq('role', 'Super Admin');
+
+      if (superAdminsData) {
+        for (const admin of superAdminsData) {
+          if (admin.id !== assignee_id) {
+            notifications.push({
+              user_id: admin.id,
+              type: 'backlink_report',
+              title: `Critical Backlink Report Alert`,
+              message: `A critical backlink report has been generated and requires attention.`,
+              data: { report_id: reportId, status, project_id },
+              read: false,
+            });
+          }
         }
       }
     }
 
-    // Insert all notifications
+    // Insert Notifications
     if (notifications.length > 0) {
       const { error: notifError } = await supabaseAdmin
         .from('notifications')
@@ -321,13 +389,10 @@ serve(async (req: Request) => {
       }
     }
 
-    // 5. Emit realtime event (Supabase handles this automatically via postgres_changes)
-    // The frontend will pick this up via the useBacklinkReportsRealtime hook
-
     return new Response(
       JSON.stringify({
         success: true,
-        report_id: reportData.id,
+        report_id: reportId,
         task_updated: !taskUpdateError,
         follow_up_tasks_created: followUpTasksCreated,
         notifications_sent: notifications.length,
@@ -335,11 +400,10 @@ serve(async (req: Request) => {
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : 'Unknown error';
+  } catch (error: any) {
     console.error('Edge function error:', error);
     return new Response(
-      JSON.stringify({ error: message }),
+      JSON.stringify({ error: error.message || 'Unknown error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
