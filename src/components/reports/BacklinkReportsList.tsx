@@ -183,12 +183,6 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
             {filteredReports?.map((report, index) => {
               const status = statusConfig[report.status];
               const StatusIcon = status.icon;
-              const summary = report.summary as {
-                total_created_links?: number;
-                dead_links?: number;
-                total_indexed_blogs?: number;
-                not_indexed_count?: number;
-              } | null;
 
               return (
                 <Card
@@ -228,31 +222,29 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
                           </span>
                           <span className="flex items-center gap-1">
                             <Calendar className="w-3 h-3" />
-                            {new Date(report.created_at).toLocaleDateString()}
+                            {new Date(report.submitted_at).toLocaleDateString()}
                           </span>
                         </div>
                       </div>
 
-                      {/* Summary Stats */}
+                      {/* Summary Stats from actual DB columns */}
                       <div className="hidden md:flex items-center gap-4 text-sm">
-                        {summary && (
-                          <>
-                            <div className="text-center">
-                              <p className="font-semibold">{summary.total_created_links || 0}</p>
-                              <p className="text-xs text-muted-foreground">Links</p>
-                            </div>
-                            <div className="text-center">
-                              <p className={cn('font-semibold', (summary.dead_links || 0) > 0 && 'text-destructive')}>
-                                {summary.dead_links || 0}
-                              </p>
-                              <p className="text-xs text-muted-foreground">Dead</p>
-                            </div>
-                            <div className="text-center">
-                              <p className="font-semibold">{summary.total_indexed_blogs || 0}</p>
-                              <p className="text-xs text-muted-foreground">Blogs</p>
-                            </div>
-                          </>
-                        )}
+                        <div className="text-center">
+                          <p className="font-semibold">{report.total_links_checked || 0}</p>
+                          <p className="text-xs text-muted-foreground">Links</p>
+                        </div>
+                        <div className="text-center">
+                          <p className={cn('font-semibold', (report.total_dead || 0) > 0 && 'text-destructive')}>
+                            {report.total_dead || 0}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Dead</p>
+                        </div>
+                        <div className="text-center">
+                          <p className={cn('font-semibold', report.health_percentage < 80 ? 'text-warning' : 'text-success')}>
+                            {report.health_percentage || 0}%
+                          </p>
+                          <p className="text-xs text-muted-foreground">Health</p>
+                        </div>
                       </div>
 
                       {/* View Button */}

@@ -20,63 +20,92 @@ export interface Page {
   created_at?: string;
 }
 
-// Backlink Report Types
+// Backlink Report Types - Matches actual DB schema
 export type BacklinkReportStatus = 'critical' | 'warning' | 'healthy';
 
-export interface BacklinkReportSummary {
-  total_created_links: number;
-  working_links: number;
-  dead_links: number;
-  total_indexed_blogs: number;
-  indexed_count: number;
-  not_indexed_count: number;
-  total_interlinks: number;
-  working_interlinks: number;
-  dead_interlinks: number;
+export interface CreatedLinksSummary {
+  dead: number;
+  total: number;
+  working: number;
+  dead_list?: Array<{
+    url: string;
+    reason: string;
+    status: number;
+  }>;
 }
 
-export interface BacklinkReportIssue {
-  type: 'dead_link' | 'not_indexed' | 'dead_interlink' | 'low_interlinks' | 'irrelevant_link';
-  severity: 'critical' | 'warning';
-  url?: string;
-  blog_url?: string;
-  message: string;
-  details?: Record<string, unknown>;
+export interface BlogInterlink {
+  url: string;
+  issue: string | null;
+  title: string;
+  anchor: string;
+  status: 'working' | 'dead';
+  is_relevant: boolean;
+  relevance_score: number;
+}
+
+export interface BlogDetail {
+  issues: string[];
+  blog_url: string;
+  blog_title: string;
+  interlinks: BlogInterlink[];
+  blog_status: 'critical' | 'warning' | 'healthy';
+  dead_interlinks: number;
+  total_interlinks: number;
+  working_interlinks: number;
+  irrelevant_interlinks: number;
+}
+
+export interface IndexedBlogsSummary {
+  total_blogs: number;
+  blog_details: BlogDetail[];
+  healthy_blogs: number;
+  warning_blogs: number;
+  critical_blogs: number;
+  interlinks_summary: {
+    dead: number;
+    working: number;
+    irrelevant: number;
+    total_interlinks: number;
+  };
+  requires_attention: string[];
 }
 
 export interface BacklinkReportPayload {
-  created_links: Array<{
-    url: string;
-    status: 'working' | 'dead';
-    anchor_text?: string;
-    target_url?: string;
-  }>;
-  indexed_blogs: Array<{
-    blog_url: string;
-    is_indexed: boolean;
-    interlink_count: number;
-    interlinks: Array<{
-      url: string;
-      status: 'working' | 'dead';
-    }>;
-  }>;
-  issues: BacklinkReportIssue[];
-  requires_attention: BacklinkReportIssue[];
-  summary: BacklinkReportSummary;
+  id: string;
+  status: BacklinkReportStatus;
+  taskId: string;
+  projectId: string;
+  assigneeId: string;
+  checked_at: string;
+  projectName: string;
+  submittedAt: string;
+  assigneeName: string;
+  created_links: CreatedLinksSummary;
+  indexed_blogs: IndexedBlogsSummary;
+  overall_summary: {
+    total_dead: number;
+    total_working: number;
+    health_percentage: number;
+    total_links_checked: number;
+  };
 }
 
 export interface BacklinkReport {
   id: string;
-  task_id: string;
+  task_id: string | null;
   project_id: string;
   assignee_id: string;
   status: BacklinkReportStatus;
-  summary: BacklinkReportSummary;
-  payload: BacklinkReportPayload;
-  created_at: string;
-  updated_at: string;
-  processed_at?: string;
-  follow_up_tasks_created?: boolean;
+  submitted_at: string;
+  checked_at: string | null;
+  total_links_checked: number;
+  total_working: number;
+  total_dead: number;
+  health_percentage: number;
+  created_links_summary: CreatedLinksSummary;
+  indexed_blogs_summary: IndexedBlogsSummary;
+  report_payload: BacklinkReportPayload;
 }
 
 export interface TeamMember {
