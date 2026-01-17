@@ -40,7 +40,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["Super Admin", "Admin", "SEO Lead", "Content Lead", "Backlink Lead", "Technical SEO", "Developer", "Client", "Viewer"]
     },
@@ -120,7 +120,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["Admin", "SEO Lead", "Content Lead", "Backlink Lead", "Technical SEO", "Developer", "Client", "Viewer"]
     },
@@ -194,7 +194,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["SEO Lead", "Content Lead", "Backlink Lead", "Technical SEO", "Developer", "Client", "Viewer"]
     },
@@ -256,7 +256,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["Content Lead", "Developer", "Client", "Viewer"]
     },
@@ -294,7 +294,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["Backlink Lead", "Developer", "Client", "Viewer"]
     },
@@ -344,7 +344,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["Technical SEO", "Developer", "Client", "Viewer"]
     },
@@ -406,7 +406,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["Developer"]
     },
@@ -438,7 +438,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["Client", "Viewer"]
     }
@@ -464,7 +464,7 @@ export const navigationConfig: Record<string, NavItem[]> = {
     },
     {
       title: "Reports",
-      href: "/reports",
+      href: "/backlink-reports",
       icon: "bar-chart-3",
       allowedRoles: ["Viewer"]
     }
