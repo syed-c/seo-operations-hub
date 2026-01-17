@@ -8,6 +8,7 @@ import Projects from "./pages/Projects";
 import Tasks from "./pages/Tasks";
 import Keywords from "./pages/Keywords";
 import Reports from "./pages/Reports";
+import BacklinkReportsPage from "./pages/BacklinkReportsPage";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Starred from "./pages/Starred";
@@ -72,6 +73,7 @@ const App = () => (
               <Route path="/team" element={<Team />} />
               <Route path="/team/auth" element={<TeamAuth />} />
               <Route path="/reports" element={<Reports />} />
+              <Route path="/backlink-reports" element={<BacklinkReportsPage />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
               <Route path="/auth/callback" element={<AuthCallback />} />

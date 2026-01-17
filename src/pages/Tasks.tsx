@@ -10,6 +10,9 @@ import {
   Flag,
   Trash2,
   X,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -36,6 +39,7 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { LinkSheetEditor } from "@/components/ui/LinkSheetEditor";
+import { Badge } from "@/components/ui/badge";
 
 const priorityColors = {
   low: "bg-muted text-muted-foreground",
@@ -76,6 +80,8 @@ type TaskRecord = {
   backlink_links_created?: Array<{ url: string }> | null;
   backlink_links_indexed?: Array<{ url: string }> | null;
   backlink_submission_type?: 'create' | 'index' | 'both' | null;
+  backlink_report_status?: 'critical' | 'warning' | 'healthy' | null;
+  parent_report_id?: string | null;
 };
 
 export default function Tasks() {
@@ -1230,7 +1236,25 @@ export default function Tasks() {
                         {task.priority}
                       </span>
                     </div>
-                    <h4 className="font-medium text-sm mb-1">{task.title}</h4>
+                    <h4 className="font-medium text-sm mb-1 flex items-center gap-2">
+                      {task.title}
+                      {task.backlink_report_status && (
+                        <Badge 
+                          variant="outline"
+                          className={cn(
+                            "text-xs",
+                            task.backlink_report_status === 'critical' && 'bg-destructive/10 text-destructive border-destructive/20',
+                            task.backlink_report_status === 'warning' && 'bg-warning/10 text-warning border-warning/20',
+                            task.backlink_report_status === 'healthy' && 'bg-success/10 text-success border-success/20'
+                          )}
+                        >
+                          {task.backlink_report_status === 'critical' && <AlertCircle className="w-3 h-3 mr-1" />}
+                          {task.backlink_report_status === 'warning' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                          {task.backlink_report_status === 'healthy' && <CheckCircle className="w-3 h-3 mr-1" />}
+                          {task.backlink_report_status}
+                        </Badge>
+                      )}
+                    </h4>
                     <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
                       {task.description}
                     </p>

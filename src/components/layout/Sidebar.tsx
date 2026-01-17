@@ -180,7 +180,7 @@ export function Sidebar() {
         
         const operationsItems = roleBasedNavItems
           .filter(item => 
-            ['Tasks', 'Automation', 'Reports', 'Team Chat', 'Team'].includes(item.title)
+            ['Tasks', 'Automation', 'Reports', 'Backlink Reports', 'Team Chat', 'Team'].includes(item.title)
           )
           .map(item => ({
             title: item.title,
@@ -220,6 +220,7 @@ export function Sidebar() {
       case 'Tasks': return ListTodo;
       case 'Automation': return Zap;
       case 'Reports': return BarChart3;
+      case 'Backlink Reports': return Link2;
       case 'Team Chat':
       case 'Chat': return MessageSquare;
       case 'Team': return Users;

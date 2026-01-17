@@ -45,6 +45,12 @@ export const navigationConfig: Record<string, NavItem[]> = {
       allowedRoles: ["Super Admin", "Admin", "SEO Lead", "Content Lead", "Backlink Lead", "Technical SEO", "Developer", "Client", "Viewer"]
     },
     {
+      title: "Backlink Reports",
+      href: "/backlink-reports",
+      icon: "link",
+      allowedRoles: ["Super Admin", "Admin", "SEO Lead", "Backlink Lead", "Manager"]
+    },
+    {
       title: "Chat",
       href: "/chat",
       icon: "message-circle",
@@ -291,6 +297,12 @@ export const navigationConfig: Record<string, NavItem[]> = {
       href: "/reports",
       icon: "bar-chart-3",
       allowedRoles: ["Backlink Lead", "Developer", "Client", "Viewer"]
+    },
+    {
+      title: "Backlink Reports",
+      href: "/backlink-reports",
+      icon: "link",
+      allowedRoles: ["Backlink Lead"]
     },
     {
       title: "Chat",
