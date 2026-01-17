@@ -60,47 +60,52 @@ interface FollowUpTask {
 function determineFollowUpTasks(payload: BacklinkReportPayload, status: string): FollowUpTask[] {
   const tasks: FollowUpTask[] = [];
 
-  if (status === 'critical') {
-    // Dead created links
-    if (payload.summary.dead_links > 0) {
-      tasks.push({
-        title: 'Fix dead backlink URLs',
-        description: `${payload.summary.dead_links} created backlinks are returning dead/404 status. Please verify and fix these URLs.`,
-        priority: 'high',
-        type: 'backlinks',
-      });
-    }
-
-    // Critical blogs (not indexed with dead interlinks)
-    const criticalBlogs = payload.indexed_blogs.filter(
-      b => !b.is_indexed || b.interlinks.some(i => i.status === 'dead')
-    );
-    if (criticalBlogs.length > 0) {
-      tasks.push({
-        title: 'Fix critical blog interlinks',
-        description: `${criticalBlogs.length} blogs have critical issues with indexing or dead interlinks.`,
-        priority: 'high',
-        type: 'backlinks',
-      });
-    }
-
-    // Dead interlinks
-    if (payload.summary.dead_interlinks > 0) {
-      tasks.push({
-        title: 'Replace dead interlinks',
-        description: `${payload.summary.dead_interlinks} interlinks within blog posts are dead and need replacement.`,
-        priority: 'high',
-        type: 'backlinks',
-      });
-    }
+  // Dead created links
+  if (payload.summary.dead_links > 0) {
+    tasks.push({
+      title: 'Fix Dead Backlinks',
+      description: `${payload.summary.dead_links} created backlinks are returning dead/404 status. Please verify and fix these URLs.`,
+      priority: 'high',
+      type: 'backlinks',
+    });
   }
 
-  if (status === 'warning') {
-    // Low interlink count
-    const lowInterlinkBlogs = payload.indexed_blogs.filter(b => b.interlink_count < 3);
+  // No interlinks (Critical)
+  const blogsWithNoInterlinks = payload.indexed_blogs.filter(b => b.interlinks.length === 0);
+  if (blogsWithNoInterlinks.length > 0) {
+    tasks.push({
+      title: 'Add Interlinks',
+      description: `${blogsWithNoInterlinks.length} blogs have ZERO interlinks. Please add internal links immediately.`,
+      priority: 'high',
+      type: 'backlinks',
+    });
+  }
+
+  // Critical blogs (not indexed with dead interlinks) - Keeping as a catch-all high priority, or merging?
+  // User didn't ask for "Fix critical blog interlinks", but implied "Fix Dead Backlinks" (which might cover dead interlinks too?).
+  // User requested: "dead links -> task: Fix Dead Backlinks".
+  // I will include dead interlinks under "Fix Dead Backlinks" or separate "Fix Dead Interlinks"?
+  // User said "dead links -> task: Fix Dead Backlinks". This usually implies external backlinks created.
+  // I'll keep my "Replace dead interlinks" logic but maybe rename it or just keep it as valuable extra.
+  // Actually, "Fix Dead Backlinks" is good for created links.
+  // For dead interlinks, I'll use "Fix Dead Interlinks" to be specific, or map to "Fix Dead Backlinks" if I must.
+  // Let's keep it specific: "Fix Dead Interlinks" (User didn't explicitly forbid extra tasks).
+
+  // Dead interlinks
+  if (payload.summary.dead_interlinks > 0) {
+    tasks.push({
+      title: 'Fix Dead Interlinks',
+      description: `${payload.summary.dead_interlinks} interlinks within blog posts are dead and need replacement.`,
+      priority: 'high',
+      type: 'backlinks',
+    });
+  }
+  if (status === 'warning' || status === 'critical') {
+    // Check for low link count (assuming interlinks < 3 but > 0)
+    const lowInterlinkBlogs = payload.indexed_blogs.filter(b => b.interlink_count > 0 && b.interlink_count < 3);
     if (lowInterlinkBlogs.length > 0) {
       tasks.push({
-        title: 'Improve interlinking',
+        title: 'Fix Link Count',
         description: `${lowInterlinkBlogs.length} blogs have fewer than 3 interlinks. Consider adding more internal links.`,
         priority: 'medium',
         type: 'backlinks',
@@ -111,7 +116,7 @@ function determineFollowUpTasks(payload: BacklinkReportPayload, status: string):
     const irrelevantLinkIssues = payload.issues.filter(i => i.type === 'irrelevant_link');
     if (irrelevantLinkIssues.length > 0) {
       tasks.push({
-        title: 'Improve link relevance',
+        title: 'Fix Relevance Issues',
         description: `${irrelevantLinkIssues.length} links have been flagged as potentially irrelevant. Review and improve anchor text relevance.`,
         priority: 'medium',
         type: 'backlinks',

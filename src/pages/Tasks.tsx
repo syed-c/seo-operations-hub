@@ -712,9 +712,9 @@ export default function Tasks() {
       const { error: updateError } = await supabase.from("tasks").update({
         status: 'review',
         backlink_summary: backlinkReviewForm.summary,
-        backlink_links_created: backlinkReviewForm.linkTypes.create ? linksCreated : null,
-        backlink_links_indexed: backlinkReviewForm.linkTypes.index ? linksIndexed : null,
         backlink_submission_type: submissionType,
+        backlink_links_created: submissionType === 'index' ? [] : linksCreated,
+        backlink_links_indexed: submissionType === 'create' ? [] : linksIndexed,
         updated_at: new Date().toISOString()
       }).eq("id", taskToReview.id);
 
@@ -737,9 +737,9 @@ export default function Tasks() {
             projectName: taskToReview.projectName,
             assignee: taskToReview.assignee,
             backlink_summary: backlinkReviewForm.summary,
-            backlink_links_created: backlinkReviewForm.linkTypes.create ? linksCreated : null,
-            backlink_links_indexed: backlinkReviewForm.linkTypes.index ? linksIndexed : null,
             backlink_submission_type: submissionType,
+            backlink_links_created: submissionType === 'index' ? [] : linksCreated,
+            backlink_links_indexed: submissionType === 'create' ? [] : linksIndexed,
             submitted_at: new Date().toISOString(),
           };
 
@@ -1239,7 +1239,7 @@ export default function Tasks() {
                     <h4 className="font-medium text-sm mb-1 flex items-center gap-2">
                       {task.title}
                       {task.backlink_report_status && (
-                        <Badge 
+                        <Badge
                           variant="outline"
                           className={cn(
                             "text-xs",
