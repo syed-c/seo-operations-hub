@@ -1,4 +1,4 @@
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabaseClient';
 import { BacklinkReport, BacklinkReportStatus } from '@/types';
 import { useAuth } from '@/components/AuthGate';
@@ -25,27 +25,28 @@ export function useBacklinkReports(filters?: BacklinkReportFilters) {
           project_id,
           assignee_id,
           status,
-          summary,
-          payload,
-          created_at,
-          updated_at,
-          processed_at,
-          follow_up_tasks_created,
+          submitted_at,
+          checked_at,
+          total_links_checked,
+          total_working,
+          total_dead,
+          health_percentage,
+          created_links_summary,
+          indexed_blogs_summary,
+          report_payload,
           projects:project_id (id, name),
           users:assignee_id (id, email, first_name, last_name),
           tasks:task_id (id, title, type)
         `)
-        .order('created_at', { ascending: false });
+        .order('submitted_at', { ascending: false });
 
       // Apply role-based filtering
       if (teamUser?.role === 'Backlink Lead') {
-        // Backlink leads can only see their own reports
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           query = query.eq('assignee_id', user.id);
         }
       } else if (teamUser?.role === 'Client') {
-        // Clients can only see reports for their assigned projects
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: projectMemberData } = await supabase
@@ -71,10 +72,10 @@ export function useBacklinkReports(filters?: BacklinkReportFilters) {
         query = query.eq('status', filters.status);
       }
       if (filters?.startDate) {
-        query = query.gte('created_at', filters.startDate);
+        query = query.gte('submitted_at', filters.startDate);
       }
       if (filters?.endDate) {
-        query = query.lte('created_at', filters.endDate);
+        query = query.lte('submitted_at', filters.endDate);
       }
 
       const { data, error } = await query;
@@ -97,8 +98,10 @@ export function useBacklinkReport(reportId: string) {
       const { data, error } = await supabase
         .from('backlink_reports')
         .select(`
-          id, task_id, project_id, assignee_id, status, summary, payload,
-          created_at, updated_at, processed_at, follow_up_tasks_created,
+          id, task_id, project_id, assignee_id, status,
+          submitted_at, checked_at,
+          total_links_checked, total_working, total_dead, health_percentage,
+          created_links_summary, indexed_blogs_summary, report_payload,
           projects:project_id (id, name),
           users:assignee_id (id, email, first_name, last_name),
           tasks:task_id (id, title, type, status)
@@ -125,7 +128,7 @@ export function useBacklinkReportStats() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from('backlink_reports')
-        .select('id, status, summary, created_at, project_id, assignee_id');
+        .select('id, status, total_links_checked, total_working, total_dead, health_percentage, submitted_at, project_id, assignee_id, created_links_summary, indexed_blogs_summary');
 
       if (error) throw error;
 
@@ -137,24 +140,20 @@ export function useBacklinkReportStats() {
       const warning = reports.filter(r => r.status === 'warning').length;
       const healthy = reports.filter(r => r.status === 'healthy').length;
 
-      // Calculate link metrics
+      // Calculate link metrics from actual data
       let totalDeadLinks = 0;
       let totalWorkingLinks = 0;
       let totalDeadInterlinks = 0;
       let totalWorkingInterlinks = 0;
 
       reports.forEach(r => {
-        const summary = r.summary as {
-          dead_links?: number;
-          working_links?: number;
-          dead_interlinks?: number;
-          working_interlinks?: number;
-        } | null;
-        if (summary) {
-          totalDeadLinks += summary.dead_links || 0;
-          totalWorkingLinks += summary.working_links || 0;
-          totalDeadInterlinks += summary.dead_interlinks || 0;
-          totalWorkingInterlinks += summary.working_interlinks || 0;
+        totalDeadLinks += r.total_dead || 0;
+        totalWorkingLinks += r.total_working || 0;
+        
+        const indexedBlogs = r.indexed_blogs_summary as { interlinks_summary?: { dead?: number; working?: number } } | null;
+        if (indexedBlogs?.interlinks_summary) {
+          totalDeadInterlinks += indexedBlogs.interlinks_summary.dead || 0;
+          totalWorkingInterlinks += indexedBlogs.interlinks_summary.working || 0;
         }
       });
 
@@ -195,8 +194,8 @@ export function useBacklinkReportStats() {
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      const weeklyReports = reports.filter(r => new Date(r.created_at) >= weekAgo);
-      const monthlyReports = reports.filter(r => new Date(r.created_at) >= monthAgo);
+      const weeklyReports = reports.filter(r => new Date(r.submitted_at) >= weekAgo);
+      const monthlyReports = reports.filter(r => new Date(r.submitted_at) >= monthAgo);
 
       return {
         total,
