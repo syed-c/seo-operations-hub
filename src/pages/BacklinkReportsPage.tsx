@@ -15,11 +15,13 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { BacklinkReport } from "@/types";
 
+// ... imports
+import { useProject } from "@/contexts/ProjectContext";
+// ...
+
 export default function BacklinkReportsPage() {
   const { teamUser } = useAuth();
   const { projects, selectedProject } = useProject();
-  const [selectedProjectFilter, setSelectedProjectFilter] = useState<string>("all");
-  const queryClient = useQueryClient();
   const { subscribe } = useBacklinkReportsRealtime((newReport: BacklinkReport) => {
     // Show toast notification for new reports
     toast({
@@ -37,8 +39,6 @@ export default function BacklinkReportsPage() {
     };
   }, [subscribe]);
 
-  const canViewDashboard = ['Super Admin', 'Admin', 'Manager'].includes(teamUser?.role || '');
-  
   const handleRefresh = () => {
     queryClient.invalidateQueries({ queryKey: ['backlink-reports'] });
     queryClient.invalidateQueries({ queryKey: ['backlink-report-stats'] });
@@ -51,23 +51,12 @@ export default function BacklinkReportsPage() {
 
       <div className="flex flex-wrap items-center justify-between gap-4 mb-6">
         <div className="flex items-center gap-3">
-          {/* Project Filter */}
-          <Select
-            value={selectedProjectFilter}
-            onValueChange={setSelectedProjectFilter}
-          >
-            <SelectTrigger className="w-[200px]">
-              <SelectValue placeholder="Filter by project" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Projects</SelectItem>
-              {projects.map((project) => (
-                <SelectItem key={project.id} value={project.id}>
-                  {project.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+          {/* Project Filter Removed - uses global sidebar selection */}
+          {selectedProject && (
+            <div className="px-3 py-1 bg-muted rounded-md text-sm font-medium">
+              Project: {selectedProject.name}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-2">
@@ -92,18 +81,18 @@ export default function BacklinkReportsPage() {
           </TabsList>
 
           <TabsContent value="dashboard">
-            <BacklinkReportsDashboard />
+            <BacklinkReportsDashboard projectId={selectedProject?.id} />
           </TabsContent>
 
           <TabsContent value="reports">
-            <BacklinkReportsList 
-              projectId={selectedProjectFilter !== 'all' ? selectedProjectFilter : undefined}
+            <BacklinkReportsList
+              projectId={selectedProject?.id}
             />
           </TabsContent>
         </Tabs>
       ) : (
-        <BacklinkReportsList 
-          projectId={selectedProjectFilter !== 'all' ? selectedProjectFilter : undefined}
+        <BacklinkReportsList
+          projectId={selectedProject?.id}
         />
       )}
     </MainLayout>

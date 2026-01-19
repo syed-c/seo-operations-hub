@@ -222,13 +222,22 @@ export default function Tasks() {
       let tasksData;
       let tasksError;
 
+      // Base query builder helper
+      const buildQuery = (baseQuery: any) => {
+        if (selectedProject) {
+          return baseQuery.eq('project_id', selectedProject.id);
+        }
+        return baseQuery;
+      };
+
       if (userRole === "Super Admin") {
-        // Super Admin sees ALL tasks
-        const result = await supabase
+        // Super Admin sees ALL tasks (filtered by selected project)
+        let query = supabase
           .from("tasks")
           .select("id, title, description, status, priority, type, due_date, project_id")
           .order("created_at", { ascending: false });
 
+        const result = await buildQuery(query);
         tasksData = result.data;
         tasksError = result.error;
       } else if (userRole === "Admin") {
@@ -245,12 +254,27 @@ export default function Tasks() {
         }
 
         const projectIds = projectMembers.map(pm => pm.project_id);
-        const result = await supabase
+
+        let query = supabase
           .from("tasks")
           .select("id, title, description, status, priority, type, due_date, project_id")
-          .in("project_id", projectIds)
           .order("created_at", { ascending: false });
 
+        if (selectedProject) {
+          // Ensure Admin has access to the selected project
+          if (projectIds.includes(selectedProject.id)) {
+            query = query.eq('project_id', selectedProject.id);
+          } else {
+            // Selected project is NOT in their allowed list?
+            // This shouldn't happen if the specific dropdown limits them, but good safely.
+            // Return empty if they select a project they don't have access to (though context should handle this)
+            query = query.eq('project_id', '00000000-0000-0000-0000-000000000000'); // Force empty
+          }
+        } else {
+          query = query.in("project_id", projectIds);
+        }
+
+        const result = await query;
         tasksData = result.data;
         tasksError = result.error;
       } else {
@@ -277,12 +301,14 @@ export default function Tasks() {
         }
 
         const taskIds = assignments.map(a => a.task_id);
-        const result = await supabase
+
+        let query = supabase
           .from("tasks")
           .select("id, title, description, status, priority, type, due_date, project_id")
           .in("id", taskIds)
           .order("created_at", { ascending: false });
 
+        const result = await buildQuery(query);
         tasksData = result.data;
         tasksError = result.error;
       }
@@ -389,7 +415,7 @@ export default function Tasks() {
       const errorMessage = err instanceof Error ? err.message : "Failed to load tasks";
       setError(errorMessage);
     }
-  }, [teamMembers]);
+  }, [teamMembers, selectedProject]);
 
   useEffect(() => {
     load();
