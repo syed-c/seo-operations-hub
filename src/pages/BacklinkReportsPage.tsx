@@ -15,13 +15,12 @@ import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "@/hooks/use-toast";
 import { BacklinkReport } from "@/types";
 
-// ... imports
-import { useProject } from "@/contexts/ProjectContext";
-// ...
 
 export default function BacklinkReportsPage() {
   const { teamUser } = useAuth();
-  const { projects, selectedProject } = useProject();
+  const { selectedProject } = useProject();
+  const queryClient = useQueryClient();
+  const canViewDashboard = ['Super Admin', 'Admin', 'Manager'].includes(teamUser?.role || '');
   const { subscribe } = useBacklinkReportsRealtime((newReport: BacklinkReport) => {
     // Show toast notification for new reports
     toast({
