@@ -18,28 +18,39 @@ interface Backlink {
   created_at: string;
 }
 
+import { useProject } from "@/contexts/ProjectContext";
+
+// ... (existing imports)
+
 export default function Backlinks() {
   const [backlinks, setBacklinks] = useState<(Backlink & { domain: string })[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [anchorText, setAnchorText] = useState("");
+  const { selectedProject } = useProject(); // Add project context
 
   const loadBacklinks = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("backlinks")
         .select("id, url, source_url, anchor_text, toxicity_score, spam_reason, discovered_at, lost, created_at")
         .order("discovered_at", { ascending: false });
-      
+
+      if (selectedProject) {
+        query = query.eq('project_id', selectedProject.id);
+      }
+
+      const { data, error } = await query;
+
       setLoading(false);
-      
+
       if (error) {
         setError(error.message);
         return;
       }
-      
+
       const transformedData = (data || []).map(link => {
         let domain = '';
         try {
@@ -61,7 +72,7 @@ export default function Backlinks() {
 
   useEffect(() => {
     loadBacklinks();
-  }, []);
+  }, [selectedProject]); // Add dependency
 
   const onCreate = async () => {
     if (!sourceUrl) return;
@@ -92,7 +103,7 @@ export default function Backlinks() {
   return (
     <MainLayout>
       <Header title="Backlinks" subtitle="Monitor new, lost, and risky backlinks" />
-      
+
       <div className="flex items-center gap-3 mb-6">
         <input
           className="h-10 rounded-xl border border-border bg-card px-3 text-sm flex-1 max-w-xs"
@@ -111,10 +122,10 @@ export default function Backlinks() {
           Add Backlink
         </Button>
       </div>
-      
+
       {loading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
       {error && <p className="text-sm text-destructive mb-4">{error}</p>}
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {backlinks.map((link) => (
           <Card

@@ -13,7 +13,7 @@ export interface BacklinkReportFilters {
 
 export function useBacklinkReports(filters?: BacklinkReportFilters) {
   const { teamUser } = useAuth();
-  
+
   return useQuery({
     queryKey: ['backlink-reports', filters],
     queryFn: async () => {
@@ -53,7 +53,7 @@ export function useBacklinkReports(filters?: BacklinkReportFilters) {
             .from('project_members')
             .select('project_id')
             .eq('user_id', user.id);
-          
+
           if (projectMemberData && projectMemberData.length > 0) {
             const projectIds = projectMemberData.map(pm => pm.project_id);
             query = query.in('project_id', projectIds);
@@ -120,20 +120,46 @@ export function useBacklinkReport(reportId: string) {
   });
 }
 
-export function useBacklinkReportStats() {
+export function useBacklinkReportStats(projectId?: string) {
   const { teamUser } = useAuth();
-  
+
   return useQuery({
-    queryKey: ['backlink-report-stats'],
+    queryKey: ['backlink-report-stats', projectId],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from('backlink_reports')
-        .select('id, status, total_links_checked, total_working, total_dead, health_percentage, submitted_at, project_id, assignee_id, created_links_summary, indexed_blogs_summary');
+        .select(`
+          id,
+          status,
+          total_links_checked,
+          total_working,
+          total_dead,
+          health_percentage,
+          submitted_at,
+          project_id,
+          assignee_id,
+          created_links_summary,
+          indexed_blogs_summary,
+          projects:project_id (name),
+          users:assignee_id (first_name, last_name, email)
+        `);
+
+      if (projectId) {
+        query = query.eq('project_id', projectId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
 
-      const reports = data || [];
-      
+      const reports = (data || []).map(r => ({
+        ...r,
+        projectName: (r as any).projects?.name,
+        assigneeName: (r as any).users?.first_name
+          ? `${(r as any).users.first_name} ${(r as any).users.last_name || ''}`.trim()
+          : (r as any).users?.email
+      }));
+
       // Calculate statistics
       const total = reports.length;
       const critical = reports.filter(r => r.status === 'critical').length;
@@ -149,7 +175,7 @@ export function useBacklinkReportStats() {
       reports.forEach(r => {
         totalDeadLinks += r.total_dead || 0;
         totalWorkingLinks += r.total_working || 0;
-        
+
         const indexedBlogs = r.indexed_blogs_summary as { interlinks_summary?: { dead?: number; working?: number } } | null;
         if (indexedBlogs?.interlinks_summary) {
           totalDeadInterlinks += indexedBlogs.interlinks_summary.dead || 0;
@@ -158,10 +184,15 @@ export function useBacklinkReportStats() {
       });
 
       // Top failing projects
-      const projectCounts: Record<string, { total: number; critical: number; warning: number }> = {};
+      const projectCounts: Record<string, { total: number; critical: number; warning: number; name: string }> = {};
       reports.forEach(r => {
         if (!projectCounts[r.project_id]) {
-          projectCounts[r.project_id] = { total: 0, critical: 0, warning: 0 };
+          projectCounts[r.project_id] = {
+            total: 0,
+            critical: 0,
+            warning: 0,
+            name: r.projectName || 'Unknown Project'
+          };
         }
         projectCounts[r.project_id].total++;
         if (r.status === 'critical') projectCounts[r.project_id].critical++;
@@ -174,13 +205,19 @@ export function useBacklinkReportStats() {
         .slice(0, 5);
 
       // Top assignees with critical issues
-      const assigneeCounts: Record<string, { total: number; critical: number }> = {};
+      const assigneeCounts: Record<string, { total: number; critical: number; name: string }> = {};
       reports.forEach(r => {
-        if (!assigneeCounts[r.assignee_id]) {
-          assigneeCounts[r.assignee_id] = { total: 0, critical: 0 };
+        // Handle cases where assignee_id might be null
+        const assigneeId = r.assignee_id || 'unassigned';
+        if (!assigneeCounts[assigneeId]) {
+          assigneeCounts[assigneeId] = {
+            total: 0,
+            critical: 0,
+            name: r.assigneeName || (assigneeId === 'unassigned' ? 'Unassigned' : 'Unknown User')
+          };
         }
-        assigneeCounts[r.assignee_id].total++;
-        if (r.status === 'critical') assigneeCounts[r.assignee_id].critical++;
+        assigneeCounts[assigneeId].total++;
+        if (r.status === 'critical') assigneeCounts[assigneeId].critical++;
       });
 
       const topAssigneesWithCritical = Object.entries(assigneeCounts)
@@ -205,7 +242,7 @@ export function useBacklinkReportStats() {
           totalWorkingLinks,
           totalDeadInterlinks,
           totalWorkingInterlinks,
-          deadLinkRate: totalWorkingLinks + totalDeadLinks > 0 
+          deadLinkRate: totalWorkingLinks + totalDeadLinks > 0
             ? (totalDeadLinks / (totalWorkingLinks + totalDeadLinks) * 100).toFixed(1)
             : '0',
         },

@@ -1,11 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  FileText, 
-  AlertCircle, 
-  AlertTriangle, 
-  CheckCircle, 
-  Link, 
+import {
+  FileText,
+  AlertCircle,
+  AlertTriangle,
+  CheckCircle,
+  Link,
   Link2Off,
   TrendingUp,
   Users,
@@ -32,8 +32,8 @@ const COLORS = {
   healthy: 'hsl(var(--success))',
 };
 
-export function BacklinkReportsDashboard() {
-  const { data: stats, isLoading, error } = useBacklinkReportStats();
+export function BacklinkReportsDashboard({ projectId }: { projectId?: string }) {
+  const { data: stats, isLoading, error } = useBacklinkReportStats(projectId);
 
   if (error) {
     return (
@@ -250,7 +250,7 @@ export function BacklinkReportsDashboard() {
               <div className="space-y-2">
                 {stats.topFailingProjects.map((project, idx) => (
                   <div key={project.projectId} className="flex items-center justify-between p-2 rounded-lg hover:bg-muted">
-                    <span className="text-sm font-medium">Project #{idx + 1}</span>
+                    <span className="text-sm font-medium">{project.name || `Project #${idx + 1}`}</span>
                     <div className="flex gap-2">
                       <span className="text-xs px-2 py-1 rounded bg-destructive/10 text-destructive">
                         {project.critical} critical
@@ -282,7 +282,7 @@ export function BacklinkReportsDashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
               {stats.topAssigneesWithCritical.map((assignee, idx) => (
                 <div key={assignee.assigneeId} className="p-4 rounded-lg bg-muted text-center">
-                  <p className="text-sm font-medium">Assignee #{idx + 1}</p>
+                  <p className="text-sm font-medium truncate" title={assignee.name}>{assignee.name || `Assignee #${idx + 1}`}</p>
                   <p className="text-2xl font-bold text-destructive">{assignee.critical}</p>
                   <p className="text-xs text-muted-foreground">{assignee.total} total reports</p>
                 </div>
