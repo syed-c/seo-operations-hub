@@ -112,15 +112,15 @@ export function Sidebar() {
   const [newProjectDescription, setNewProjectDescription] = useState("");
   const { teamUser } = useAuth();
   const [navSections, setNavSections] = useState<NavSection[]>(defaultNavSections);
-  
+
   // Update navigation based on user role
   useEffect(() => {
     if (teamUser?.role) {
       const roleBasedNavItems = getNavigationForRole(teamUser.role);
-      
+
       // Map role-based items to NavSection structure
       const roleBasedSections: NavSection[] = [];
-      
+
       // Determine which sections to show based on user role
       if (teamUser.role === 'Developer') {
         // For developers, only show specific sections
@@ -134,7 +134,7 @@ export function Sidebar() {
               icon: getIconForTitle(item.title),
             }))
         });
-        
+
         roleBasedSections.push({
           title: "Operations",
           items: roleBasedNavItems
@@ -147,23 +147,23 @@ export function Sidebar() {
         });
       } else {
         // For other roles, organize items into appropriate sections
-        const quickAccessItems = roleBasedNavItems.filter(item => 
+        const quickAccessItems = roleBasedNavItems.filter(item =>
           ['Starred', 'Recent'].includes(item.title)
         ).map(item => ({
           title: item.title,
           href: item.href,
           icon: getIconForTitle(item.title),
         }));
-        
+
         if (quickAccessItems.length > 0) {
           roleBasedSections.push({
             title: "Quick Access",
             items: quickAccessItems,
           });
         }
-        
+
         const seoModulesItems = roleBasedNavItems
-          .filter(item => 
+          .filter(item =>
             ['Dashboard', 'Role Dashboard', 'Projects', 'Pages', 'Keywords', 'Rankings', 'Backlinks', 'Local SEO'].includes(item.title)
           )
           .map(item => ({
@@ -171,16 +171,16 @@ export function Sidebar() {
             href: item.href,
             icon: getIconForTitle(item.title),
           }));
-        
+
         if (seoModulesItems.length > 0) {
           roleBasedSections.push({
             title: "SEO Modules",
             items: seoModulesItems,
           });
         }
-        
+
         const operationsItems = roleBasedNavItems
-          .filter(item => 
+          .filter(item =>
             ['Tasks', 'Automation', 'Reports', 'Backlink Reports', 'Team Chat', 'Team'].includes(item.title)
           )
           .map(item => ({
@@ -188,7 +188,7 @@ export function Sidebar() {
             href: item.href,
             icon: getIconForTitle(item.title),
           }));
-        
+
         if (operationsItems.length > 0) {
           roleBasedSections.push({
             title: "Operations",
@@ -196,20 +196,20 @@ export function Sidebar() {
           });
         }
       }
-      
+
       setNavSections(roleBasedSections);
     }
   }, [teamUser]);
-  
+
   const toggleSection = (title: string) => {
     setExpandedSections((prev) =>
       prev.includes(title) ? prev.filter((t) => t !== title) : [...prev, title]
     );
   };
-  
+
   // Helper function to get appropriate icon for title
   const getIconForTitle = (title: string): React.ElementType => {
-    switch(title) {
+    switch (title) {
       case 'Dashboard':
       case 'Role Dashboard': return LayoutDashboard;
       case 'Projects': return FolderKanban;
@@ -239,7 +239,7 @@ export function Sidebar() {
     try {
       // First, check if user has permission to create projects
       const { data: { user } } = await ensureSupabase().auth.getUser();
-      
+
       if (!user) {
         console.error("User not authenticated");
         return;
@@ -270,7 +270,7 @@ export function Sidebar() {
 
       // Call webhook to create project
       const webhookUrl = import.meta.env.VITE_PROJECT_WEBHOOK_URL;
-      
+
       if (!webhookUrl) {
         console.error("Webhook URL not configured");
         return;
@@ -291,13 +291,13 @@ export function Sidebar() {
       });
 
       const responseBody = await response.text();
-      
+
       if (responseBody.includes('Project Added')) {
         console.log("Project created successfully via webhook");
-        
+
         // Refresh projects list
         await fetchProjects();
-        
+
         // Close dialog and reset form
         setIsCreateDialogOpen(false);
         setNewProjectName("");
@@ -380,69 +380,17 @@ export function Sidebar() {
                 </DropdownMenuItem>
               ))}
               <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={(e) => e.preventDefault()}>
-                <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-                  <DialogTrigger asChild>
-                    <div className="w-full text-left flex items-center gap-2 cursor-pointer">
-                      <Plus className="w-4 h-4" />
-                      <span>Create New Project</span>
-                    </div>
-                  </DialogTrigger>
-                  <DialogContent>
-                    <DialogHeader>
-                      <DialogTitle>Create New Project</DialogTitle>
-                      <DialogDescription>
-                        Enter the details for your new project.
-                      </DialogDescription>
-                    </DialogHeader>
-                    <div className="space-y-4 py-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="sidebar-project-name">Project Name *</Label>
-                        <Input
-                          id="sidebar-project-name"
-                          value={newProjectName}
-                          onChange={(e) => setNewProjectName(e.target.value)}
-                          placeholder="Enter project name"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="sidebar-project-description">Project Description *</Label>
-                        <Input
-                          id="sidebar-project-description"
-                          value={newProjectDescription}
-                          onChange={(e) => setNewProjectDescription(e.target.value)}
-                          placeholder="Enter project description"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="sidebar-project-client">Client / Website URL *</Label>
-                        <Input
-                          id="sidebar-project-client"
-                          value={newProjectClient}
-                          onChange={(e) => setNewProjectClient(e.target.value)}
-                          placeholder="https://example.com"
-                          required
-                        />
-                      </div>
-                    </div>
-                    <DialogFooter>
-                      <Button
-                        variant="outline"
-                        onClick={() => setIsCreateDialogOpen(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        onClick={handleCreateProject}
-                        disabled={!newProjectName.trim() || !newProjectDescription.trim() || !newProjectClient.trim()}
-                      >
-                        Create Project
-                      </Button>
-                    </DialogFooter>
-                  </DialogContent>
-                </Dialog>
+              <DropdownMenuItem
+                onSelect={(e) => {
+                  e.preventDefault();
+                  setIsCreateDialogOpen(true);
+                }}
+                className="cursor-pointer"
+              >
+                <div className="w-full text-left flex items-center gap-2">
+                  <Plus className="w-4 h-4" />
+                  <span>Create New Project</span>
+                </div>
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -456,7 +404,7 @@ export function Sidebar() {
           if (teamUser?.role === 'Developer' && section.title === 'Quick Access') {
             return null;
           }
-          
+
           return (
             <div key={section.title}>
               {!collapsed && (
@@ -515,7 +463,7 @@ export function Sidebar() {
           <Settings className="w-5 h-5" />
           {!collapsed && <span>Settings</span>}
         </NavLink>
-        
+
         {!collapsed && (
           <div className="mt-3 p-3 rounded-xl bg-muted/50 flex items-center gap-3">
             <Avatar className="w-9 h-9">
@@ -541,6 +489,64 @@ export function Sidebar() {
           <ChevronLeft className="w-3.5 h-3.5" />
         )}
       </button>
+
+      {/* Create Project Dialog - Moved outside DropdownMenu to prevent space key capture */}
+      <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Project</DialogTitle>
+            <DialogDescription>
+              Enter the details for your new project.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="sidebar-project-name">Project Name *</Label>
+              <Input
+                id="sidebar-project-name"
+                value={newProjectName}
+                onChange={(e) => setNewProjectName(e.target.value)}
+                placeholder="Enter project name"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sidebar-project-description">Project Description *</Label>
+              <Input
+                id="sidebar-project-description"
+                value={newProjectDescription}
+                onChange={(e) => setNewProjectDescription(e.target.value)}
+                placeholder="Enter project description"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="sidebar-project-client">Client / Website URL *</Label>
+              <Input
+                id="sidebar-project-client"
+                value={newProjectClient}
+                onChange={(e) => setNewProjectClient(e.target.value)}
+                placeholder="https://example.com"
+                required
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setIsCreateDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCreateProject}
+              disabled={!newProjectName.trim() || !newProjectDescription.trim() || !newProjectClient.trim()}
+            >
+              Create Project
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </aside>
   );
 }
