@@ -134,6 +134,11 @@ export default function Tasks() {
     teamUser?.role === "Backlink Lead" ||
     teamUser?.role === "Technical SEO";
 
+  // Determine if user has permission to create tasks (strictly Super Admin and Admin)
+  const canCreateTask =
+    teamUser?.role === "Super Admin" ||
+    teamUser?.role === "Admin";
+
   // Check if user is a backlink lead
   const isBacklinkLead = teamUser?.role === "Backlink Lead";
 
@@ -834,7 +839,7 @@ export default function Tasks() {
         </div>
 
         <div className="flex items-center gap-2">
-          {canCreateEditTasks && (
+          {canCreateTask && (
             <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
               <Button
                 className="gap-2 rounded-xl"
@@ -849,44 +854,78 @@ export default function Tasks() {
                 <Plus className="w-4 h-4" />
                 New Task
               </Button>
-              <DialogContent className="max-w-md">
+              <DialogContent className="sm:max-w-[550px] max-h-[90vh] overflow-y-auto">
                 <DialogHeader>
-                  <DialogTitle>Assign New Task</DialogTitle>
+                  <DialogTitle>Create New Task</DialogTitle>
                   <DialogDescription>
-                    Create and assign a new task to a team member
+                    Add a new task to your SEO dashboard
                   </DialogDescription>
                 </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="task-title">Task Title</Label>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="title">Task Title</Label>
                     <Input
-                      id="task-title"
-                      placeholder="Enter task title"
+                      id="title"
+                      placeholder="e.g., Optimize Home Page Meta Tags"
                       value={form.title}
                       onChange={(e) =>
                         setForm({ ...form, title: e.target.value })
                       }
-                      className={form.title ? "" : "border-destructive"}
                     />
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="task-project">Project ID</Label>
-                    <Input
-                      id="task-project"
-                      placeholder="Auto-filled from selected project"
-                      value={form.projectId}
-                      onChange={(e) =>
-                        setForm({ ...form, projectId: e.target.value })
-                      }
-                      readOnly
-                      className="cursor-not-allowed opacity-75"
-                    />
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="grid gap-2">
+                      <Label htmlFor="project">Project</Label>
+                      <Select
+                        value={form.projectId}
+                        onValueChange={(value) =>
+                          setForm({ ...form, projectId: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select project" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[200px] overflow-y-auto">
+                          {selectedProject ? (
+                            <SelectItem value={selectedProject.id}>
+                              {selectedProject.name}
+                            </SelectItem>
+                          ) : (
+                            <SelectItem value="none" disabled>
+                              No project selected
+                            </SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="type">Task Type</Label>
+                      <Select
+                        value={form.type}
+                        onValueChange={(value) =>
+                          setForm({ ...form, type: value })
+                        }
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="general">General</SelectItem>
+                          <SelectItem value="content">Content</SelectItem>
+                          <SelectItem value="technical">Technical</SelectItem>
+                          <SelectItem value="backlinks">Backlinks</SelectItem>
+                          <SelectItem value="audit">Audit</SelectItem>
+                          <SelectItem value="local">Local SEO</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="task-description">Description</Label>
-                    <Input
-                      id="task-description"
-                      placeholder="Enter task description"
+                  <div className="grid gap-2">
+                    <Label htmlFor="description">Description</Label>
+                    <textarea
+                      id="description"
+                      className="flex min-h-[100px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      placeholder="Detailed description of the task requirements..."
                       value={form.description}
                       onChange={(e) =>
                         setForm({ ...form, description: e.target.value })
@@ -894,8 +933,8 @@ export default function Tasks() {
                     />
                   </div>
                   <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="task-priority">Priority</Label>
+                    <div className="grid gap-2">
+                      <Label htmlFor="priority">Priority</Label>
                       <Select
                         value={form.priority}
                         onValueChange={(value) =>
@@ -903,7 +942,7 @@ export default function Tasks() {
                         }
                       >
                         <SelectTrigger>
-                          <SelectValue />
+                          <SelectValue placeholder="Select priority" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="low">Low</SelectItem>
@@ -913,67 +952,40 @@ export default function Tasks() {
                         </SelectContent>
                       </Select>
                     </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="task-type">Type</Label>
-                      <Select
-                        value={form.type}
-                        onValueChange={(value) =>
-                          setForm({ ...form, type: value })
+                    <div className="grid gap-2">
+                      <Label htmlFor="dueDate">Due Date</Label>
+                      <Input
+                        id="dueDate"
+                        type="date"
+                        value={form.dueDate}
+                        onChange={(e) =>
+                          setForm({ ...form, dueDate: e.target.value })
                         }
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="general">General</SelectItem>
-                          <SelectItem value="content">Content</SelectItem>
-                          <SelectItem value="technical">Technical</SelectItem>
-                          <SelectItem value="backlinks">Backlinks</SelectItem>
-                          <SelectItem value="local">Local</SelectItem>
-                          <SelectItem value="audit">Audit</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      />
                     </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="task-due-date">Due Date</Label>
-                    <Input
-                      id="task-due-date"
-                      type="date"
-                      value={form.dueDate}
-                      onChange={(e) =>
-                        setForm({ ...form, dueDate: e.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="task-assignee">Assign To</Label>
+
+                  {/* Assignee Section */}
+                  <div className="grid gap-2">
+                    <Label htmlFor="assignee">Assignee</Label>
                     <Select
-                      value={form.assigneeId || "unassigned"}
+                      value={form.assigneeId}
                       onValueChange={(value) =>
-                        setForm({
-                          ...form,
-                          assigneeId: value === "unassigned" ? "" : value,
-                        })
+                        setForm({ ...form, assigneeId: value })
                       }
                       disabled={loadingTeamMembers}
                     >
                       <SelectTrigger>
-                        <SelectValue placeholder="Select a team member" />
+                        <SelectValue placeholder={loadingTeamMembers ? "Loading team members..." : "Select assignee (optional)"} />
                       </SelectTrigger>
-                      <SelectContent>
+                      <SelectContent className="max-h-[200px] overflow-y-auto">
                         <SelectItem value="unassigned">Unassigned</SelectItem>
-                        {loadingTeamMembers && (
-                          <SelectItem value="loading" disabled>
-                            Loading team members...
-                          </SelectItem>
-                        )}
                         {teamMembers.map((member) => (
                           <SelectItem key={member.id} value={member.id}>
-                            {member.first_name || member.last_name
-                              ? `${member.first_name || ""} ${member.last_name || ""
-                                }`.trim()
+                            {member.first_name && member.last_name
+                              ? `${member.first_name} ${member.last_name}`
                               : member.email}
+                            {member.role ? ` (${member.role})` : ''}
                           </SelectItem>
                         ))}
                       </SelectContent>
@@ -983,328 +995,318 @@ export default function Tasks() {
                 <DialogFooter>
                   <Button
                     variant="outline"
-                    onClick={() => {
-                      setIsModalOpen(false);
-                      setForm({
-                        title: "",
-                        projectId: "",
-                        description: "",
-                        priority: "medium",
-                        type: "general",
-                        status: "todo",
-                        dueDate: "",
-                        assigneeId: "",
-                      });
                     }}
                   >
-                    Cancel
-                  </Button>
-                  <Button onClick={onCreate}>Assign Task</Button>
-                </DialogFooter>
-              </DialogContent>
+                  Cancel
+                </Button>
+                <Button onClick={onCreate}>Assign Task</Button>
+              </DialogFooter>
+            </DialogContent>
             </Dialog>
           )}
 
-          {/* Task Review Submission Modal */}
-          <Dialog open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
-            <DialogContent className="max-w-md">
-              <DialogHeader>
-                <DialogTitle>Submit Task for Review</DialogTitle>
-                <DialogDescription>
-                  Please describe the work you've completed for: <strong>{taskToReview?.title}</strong>
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-4 py-4">
+        {/* Task Review Submission Modal */}
+        <Dialog open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Submit Task for Review</DialogTitle>
+              <DialogDescription>
+                Please describe the work you've completed for: <strong>{taskToReview?.title}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-4">
+              <div className="space-y-2">
+                <Label htmlFor="review-details">What did you actually do? <span className="text-destructive">*</span></Label>
+                <textarea
+                  id="review-details"
+                  placeholder="Provide a detailed description of your work..."
+                  className="w-full min-h-[120px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  value={reviewForm.details}
+                  onChange={(e) => setReviewForm({ ...reviewForm, details: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="review-doc">Work Document URL (Optional)</Label>
+                <Input
+                  id="review-doc"
+                  placeholder="https://docs.google.com/..."
+                  value={reviewForm.docUrl}
+                  onChange={(e) => setReviewForm({ ...reviewForm, docUrl: e.target.value })}
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsReviewModalOpen(false);
+                  setTaskToReview(null);
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleReviewSubmit}>Submit for Review</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Backlink Lead Review Submission Modal */}
+        <Dialog open={isBacklinkReviewModalOpen} onOpenChange={setIsBacklinkReviewModalOpen}>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Submit Backlink Task for Review</DialogTitle>
+              <DialogDescription>
+                Please provide details about your backlink work for: <strong>{taskToReview?.title}</strong>
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-6 py-4">
+              {/* Summary */}
+              <div className="space-y-2">
+                <Label htmlFor="backlink-summary">
+                  Summary <span className="text-destructive">*</span>
+                </Label>
+                <textarea
+                  id="backlink-summary"
+                  placeholder="Describe what you did for this task..."
+                  className="w-full min-h-[100px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  value={backlinkReviewForm.summary}
+                  onChange={(e) => setBacklinkReviewForm({ ...backlinkReviewForm, summary: e.target.value })}
+                />
+              </div>
+
+              {/* Link Type Selection */}
+              <div className="space-y-3">
+                <Label>
+                  Link Type <span className="text-destructive">*</span>
+                </Label>
                 <div className="space-y-2">
-                  <Label htmlFor="review-details">What did you actually do? <span className="text-destructive">*</span></Label>
-                  <textarea
-                    id="review-details"
-                    placeholder="Provide a detailed description of your work..."
-                    className="w-full min-h-[120px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    value={reviewForm.details}
-                    onChange={(e) => setReviewForm({ ...reviewForm, details: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="review-doc">Work Document URL (Optional)</Label>
-                  <Input
-                    id="review-doc"
-                    placeholder="https://docs.google.com/..."
-                    value={reviewForm.docUrl}
-                    onChange={(e) => setReviewForm({ ...reviewForm, docUrl: e.target.value })}
-                  />
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="link-type-create"
+                      checked={backlinkReviewForm.linkTypes.create}
+                      onCheckedChange={(checked) =>
+                        setBacklinkReviewForm({
+                          ...backlinkReviewForm,
+                          linkTypes: { ...backlinkReviewForm.linkTypes, create: checked as boolean },
+                        })
+                      }
+                    />
+                    <label
+                      htmlFor="link-type-create"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Links Created
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="link-type-index"
+                      checked={backlinkReviewForm.linkTypes.index}
+                      onCheckedChange={(checked) =>
+                        setBacklinkReviewForm({
+                          ...backlinkReviewForm,
+                          linkTypes: { ...backlinkReviewForm.linkTypes, index: checked as boolean },
+                        })
+                      }
+                    />
+                    <label
+                      htmlFor="link-type-index"
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                    >
+                      Links Indexed
+                    </label>
+                  </div>
                 </div>
               </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsReviewModalOpen(false);
-                    setTaskToReview(null);
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleReviewSubmit}>Submit for Review</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
 
-          {/* Backlink Lead Review Submission Modal */}
-          <Dialog open={isBacklinkReviewModalOpen} onOpenChange={setIsBacklinkReviewModalOpen}>
-            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>Submit Backlink Task for Review</DialogTitle>
-                <DialogDescription>
-                  Please provide details about your backlink work for: <strong>{taskToReview?.title}</strong>
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-6 py-4">
-                {/* Summary */}
+              {/* Links Created Table */}
+              {backlinkReviewForm.linkTypes.create && (
                 <div className="space-y-2">
-                  <Label htmlFor="backlink-summary">
-                    Summary <span className="text-destructive">*</span>
-                  </Label>
-                  <textarea
-                    id="backlink-summary"
-                    placeholder="Describe what you did for this task..."
-                    className="w-full min-h-[100px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                    value={backlinkReviewForm.summary}
-                    onChange={(e) => setBacklinkReviewForm({ ...backlinkReviewForm, summary: e.target.value })}
+                  <Label>Links Created <span className="text-destructive">*</span></Label>
+                  <LinkSheetEditor
+                    links={backlinkReviewForm.linksCreated}
+                    onChange={(links) =>
+                      setBacklinkReviewForm({ ...backlinkReviewForm, linksCreated: links })
+                    }
+                    placeholder="Enter URL where you created a link..."
                   />
                 </div>
+              )}
 
-                {/* Link Type Selection */}
-                <div className="space-y-3">
-                  <Label>
-                    Link Type <span className="text-destructive">*</span>
-                  </Label>
-                  <div className="space-y-2">
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="link-type-create"
-                        checked={backlinkReviewForm.linkTypes.create}
-                        onCheckedChange={(checked) =>
-                          setBacklinkReviewForm({
-                            ...backlinkReviewForm,
-                            linkTypes: { ...backlinkReviewForm.linkTypes, create: checked as boolean },
-                          })
-                        }
-                      />
-                      <label
-                        htmlFor="link-type-create"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Links Created
-                      </label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <Checkbox
-                        id="link-type-index"
-                        checked={backlinkReviewForm.linkTypes.index}
-                        onCheckedChange={(checked) =>
-                          setBacklinkReviewForm({
-                            ...backlinkReviewForm,
-                            linkTypes: { ...backlinkReviewForm.linkTypes, index: checked as boolean },
-                          })
-                        }
-                      />
-                      <label
-                        htmlFor="link-type-index"
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                      >
-                        Links Indexed
-                      </label>
-                    </div>
-                  </div>
+              {/* Links Indexed Table */}
+              {backlinkReviewForm.linkTypes.index && (
+                <div className="space-y-2">
+                  <Label>Links Indexed <span className="text-destructive">*</span></Label>
+                  <LinkSheetEditor
+                    links={backlinkReviewForm.linksIndexed}
+                    onChange={(links) =>
+                      setBacklinkReviewForm({ ...backlinkReviewForm, linksIndexed: links })
+                    }
+                    placeholder="Enter URL of your blog where links were indexed..."
+                  />
                 </div>
-
-                {/* Links Created Table */}
-                {backlinkReviewForm.linkTypes.create && (
-                  <div className="space-y-2">
-                    <Label>Links Created <span className="text-destructive">*</span></Label>
-                    <LinkSheetEditor
-                      links={backlinkReviewForm.linksCreated}
-                      onChange={(links) =>
-                        setBacklinkReviewForm({ ...backlinkReviewForm, linksCreated: links })
-                      }
-                      placeholder="Enter URL where you created a link..."
-                    />
-                  </div>
-                )}
-
-                {/* Links Indexed Table */}
-                {backlinkReviewForm.linkTypes.index && (
-                  <div className="space-y-2">
-                    <Label>Links Indexed <span className="text-destructive">*</span></Label>
-                    <LinkSheetEditor
-                      links={backlinkReviewForm.linksIndexed}
-                      onChange={(links) =>
-                        setBacklinkReviewForm({ ...backlinkReviewForm, linksIndexed: links })
-                      }
-                      placeholder="Enter URL of your blog where links were indexed..."
-                    />
-                  </div>
-                )}
-              </div>
-              <DialogFooter>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setIsBacklinkReviewModalOpen(false);
-                    setTaskToReview(null);
-                    setBacklinkReviewForm({
-                      summary: "",
-                      linkTypes: { create: false, index: false },
-                      linksCreated: [],
-                      linksIndexed: [],
-                    });
-                  }}
-                >
-                  Cancel
-                </Button>
-                <Button onClick={handleBacklinkReviewSubmit}>Submit for Review</Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
-        </div>
+              )}
+            </div>
+            <DialogFooter>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setIsBacklinkReviewModalOpen(false);
+                  setTaskToReview(null);
+                  setBacklinkReviewForm({
+                    summary: "",
+                    linkTypes: { create: false, index: false },
+                    linksCreated: [],
+                    linksIndexed: [],
+                  });
+                }}
+              >
+                Cancel
+              </Button>
+              <Button onClick={handleBacklinkReviewSubmit}>Submit for Review</Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
+    </div>
 
-      {loading && (
-        <p className="text-sm text-muted-foreground mb-3">Loading...</p>
-      )}
-      {error && <p className="text-sm text-destructive mb-3">{error}</p>}
+      {
+    loading && (
+      <p className="text-sm text-muted-foreground mb-3">Loading...</p>
+    )
+  }
+  { error && <p className="text-sm text-destructive mb-3">{error}</p> }
 
-      <div className="grid grid-cols-4 gap-5">
-        {["todo", "in-progress", "review", "done"].map((col) => {
-          const columnTitle =
-            col === "todo"
-              ? "To Do"
-              : col === "in-progress"
-                ? "In Progress"
-                : col === "review"
-                  ? "In Review"
-                  : "Completed";
-          const color =
-            col === "todo"
-              ? "bg-muted"
-              : col === "in-progress"
-                ? "bg-info"
-                : col === "review"
-                  ? "bg-warning"
-                  : "bg-success";
-          const items = grouped[col] || [];
-          return (
-            <div key={col} className="space-y-3">
-              <div className="flex items-center justify-between px-1">
-                <div className="flex items-center gap-2">
-                  <div className={cn("w-3 h-3 rounded-full", color)} />
-                  <h3 className="font-medium">{columnTitle}</h3>
-                  <span className="text-sm text-muted-foreground">
-                    ({items.length})
+  <div className="grid grid-cols-4 gap-5">
+    {["todo", "in-progress", "review", "done"].map((col) => {
+      const columnTitle =
+        col === "todo"
+          ? "To Do"
+          : col === "in-progress"
+            ? "In Progress"
+            : col === "review"
+              ? "In Review"
+              : "Completed";
+      const color =
+        col === "todo"
+          ? "bg-muted"
+          : col === "in-progress"
+            ? "bg-info"
+            : col === "review"
+              ? "bg-warning"
+              : "bg-success";
+      const items = grouped[col] || [];
+      return (
+        <div key={col} className="space-y-3">
+          <div className="flex items-center justify-between px-1">
+            <div className="flex items-center gap-2">
+              <div className={cn("w-3 h-3 rounded-full", color)} />
+              <h3 className="font-medium">{columnTitle}</h3>
+              <span className="text-sm text-muted-foreground">
+                ({items.length})
+              </span>
+            </div>
+            <button className="w-6 h-6 rounded-md hover:bg-muted flex items-center justify-center">
+              <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+
+          <div className="space-y-3">
+            {items.map((task, index) => (
+              <div
+                key={task.id}
+                className="glass-card p-4 animate-slide-up hover:shadow-card-hover transition-all cursor-pointer"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <span
+                    className={cn(
+                      "chip text-xs",
+                      typeColors[(task.type as string) || "general"] ||
+                      "chip"
+                    )}
+                  >
+                    {task.type || "general"}
+                  </span>
+                  <span
+                    className={cn(
+                      "chip text-xs",
+                      priorityColors[
+                      (task.priority as string) || "medium"
+                      ] || "chip"
+                    )}
+                  >
+                    <Flag className="w-3 h-3" />
+                    {task.priority}
                   </span>
                 </div>
-                <button className="w-6 h-6 rounded-md hover:bg-muted flex items-center justify-center">
-                  <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-                </button>
-              </div>
-
-              <div className="space-y-3">
-                {items.map((task, index) => (
-                  <div
-                    key={task.id}
-                    className="glass-card p-4 animate-slide-up hover:shadow-card-hover transition-all cursor-pointer"
-                    style={{ animationDelay: `${index * 50}ms` }}
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <span
-                        className={cn(
-                          "chip text-xs",
-                          typeColors[(task.type as string) || "general"] ||
-                          "chip"
-                        )}
-                      >
-                        {task.type || "general"}
-                      </span>
-                      <span
-                        className={cn(
-                          "chip text-xs",
-                          priorityColors[
-                          (task.priority as string) || "medium"
-                          ] || "chip"
-                        )}
-                      >
-                        <Flag className="w-3 h-3" />
-                        {task.priority}
-                      </span>
-                    </div>
-                    <h4 className="font-medium text-sm mb-1 flex items-center gap-2">
-                      {task.title}
-                      {task.backlink_report_status && (
-                        <Badge
-                          variant="outline"
-                          className={cn(
-                            "text-xs",
-                            task.backlink_report_status === 'critical' && 'bg-destructive/10 text-destructive border-destructive/20',
-                            task.backlink_report_status === 'warning' && 'bg-warning/10 text-warning border-warning/20',
-                            task.backlink_report_status === 'healthy' && 'bg-success/10 text-success border-success/20'
-                          )}
-                        >
-                          {task.backlink_report_status === 'critical' && <AlertCircle className="w-3 h-3 mr-1" />}
-                          {task.backlink_report_status === 'warning' && <AlertTriangle className="w-3 h-3 mr-1" />}
-                          {task.backlink_report_status === 'healthy' && <CheckCircle className="w-3 h-3 mr-1" />}
-                          {task.backlink_report_status}
-                        </Badge>
+                <h4 className="font-medium text-sm mb-1 flex items-center gap-2">
+                  {task.title}
+                  {task.backlink_report_status && (
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "text-xs",
+                        task.backlink_report_status === 'critical' && 'bg-destructive/10 text-destructive border-destructive/20',
+                        task.backlink_report_status === 'warning' && 'bg-warning/10 text-warning border-warning/20',
+                        task.backlink_report_status === 'healthy' && 'bg-success/10 text-success border-success/20'
                       )}
-                    </h4>
-                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-                      {task.description}
-                    </p>
-                    <p className="text-xs text-muted-foreground mb-3">
-                      Project:{" "}
-                      <span className="text-foreground">
-                        {task.projectName || task.project_id || "—"}
-                      </span>
-                    </p>
-                    <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                      <div className="flex items-center gap-2">
-                        <Avatar className="w-6 h-6">
-                          <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64" />
-                          <AvatarFallback>U</AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground">
-                          {task.assignee ? task.assignee.name : "Unassigned"}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />
-                        {task.due_date
-                          ? task.due_date.slice(0, 10)
-                          : "No due date"}
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mt-3">
-                      {(canCreateEditTasks || (!canCreateEditTasks && task.status !== 'done')) && (
-                        <select
-                          className="h-9 rounded-xl border border-border bg-card px-2 text-xs"
-                          value={task.status || "todo"}
-                          onChange={(e) => onUpdateStatus(task, e.target.value)}
-                          disabled={task.status === 'review' || task.status === 'done'}
-                        >
-                          <option value="todo">To Do</option>
-                          <option value="in-progress">In Progress</option>
-                          <option value="review">Review</option>
-                          <option value="done" disabled={task.status !== 'review'}>Done</option>
-                        </select>
-                      )}
-                      {!canCreateEditTasks && task.status === 'done' && (
-                        <Button className="h-8 px-3 text-xs" disabled>
-                          Completed
-                        </Button>
-                      )}
-                      {!canCreateEditTasks && task.status !== 'done' && (
-                        <Button className="h-8 px-3 text-xs" onClick={() => {
-                          alert(`Task Details:
+                    >
+                      {task.backlink_report_status === 'critical' && <AlertCircle className="w-3 h-3 mr-1" />}
+                      {task.backlink_report_status === 'warning' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                      {task.backlink_report_status === 'healthy' && <CheckCircle className="w-3 h-3 mr-1" />}
+                      {task.backlink_report_status}
+                    </Badge>
+                  )}
+                </h4>
+                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                  {task.description}
+                </p>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Project:{" "}
+                  <span className="text-foreground">
+                    {task.projectName || task.project_id || "—"}
+                  </span>
+                </p>
+                <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                  <div className="flex items-center gap-2">
+                    <Avatar className="w-6 h-6">
+                      <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64" />
+                      <AvatarFallback>U</AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs text-muted-foreground">
+                      {task.assignee ? task.assignee.name : "Unassigned"}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                    <Clock className="w-3 h-3" />
+                    {task.due_date
+                      ? task.due_date.slice(0, 10)
+                      : "No due date"}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between mt-3">
+                  {(canCreateEditTasks || (!canCreateEditTasks && task.status !== 'done')) && (
+                    <select
+                      className="h-9 rounded-xl border border-border bg-card px-2 text-xs"
+                      value={task.status || "todo"}
+                      onChange={(e) => onUpdateStatus(task, e.target.value)}
+                      disabled={task.status === 'review' || task.status === 'done'}
+                    >
+                      <option value="todo">To Do</option>
+                      <option value="in-progress">In Progress</option>
+                      <option value="review">Review</option>
+                      <option value="done" disabled={task.status !== 'review'}>Done</option>
+                    </select>
+                  )}
+                  {!canCreateEditTasks && task.status === 'done' && (
+                    <Button className="h-8 px-3 text-xs" disabled>
+                      Completed
+                    </Button>
+                  )}
+                  {!canCreateEditTasks && task.status !== 'done' && (
+                    <Button className="h-8 px-3 text-xs" onClick={() => {
+                      alert(`Task Details:
 Title: ${task.title}
 Description: ${task.description || "N/A"}
 Project: ${task.projectName || task.project_id || "N/A"}
@@ -1314,26 +1316,26 @@ Due Date: ${task.due_date || "N/A"}
 Assigned To: ${task.assignee?.name || "Unassigned"}
 Details: ${task.completion_details || "N/A"}
 Doc: ${task.completion_doc_url || "N/A"}`);
-                        }}>
-                          View Details
-                        </Button>
-                      )}
-                      {canCreateEditTasks && (
-                        <button
-                          className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
-                          onClick={() => onDelete(task.id)}
-                        >
-                          <Trash2 className="w-4 h-4 text-muted-foreground" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
+                    }}>
+                      View Details
+                    </Button>
+                  )}
+                  {canCreateEditTasks && (
+                    <button
+                      className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
+                      onClick={() => onDelete(task.id)}
+                    >
+                      <Trash2 className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  )}
+                </div>
               </div>
-            </div>
-          );
-        })}
-      </div>
-    </MainLayout>
+            ))}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+    </MainLayout >
   );
 }

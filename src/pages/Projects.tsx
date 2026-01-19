@@ -55,9 +55,10 @@ export default function Projects() {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
   const [projectMembers, setProjectMembers] = useState<any[]>([]); // Track current project members
   const [selectedProjectMemberId, setSelectedProjectMemberId] = useState<string | null>(null);
-  
+
   // Determine if user has permission to create/edit projects
   const canCreateEditProjects = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead';
+  const canCreateInProject = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin';
   console.log('Team user role:', teamUser?.role, 'Can create/edit projects:', canCreateEditProjects); // Debug log
 
   // Fetch team members for project assignment
@@ -69,17 +70,17 @@ export default function Projects() {
       try {
         const adminApiClient = await import('@/lib/adminApiClient');
         const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name, role');
-        
+
         if (result?.error) {
           console.error('Admin API error:', result.error);
           throw new Error(result.error);
         }
-        
+
         if (!result || !result.data) {
           console.warn('No data returned from admin API');
           return [];
         }
-        
+
         console.log('Raw team members data:', result.data); // Debug log
         // Filter out Super Admins on the client side since the Edge Function only supports equality filters
         const typedData = result.data as Array<{ id: string; email: string; first_name?: string; last_name?: string; role?: string }>;
@@ -106,37 +107,37 @@ export default function Projects() {
       if (teamUser?.role === 'Developer') {
         // For developers, fetch only assigned projects
         const { data: { user } } = await ensureSupabase().auth.getUser();
-              
+
         if (!user) {
           throw new Error('User not authenticated');
         }
-              
+
         // First, get the project IDs assigned to the user
         const { data: projectMemberData, error: projectMemberError } = await ensureSupabase()
           .from('project_members')
           .select('project_id')
           .eq('user_id', user.id);
-              
+
         if (projectMemberError) {
           console.error('Error fetching project members:', projectMemberError);
           throw new Error(projectMemberError.message);
         }
-              
+
         if (!projectMemberData || projectMemberData.length === 0) {
           // No projects assigned to this user
           return [];
         }
-              
+
         // Extract project IDs
         const projectIds = projectMemberData.map(pm => pm.project_id);
-              
+
         // Then fetch the projects with those IDs
         const { data, error } = await ensureSupabase()
           .from('projects')
           .select('id, name, client, status, health_score, created_at')
           .in('id', projectIds)
           .order('created_at', { ascending: false });
-              
+
         if (error) throw new Error(error.message);
         return data || [];
       } else {
@@ -145,7 +146,7 @@ export default function Projects() {
           .from("projects")
           .select("id, name, client, status, health_score, created_at")
           .order("created_at", { ascending: false });
-        
+
         if (error) throw new Error(error.message);
         return data || [];
       }
@@ -155,16 +156,43 @@ export default function Projects() {
   // Mutation for creating a project
   const createProjectMutation = useMutation({
     mutationFn: async (newProject: Partial<ProjectRecord>) => {
-      const { error } = await ensureSupabase().from("projects").insert(newProject);
+      const { data, error } = await ensureSupabase()
+        .from("projects")
+        .insert(newProject)
+        .select()
+        .single();
+
       if (error) throw new Error(error.message);
+      return data;
     },
-    onSuccess: () => {
+    onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       // Reset form
       setName("");
       setClient("");
       setHealth(70);
       setStatus("active");
+
+      // Trigger webhook for new project creation
+      try {
+        const webhookUrl = "https://auton8n.n8n.shivahost.in/webhook/2b740420-f669-42ac-9d10-de506e7dff9b";
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            event: 'project_created',
+            project: data,
+            timestamp: new Date().toISOString(),
+            creator_role: teamUser?.role
+          }),
+        });
+        console.log('Project creation webhook sent successfully');
+      } catch (webhookError) {
+        console.error('Error sending project creation webhook:', webhookError);
+        // We don't throw here to avoid showing an error to the user since the project was created
+      }
     }
   });
 
@@ -184,11 +212,11 @@ export default function Projects() {
     mutationFn: async (updatedProject: ProjectRecord) => {
       const { error } = await ensureSupabase()
         .from("projects")
-        .update({ 
-          status: updatedProject.status, 
-          health_score: updatedProject.health_score, 
-          client: updatedProject.client, 
-          name: updatedProject.name 
+        .update({
+          status: updatedProject.status,
+          health_score: updatedProject.health_score,
+          client: updatedProject.client,
+          name: updatedProject.name
         })
         .eq("id", updatedProject.id);
       if (error) throw new Error(error.message);
@@ -211,7 +239,7 @@ export default function Projects() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
       queryClient.invalidateQueries({ queryKey: ['teamMembers'] });
-      
+
       // Update project members state to reflect the new assignment
       if (selectedProjectId && selectedUserId) {
         const selectedUser = teamMembers.find(user => user.id === selectedUserId);
@@ -229,7 +257,7 @@ export default function Projects() {
           ]);
         }
       }
-      
+
       setAssignDialogOpen(false);
       setSelectedProjectId(null);
       setSelectedUserId("");
@@ -277,57 +305,57 @@ export default function Projects() {
 
   const openAssignDialog = async (projectId: string) => {
     setSelectedProjectId(projectId);
-    
+
     // Fetch current project members
     try {
       console.log('Fetching project members for project:', projectId); // Debug log
-      
+
       // First, get the project members
       const { data: projectMembersData, error: projectMembersError } = await ensureSupabase()
         .from('project_members')
         .select('id, user_id')
         .eq('project_id', projectId);
-      
+
       if (projectMembersError) {
         console.error('Error fetching project members:', projectMembersError);
         throw projectMembersError;
       }
-      
+
       console.log('Project members data:', projectMembersData); // Debug log
-      
+
       if (!projectMembersData || projectMembersData.length === 0) {
         setProjectMembers([]);
         setAssignDialogOpen(true);
         return;
       }
-      
+
       // Extract user IDs to fetch user details
       const userIds = projectMembersData.map(pm => pm.user_id);
       console.log('User IDs to fetch:', userIds); // Debug log
-      
+
       // Then fetch user details separately
       console.log('About to fetch users with IDs:', userIds); // Debug log
-      
+
       // Use admin API to fetch user details since RLS restricts direct access to users table
       const adminApiClient = await import('@/lib/adminApiClient');
       const result = await adminApiClient.selectRecords('users', 'id, email, first_name, last_name');
-      
+
       if (result?.error) {
         console.error('Admin API error:', result.error);
         throw new Error(result.error);
       }
-      
+
       // Filter the users to only include the ones we need
       const allUsers = (result.data || []) as Array<{ id: string; email: string; first_name?: string; last_name?: string }>;
       const usersData = allUsers.filter(user => userIds.includes(user.id));
-      
+
       console.log('Users data from admin API:', usersData); // Debug log
       console.log('Expected user ID:', userIds[0], 'Found users:', usersData?.map(u => u.id)); // Debug log
-      
+
       if (!usersData || usersData.length === 0) {
         console.warn('No user data returned from admin API for requested IDs');
       }
-      
+
       // Combine the data
       const combinedData = projectMembersData.map(pm => {
         const user = usersData?.find(u => u.id === pm.user_id);
@@ -340,14 +368,14 @@ export default function Projects() {
           last_name: user?.last_name || ''
         };
       });
-      
+
       console.log('Combined data:', combinedData); // Debug log
       setProjectMembers(combinedData || []);
     } catch (error) {
       console.error('Error fetching project members:', error);
       setProjectMembers([]);
     }
-    
+
     setAssignDialogOpen(true);
   };
 
@@ -355,7 +383,7 @@ export default function Projects() {
     setSelectedProjectId(projectId);
     setDeleteDialogOpen(true);
   };
-  
+
   // Mutation for removing a project member
   const removeProjectMemberMutation = useMutation({
     mutationFn: async ({ projectMemberId, userId }: { projectMemberId: string; userId: string }) => {
@@ -374,7 +402,7 @@ export default function Projects() {
       setSelectedProjectMemberId(null);
     }
   });
-  
+
   const handleRemoveProjectMember = (projectMemberId: string, userId: string) => {
     setSelectedProjectMemberId(projectMemberId);
     removeProjectMemberMutation.mutate({ projectMemberId, userId });
@@ -401,36 +429,36 @@ export default function Projects() {
             Filters
           </Button>
         </div>
-        {canCreateEditProjects && (
-        <div className="flex items-center gap-3">
-          <input
-            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-            placeholder="Project name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <input
-            className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
-            placeholder="Client"
-            value={client}
-            onChange={(e) => setClient(e.target.value)}
-          />
-          <input
-            type="number"
-            className="h-10 w-20 rounded-xl border border-border bg-card px-3 text-sm"
-            placeholder="Health"
-            value={health}
-            onChange={(e) => setHealth(Number(e.target.value))}
-          />
-          <Button 
-            className="gap-2 rounded-xl" 
-            onClick={onCreate}
-            disabled={createProjectMutation.isPending}
-          >
-            <Plus className="w-4 h-4" />
-            New Project
-          </Button>
-        </div>
+        {canCreateInProject && (
+          <div className="flex items-center gap-3">
+            <input
+              className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+              placeholder="Project name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+            <input
+              className="h-10 rounded-xl border border-border bg-card px-3 text-sm"
+              placeholder="Client"
+              value={client}
+              onChange={(e) => setClient(e.target.value)}
+            />
+            <input
+              type="number"
+              className="h-10 w-20 rounded-xl border border-border bg-card px-3 text-sm"
+              placeholder="Health"
+              value={health}
+              onChange={(e) => setHealth(Number(e.target.value))}
+            />
+            <Button
+              className="gap-2 rounded-xl"
+              onClick={onCreate}
+              disabled={createProjectMutation.isPending}
+            >
+              <Plus className="w-4 h-4" />
+              New Project
+            </Button>
+          </div>
         )}
       </div>
 
@@ -457,7 +485,7 @@ export default function Projects() {
                         className="font-semibold bg-transparent outline-none"
                         value={project.name}
                         onChange={(e) => {
-                          const updatedProjects = projects.map(p => 
+                          const updatedProjects = projects.map(p =>
                             p.id === project.id ? { ...p, name: e.target.value } : p
                           );
                           // Optimistic update
@@ -468,7 +496,7 @@ export default function Projects() {
                         className="text-sm text-muted-foreground bg-transparent outline-none"
                         value={project.client ?? ""}
                         onChange={(e) => {
-                          const updatedProjects = projects.map(p => 
+                          const updatedProjects = projects.map(p =>
                             p.id === project.id ? { ...p, client: e.target.value } : p
                           );
                           // Optimistic update
@@ -485,44 +513,44 @@ export default function Projects() {
                 </div>
               </div>
               {canCreateEditProjects && (
-              <div className="flex items-center gap-2">
-                <select
-                  className={cn("chip text-xs capitalize bg-muted text-foreground")}
-                  value={project.status ?? "active"}
-                  onChange={(e) => {
-                    const updatedProjects = projects.map(p => 
-                      p.id === project.id ? { ...p, status: e.target.value } : p
-                    );
-                    // Optimistic update
-                    queryClient.setQueryData(['projects'], updatedProjects);
-                  }}
-                >
-                  <option value="active">active</option>
-                  <option value="paused">paused</option>
-                  <option value="completed">completed</option>
-                  <option value="critical">critical</option>
-                </select>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
-                      disabled={deleteProjectMutation.isPending}
-                    >
-                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-48">
-                    <DropdownMenuItem onClick={() => openAssignDialog(project.id)} className="flex items-center gap-2">
-                      <UserPlus className="w-4 h-4" />
-                      Assign Project
-                    </DropdownMenuItem>
-                    <DropdownMenuItem onClick={() => openDeleteDialog(project.id)} className="flex items-center gap-2 text-destructive">
-                      <Trash2 className="w-4 h-4" />
-                      Delete Project
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </div>
+                <div className="flex items-center gap-2">
+                  <select
+                    className={cn("chip text-xs capitalize bg-muted text-foreground")}
+                    value={project.status ?? "active"}
+                    onChange={(e) => {
+                      const updatedProjects = projects.map(p =>
+                        p.id === project.id ? { ...p, status: e.target.value } : p
+                      );
+                      // Optimistic update
+                      queryClient.setQueryData(['projects'], updatedProjects);
+                    }}
+                  >
+                    <option value="active">active</option>
+                    <option value="paused">paused</option>
+                    <option value="completed">completed</option>
+                    <option value="critical">critical</option>
+                  </select>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <button
+                        className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
+                        disabled={deleteProjectMutation.isPending}
+                      >
+                        <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-48">
+                      <DropdownMenuItem onClick={() => openAssignDialog(project.id)} className="flex items-center gap-2">
+                        <UserPlus className="w-4 h-4" />
+                        Assign Project
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openDeleteDialog(project.id)} className="flex items-center gap-2 text-destructive">
+                        <Trash2 className="w-4 h-4" />
+                        Delete Project
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
               )}
             </div>
 
@@ -534,7 +562,7 @@ export default function Projects() {
                   className="text-sm font-semibold w-20 bg-transparent outline-none"
                   value={project.health_score ?? 0}
                   onChange={(e) => {
-                    const updatedProjects = projects.map(p => 
+                    const updatedProjects = projects.map(p =>
                       p.id === project.id ? { ...p, health_score: Number(e.target.value) } : p
                     );
                     // Optimistic update
@@ -589,21 +617,21 @@ export default function Projects() {
 
             <div className="flex items-center justify-between pt-3">
               {canCreateEditProjects && (
-              <Button 
-                size="sm" 
-                variant="outline" 
-                className="rounded-xl" 
-                onClick={() => onUpdate(project)}
-                disabled={updateProjectMutation.isPending}
-              >
-                Save
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="rounded-xl"
+                  onClick={() => onUpdate(project)}
+                  disabled={updateProjectMutation.isPending}
+                >
+                  Save
+                </Button>
               )}
             </div>
           </div>
         ))}
       </div>
-      
+
       {/* Assign Project Dialog */}
       <Dialog open={assignDialogOpen} onOpenChange={setAssignDialogOpen}>
         <DialogContent>
@@ -616,7 +644,7 @@ export default function Projects() {
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="assign-user">Select Team Member</Label>
-              
+
               {/* Show already assigned members */}
               {projectMembers.length > 0 && (
                 <div className="mb-3">
@@ -629,8 +657,8 @@ export default function Projects() {
                             ? `${member.first_name || ''} ${member.last_name || ''}`.trim()
                             : member.email}
                         </span>
-                        <button 
-                          type="button" 
+                        <button
+                          type="button"
                           className="text-destructive hover:text-destructive/80"
                           onClick={() => handleRemoveProjectMember(member.id, member.user_id)}
                           aria-label="Remove member"
@@ -642,7 +670,7 @@ export default function Projects() {
                   </div>
                 </div>
               )}
-              
+
               <Select value={selectedUserId} onValueChange={(value) => {
                 // Only update if the value is a valid user ID (not one of our disabled options)
                 if (value !== 'error' && value !== 'loading' && value !== 'no-members') {
@@ -666,8 +694,8 @@ export default function Projects() {
                       .filter(user => !projectMembers.some(pm => pm.user_id === user.id)) // Filter out already assigned users
                       .map((user) => (
                         <SelectItem key={user.id} value={user.id}>
-                          {user.first_name && user.last_name 
-                            ? `${user.first_name} ${user.last_name}` 
+                          {user.first_name && user.last_name
+                            ? `${user.first_name} ${user.last_name}`
                             : user.email}
                         </SelectItem>
                       ))
@@ -678,17 +706,17 @@ export default function Projects() {
                   )}
                 </SelectContent>
               </Select>
-              
+
               {/* Show message when all team members are already assigned */}
-              {teamMembers.length > 0 && 
+              {teamMembers.length > 0 &&
                 teamMembers.filter(user => !projectMembers.some(pm => pm.user_id === user.id)).length === 0 && (
-                <p className="text-sm text-muted-foreground mt-2">All team members are already assigned to this project</p>
-              )}
+                  <p className="text-sm text-muted-foreground mt-2">All team members are already assigned to this project</p>
+                )}
             </div>
           </div>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setAssignDialogOpen(false);
                 setSelectedProjectId(null);
@@ -697,8 +725,8 @@ export default function Projects() {
             >
               Cancel
             </Button>
-            <Button 
-              onClick={handleAssignProject} 
+            <Button
+              onClick={handleAssignProject}
               disabled={!selectedUserId || selectedUserId === 'error' || selectedUserId === 'loading' || selectedUserId === 'no-members' || assignProjectMutation.isPending}
             >
               {assignProjectMutation.isPending ? 'Assigning...' : 'Assign'}
@@ -706,7 +734,7 @@ export default function Projects() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-      
+
       {/* Delete Project Confirmation Dialog */}
       <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <DialogContent>
@@ -717,8 +745,8 @@ export default function Projects() {
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button 
-              variant="outline" 
+            <Button
+              variant="outline"
               onClick={() => {
                 setDeleteDialogOpen(false);
                 setSelectedProjectId(null);
@@ -726,9 +754,9 @@ export default function Projects() {
             >
               Cancel
             </Button>
-            <Button 
-              variant="destructive" 
-              onClick={handleDeleteProject} 
+            <Button
+              variant="destructive"
+              onClick={handleDeleteProject}
               disabled={deleteProjectMutation.isPending}
             >
               {deleteProjectMutation.isPending ? 'Deleting...' : 'Delete'}
