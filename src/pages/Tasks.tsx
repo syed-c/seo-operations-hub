@@ -995,318 +995,318 @@ export default function Tasks() {
                 <DialogFooter>
                   <Button
                     variant="outline"
-                    }}
+                    onClick={() => setIsModalOpen(false)}
                   >
-                  Cancel
-                </Button>
-                <Button onClick={onCreate}>Assign Task</Button>
-              </DialogFooter>
-            </DialogContent>
+                    Cancel
+                  </Button>
+                  <Button onClick={onCreate}>Assign Task</Button>
+                </DialogFooter>
+              </DialogContent>
             </Dialog>
           )}
 
-        {/* Task Review Submission Modal */}
-        <Dialog open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>Submit Task for Review</DialogTitle>
-              <DialogDescription>
-                Please describe the work you've completed for: <strong>{taskToReview?.title}</strong>
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              <div className="space-y-2">
-                <Label htmlFor="review-details">What did you actually do? <span className="text-destructive">*</span></Label>
-                <textarea
-                  id="review-details"
-                  placeholder="Provide a detailed description of your work..."
-                  className="w-full min-h-[120px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  value={reviewForm.details}
-                  onChange={(e) => setReviewForm({ ...reviewForm, details: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="review-doc">Work Document URL (Optional)</Label>
-                <Input
-                  id="review-doc"
-                  placeholder="https://docs.google.com/..."
-                  value={reviewForm.docUrl}
-                  onChange={(e) => setReviewForm({ ...reviewForm, docUrl: e.target.value })}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsReviewModalOpen(false);
-                  setTaskToReview(null);
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleReviewSubmit}>Submit for Review</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Backlink Lead Review Submission Modal */}
-        <Dialog open={isBacklinkReviewModalOpen} onOpenChange={setIsBacklinkReviewModalOpen}>
-          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Submit Backlink Task for Review</DialogTitle>
-              <DialogDescription>
-                Please provide details about your backlink work for: <strong>{taskToReview?.title}</strong>
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-6 py-4">
-              {/* Summary */}
-              <div className="space-y-2">
-                <Label htmlFor="backlink-summary">
-                  Summary <span className="text-destructive">*</span>
-                </Label>
-                <textarea
-                  id="backlink-summary"
-                  placeholder="Describe what you did for this task..."
-                  className="w-full min-h-[100px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                  value={backlinkReviewForm.summary}
-                  onChange={(e) => setBacklinkReviewForm({ ...backlinkReviewForm, summary: e.target.value })}
-                />
-              </div>
-
-              {/* Link Type Selection */}
-              <div className="space-y-3">
-                <Label>
-                  Link Type <span className="text-destructive">*</span>
-                </Label>
+          {/* Task Review Submission Modal */}
+          <Dialog open={isReviewModalOpen} onOpenChange={setIsReviewModalOpen}>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Submit Task for Review</DialogTitle>
+                <DialogDescription>
+                  Please describe the work you've completed for: <strong>{taskToReview?.title}</strong>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
                 <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="link-type-create"
-                      checked={backlinkReviewForm.linkTypes.create}
-                      onCheckedChange={(checked) =>
-                        setBacklinkReviewForm({
-                          ...backlinkReviewForm,
-                          linkTypes: { ...backlinkReviewForm.linkTypes, create: checked as boolean },
-                        })
-                      }
-                    />
-                    <label
-                      htmlFor="link-type-create"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Links Created
-                    </label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <Checkbox
-                      id="link-type-index"
-                      checked={backlinkReviewForm.linkTypes.index}
-                      onCheckedChange={(checked) =>
-                        setBacklinkReviewForm({
-                          ...backlinkReviewForm,
-                          linkTypes: { ...backlinkReviewForm.linkTypes, index: checked as boolean },
-                        })
-                      }
-                    />
-                    <label
-                      htmlFor="link-type-index"
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
-                    >
-                      Links Indexed
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              {/* Links Created Table */}
-              {backlinkReviewForm.linkTypes.create && (
-                <div className="space-y-2">
-                  <Label>Links Created <span className="text-destructive">*</span></Label>
-                  <LinkSheetEditor
-                    links={backlinkReviewForm.linksCreated}
-                    onChange={(links) =>
-                      setBacklinkReviewForm({ ...backlinkReviewForm, linksCreated: links })
-                    }
-                    placeholder="Enter URL where you created a link..."
+                  <Label htmlFor="review-details">What did you actually do? <span className="text-destructive">*</span></Label>
+                  <textarea
+                    id="review-details"
+                    placeholder="Provide a detailed description of your work..."
+                    className="w-full min-h-[120px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    value={reviewForm.details}
+                    onChange={(e) => setReviewForm({ ...reviewForm, details: e.target.value })}
                   />
                 </div>
-              )}
-
-              {/* Links Indexed Table */}
-              {backlinkReviewForm.linkTypes.index && (
                 <div className="space-y-2">
-                  <Label>Links Indexed <span className="text-destructive">*</span></Label>
-                  <LinkSheetEditor
-                    links={backlinkReviewForm.linksIndexed}
-                    onChange={(links) =>
-                      setBacklinkReviewForm({ ...backlinkReviewForm, linksIndexed: links })
-                    }
-                    placeholder="Enter URL of your blog where links were indexed..."
+                  <Label htmlFor="review-doc">Work Document URL (Optional)</Label>
+                  <Input
+                    id="review-doc"
+                    placeholder="https://docs.google.com/..."
+                    value={reviewForm.docUrl}
+                    onChange={(e) => setReviewForm({ ...reviewForm, docUrl: e.target.value })}
                   />
                 </div>
-              )}
-            </div>
-            <DialogFooter>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setIsBacklinkReviewModalOpen(false);
-                  setTaskToReview(null);
-                  setBacklinkReviewForm({
-                    summary: "",
-                    linkTypes: { create: false, index: false },
-                    linksCreated: [],
-                    linksIndexed: [],
-                  });
-                }}
-              >
-                Cancel
-              </Button>
-              <Button onClick={handleBacklinkReviewSubmit}>Submit for Review</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsReviewModalOpen(false);
+                    setTaskToReview(null);
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleReviewSubmit}>Submit for Review</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+
+          {/* Backlink Lead Review Submission Modal */}
+          <Dialog open={isBacklinkReviewModalOpen} onOpenChange={setIsBacklinkReviewModalOpen}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Submit Backlink Task for Review</DialogTitle>
+                <DialogDescription>
+                  Please provide details about your backlink work for: <strong>{taskToReview?.title}</strong>
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-6 py-4">
+                {/* Summary */}
+                <div className="space-y-2">
+                  <Label htmlFor="backlink-summary">
+                    Summary <span className="text-destructive">*</span>
+                  </Label>
+                  <textarea
+                    id="backlink-summary"
+                    placeholder="Describe what you did for this task..."
+                    className="w-full min-h-[100px] p-3 rounded-md border border-border bg-card text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                    value={backlinkReviewForm.summary}
+                    onChange={(e) => setBacklinkReviewForm({ ...backlinkReviewForm, summary: e.target.value })}
+                  />
+                </div>
+
+                {/* Link Type Selection */}
+                <div className="space-y-3">
+                  <Label>
+                    Link Type <span className="text-destructive">*</span>
+                  </Label>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="link-type-create"
+                        checked={backlinkReviewForm.linkTypes.create}
+                        onCheckedChange={(checked) =>
+                          setBacklinkReviewForm({
+                            ...backlinkReviewForm,
+                            linkTypes: { ...backlinkReviewForm.linkTypes, create: checked as boolean },
+                          })
+                        }
+                      />
+                      <label
+                        htmlFor="link-type-create"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Links Created
+                      </label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="link-type-index"
+                        checked={backlinkReviewForm.linkTypes.index}
+                        onCheckedChange={(checked) =>
+                          setBacklinkReviewForm({
+                            ...backlinkReviewForm,
+                            linkTypes: { ...backlinkReviewForm.linkTypes, index: checked as boolean },
+                          })
+                        }
+                      />
+                      <label
+                        htmlFor="link-type-index"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Links Indexed
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Links Created Table */}
+                {backlinkReviewForm.linkTypes.create && (
+                  <div className="space-y-2">
+                    <Label>Links Created <span className="text-destructive">*</span></Label>
+                    <LinkSheetEditor
+                      links={backlinkReviewForm.linksCreated}
+                      onChange={(links) =>
+                        setBacklinkReviewForm({ ...backlinkReviewForm, linksCreated: links })
+                      }
+                      placeholder="Enter URL where you created a link..."
+                    />
+                  </div>
+                )}
+
+                {/* Links Indexed Table */}
+                {backlinkReviewForm.linkTypes.index && (
+                  <div className="space-y-2">
+                    <Label>Links Indexed <span className="text-destructive">*</span></Label>
+                    <LinkSheetEditor
+                      links={backlinkReviewForm.linksIndexed}
+                      onChange={(links) =>
+                        setBacklinkReviewForm({ ...backlinkReviewForm, linksIndexed: links })
+                      }
+                      placeholder="Enter URL of your blog where links were indexed..."
+                    />
+                  </div>
+                )}
+              </div>
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setIsBacklinkReviewModalOpen(false);
+                    setTaskToReview(null);
+                    setBacklinkReviewForm({
+                      summary: "",
+                      linkTypes: { create: false, index: false },
+                      linksCreated: [],
+                      linksIndexed: [],
+                    });
+                  }}
+                >
+                  Cancel
+                </Button>
+                <Button onClick={handleBacklinkReviewSubmit}>Submit for Review</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
-    </div>
 
       {
-    loading && (
-      <p className="text-sm text-muted-foreground mb-3">Loading...</p>
-    )
-  }
-  { error && <p className="text-sm text-destructive mb-3">{error}</p> }
+        loading && (
+          <p className="text-sm text-muted-foreground mb-3">Loading...</p>
+        )
+      }
+      {error && <p className="text-sm text-destructive mb-3">{error}</p>}
 
-  <div className="grid grid-cols-4 gap-5">
-    {["todo", "in-progress", "review", "done"].map((col) => {
-      const columnTitle =
-        col === "todo"
-          ? "To Do"
-          : col === "in-progress"
-            ? "In Progress"
-            : col === "review"
-              ? "In Review"
-              : "Completed";
-      const color =
-        col === "todo"
-          ? "bg-muted"
-          : col === "in-progress"
-            ? "bg-info"
-            : col === "review"
-              ? "bg-warning"
-              : "bg-success";
-      const items = grouped[col] || [];
-      return (
-        <div key={col} className="space-y-3">
-          <div className="flex items-center justify-between px-1">
-            <div className="flex items-center gap-2">
-              <div className={cn("w-3 h-3 rounded-full", color)} />
-              <h3 className="font-medium">{columnTitle}</h3>
-              <span className="text-sm text-muted-foreground">
-                ({items.length})
-              </span>
-            </div>
-            <button className="w-6 h-6 rounded-md hover:bg-muted flex items-center justify-center">
-              <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
-            </button>
-          </div>
-
-          <div className="space-y-3">
-            {items.map((task, index) => (
-              <div
-                key={task.id}
-                className="glass-card p-4 animate-slide-up hover:shadow-card-hover transition-all cursor-pointer"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <span
-                    className={cn(
-                      "chip text-xs",
-                      typeColors[(task.type as string) || "general"] ||
-                      "chip"
-                    )}
-                  >
-                    {task.type || "general"}
-                  </span>
-                  <span
-                    className={cn(
-                      "chip text-xs",
-                      priorityColors[
-                      (task.priority as string) || "medium"
-                      ] || "chip"
-                    )}
-                  >
-                    <Flag className="w-3 h-3" />
-                    {task.priority}
+      <div className="grid grid-cols-4 gap-5">
+        {["todo", "in-progress", "review", "done"].map((col) => {
+          const columnTitle =
+            col === "todo"
+              ? "To Do"
+              : col === "in-progress"
+                ? "In Progress"
+                : col === "review"
+                  ? "In Review"
+                  : "Completed";
+          const color =
+            col === "todo"
+              ? "bg-muted"
+              : col === "in-progress"
+                ? "bg-info"
+                : col === "review"
+                  ? "bg-warning"
+                  : "bg-success";
+          const items = grouped[col] || [];
+          return (
+            <div key={col} className="space-y-3">
+              <div className="flex items-center justify-between px-1">
+                <div className="flex items-center gap-2">
+                  <div className={cn("w-3 h-3 rounded-full", color)} />
+                  <h3 className="font-medium">{columnTitle}</h3>
+                  <span className="text-sm text-muted-foreground">
+                    ({items.length})
                   </span>
                 </div>
-                <h4 className="font-medium text-sm mb-1 flex items-center gap-2">
-                  {task.title}
-                  {task.backlink_report_status && (
-                    <Badge
-                      variant="outline"
-                      className={cn(
-                        "text-xs",
-                        task.backlink_report_status === 'critical' && 'bg-destructive/10 text-destructive border-destructive/20',
-                        task.backlink_report_status === 'warning' && 'bg-warning/10 text-warning border-warning/20',
-                        task.backlink_report_status === 'healthy' && 'bg-success/10 text-success border-success/20'
+                <button className="w-6 h-6 rounded-md hover:bg-muted flex items-center justify-center">
+                  <MoreHorizontal className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                {items.map((task, index) => (
+                  <div
+                    key={task.id}
+                    className="glass-card p-4 animate-slide-up hover:shadow-card-hover transition-all cursor-pointer"
+                    style={{ animationDelay: `${index * 50}ms` }}
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <span
+                        className={cn(
+                          "chip text-xs",
+                          typeColors[(task.type as string) || "general"] ||
+                          "chip"
+                        )}
+                      >
+                        {task.type || "general"}
+                      </span>
+                      <span
+                        className={cn(
+                          "chip text-xs",
+                          priorityColors[
+                          (task.priority as string) || "medium"
+                          ] || "chip"
+                        )}
+                      >
+                        <Flag className="w-3 h-3" />
+                        {task.priority}
+                      </span>
+                    </div>
+                    <h4 className="font-medium text-sm mb-1 flex items-center gap-2">
+                      {task.title}
+                      {task.backlink_report_status && (
+                        <Badge
+                          variant="outline"
+                          className={cn(
+                            "text-xs",
+                            task.backlink_report_status === 'critical' && 'bg-destructive/10 text-destructive border-destructive/20',
+                            task.backlink_report_status === 'warning' && 'bg-warning/10 text-warning border-warning/20',
+                            task.backlink_report_status === 'healthy' && 'bg-success/10 text-success border-success/20'
+                          )}
+                        >
+                          {task.backlink_report_status === 'critical' && <AlertCircle className="w-3 h-3 mr-1" />}
+                          {task.backlink_report_status === 'warning' && <AlertTriangle className="w-3 h-3 mr-1" />}
+                          {task.backlink_report_status === 'healthy' && <CheckCircle className="w-3 h-3 mr-1" />}
+                          {task.backlink_report_status}
+                        </Badge>
                       )}
-                    >
-                      {task.backlink_report_status === 'critical' && <AlertCircle className="w-3 h-3 mr-1" />}
-                      {task.backlink_report_status === 'warning' && <AlertTriangle className="w-3 h-3 mr-1" />}
-                      {task.backlink_report_status === 'healthy' && <CheckCircle className="w-3 h-3 mr-1" />}
-                      {task.backlink_report_status}
-                    </Badge>
-                  )}
-                </h4>
-                <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
-                  {task.description}
-                </p>
-                <p className="text-xs text-muted-foreground mb-3">
-                  Project:{" "}
-                  <span className="text-foreground">
-                    {task.projectName || task.project_id || "—"}
-                  </span>
-                </p>
-                <div className="flex items-center justify-between pt-3 border-t border-border/50">
-                  <div className="flex items-center gap-2">
-                    <Avatar className="w-6 h-6">
-                      <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64" />
-                      <AvatarFallback>U</AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs text-muted-foreground">
-                      {task.assignee ? task.assignee.name : "Unassigned"}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Clock className="w-3 h-3" />
-                    {task.due_date
-                      ? task.due_date.slice(0, 10)
-                      : "No due date"}
-                  </div>
-                </div>
-                <div className="flex items-center justify-between mt-3">
-                  {(canCreateEditTasks || (!canCreateEditTasks && task.status !== 'done')) && (
-                    <select
-                      className="h-9 rounded-xl border border-border bg-card px-2 text-xs"
-                      value={task.status || "todo"}
-                      onChange={(e) => onUpdateStatus(task, e.target.value)}
-                      disabled={task.status === 'review' || task.status === 'done'}
-                    >
-                      <option value="todo">To Do</option>
-                      <option value="in-progress">In Progress</option>
-                      <option value="review">Review</option>
-                      <option value="done" disabled={task.status !== 'review'}>Done</option>
-                    </select>
-                  )}
-                  {!canCreateEditTasks && task.status === 'done' && (
-                    <Button className="h-8 px-3 text-xs" disabled>
-                      Completed
-                    </Button>
-                  )}
-                  {!canCreateEditTasks && task.status !== 'done' && (
-                    <Button className="h-8 px-3 text-xs" onClick={() => {
-                      alert(`Task Details:
+                    </h4>
+                    <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
+                      {task.description}
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-3">
+                      Project:{" "}
+                      <span className="text-foreground">
+                        {task.projectName || task.project_id || "—"}
+                      </span>
+                    </p>
+                    <div className="flex items-center justify-between pt-3 border-t border-border/50">
+                      <div className="flex items-center gap-2">
+                        <Avatar className="w-6 h-6">
+                          <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64" />
+                          <AvatarFallback>U</AvatarFallback>
+                        </Avatar>
+                        <span className="text-xs text-muted-foreground">
+                          {task.assignee ? task.assignee.name : "Unassigned"}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                        <Clock className="w-3 h-3" />
+                        {task.due_date
+                          ? task.due_date.slice(0, 10)
+                          : "No due date"}
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between mt-3">
+                      {(canCreateEditTasks || (!canCreateEditTasks && task.status !== 'done')) && (
+                        <select
+                          className="h-9 rounded-xl border border-border bg-card px-2 text-xs"
+                          value={task.status || "todo"}
+                          onChange={(e) => onUpdateStatus(task, e.target.value)}
+                          disabled={task.status === 'review' || task.status === 'done'}
+                        >
+                          <option value="todo">To Do</option>
+                          <option value="in-progress">In Progress</option>
+                          <option value="review">Review</option>
+                          <option value="done" disabled={task.status !== 'review'}>Done</option>
+                        </select>
+                      )}
+                      {!canCreateEditTasks && task.status === 'done' && (
+                        <Button className="h-8 px-3 text-xs" disabled>
+                          Completed
+                        </Button>
+                      )}
+                      {!canCreateEditTasks && task.status !== 'done' && (
+                        <Button className="h-8 px-3 text-xs" onClick={() => {
+                          alert(`Task Details:
 Title: ${task.title}
 Description: ${task.description || "N/A"}
 Project: ${task.projectName || task.project_id || "N/A"}
@@ -1316,26 +1316,26 @@ Due Date: ${task.due_date || "N/A"}
 Assigned To: ${task.assignee?.name || "Unassigned"}
 Details: ${task.completion_details || "N/A"}
 Doc: ${task.completion_doc_url || "N/A"}`);
-                    }}>
-                      View Details
-                    </Button>
-                  )}
-                  {canCreateEditTasks && (
-                    <button
-                      className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
-                      onClick={() => onDelete(task.id)}
-                    >
-                      <Trash2 className="w-4 h-4 text-muted-foreground" />
-                    </button>
-                  )}
-                </div>
+                        }}>
+                          View Details
+                        </Button>
+                      )}
+                      {canCreateEditTasks && (
+                        <button
+                          className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
+                          onClick={() => onDelete(task.id)}
+                        >
+                          <Trash2 className="w-4 h-4 text-muted-foreground" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
-        </div>
-      );
-    })}
-  </div>
+            </div>
+          );
+        })}
+      </div>
     </MainLayout >
   );
 }
