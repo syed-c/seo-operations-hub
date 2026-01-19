@@ -299,42 +299,33 @@ export function Sidebar() {
         // Continue anyway to send webhook, but warn
       }
 
-      // 2. Call webhook to create project/notify
-      // Using hardcoded URL as requested
+      // 2. Call webhook to create project/notify (non-blocking)
       const webhookUrl = "https://auton8n.n8n.shivahost.in/webhook/2b740420-f669-42ac-9d10-de506e7dff9b";
 
-      try {
-        await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            // Structure requested by user + description
-            name: newProjectName,
-            description: newProjectDescription,
-            client: newProjectClient,
-            status: "active",
-            health_score: 70,
-            // Additional context
-            id: newProject.id,
-            created_at: newProject.created_at,
-            creator_role: userData?.role
-          }),
-        });
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newProjectName,
+          description: newProjectDescription,
+          client: newProjectClient,
+          status: "active",
+          health_score: 70,
+          id: newProject.id,
+          created_at: newProject.created_at,
+          creator_role: userData?.role
+        }),
+      }).then(() => {
         console.log("Project creation webhook sent successfully");
-      } catch (webhookError) {
-        // Log but don't fail, as project is already created
+      }).catch((webhookError) => {
         console.error("Error sending project creation webhook:", webhookError);
-      }
+      });
 
-      // 3. Success handling
+      // 3. Success handling (UI feedback immediately)
       console.log("Project created successfully");
-
-      // Refresh projects list
       await fetchProjects();
-
-      // Close dialog and reset form
       setIsCreateDialogOpen(false);
       setNewProjectName("");
       setNewProjectDescription("");
