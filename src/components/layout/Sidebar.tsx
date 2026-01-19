@@ -285,6 +285,20 @@ export function Sidebar() {
         return;
       }
 
+      // 1.5 Add user to project_members as owner
+      const { error: memberError } = await ensureSupabase()
+        .from('project_members')
+        .insert({
+          project_id: newProject.id,
+          user_id: user.id,
+          role: 'owner'
+        });
+
+      if (memberError) {
+        console.error("Error adding project member:", memberError);
+        // Continue anyway to send webhook, but warn
+      }
+
       // 2. Call webhook to create project/notify
       // Using hardcoded URL as requested
       const webhookUrl = "https://auton8n.n8n.shivahost.in/webhook/2b740420-f669-42ac-9d10-de506e7dff9b";
