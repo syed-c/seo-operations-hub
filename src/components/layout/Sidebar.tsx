@@ -268,46 +268,66 @@ export function Sidebar() {
         console.warn("No user role found, proceeding with project creation");
       }
 
-      // Call webhook to create project
-      const webhookUrl = import.meta.env.VITE_PROJECT_WEBHOOK_URL;
+      // 1. Create project in Supabase first
+      const { data: newProject, error: createError } = await ensureSupabase()
+        .from('projects')
+        .insert({
+          name: newProjectName,
+          client: newProjectClient,
+          status: 'active',
+          health_score: 70
+        })
+        .select()
+        .single();
 
-      if (!webhookUrl) {
-        console.error("Webhook URL not configured");
+      if (createError) {
+        console.error("Error creating project:", createError);
         return;
       }
 
-      const response = await fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: newProjectName,
-          description: newProjectDescription,
-          client: newProjectClient,
-          status: "active",
-          health_score: 70,
-        }),
-      });
+      // 2. Call webhook to create project/notify
+      // Using hardcoded URL as requested
+      const webhookUrl = "https://auton8n.n8n.shivahost.in/webhook/2b740420-f669-42ac-9d10-de506e7dff9b";
 
-      const responseBody = await response.text();
-
-      if (responseBody.includes('Project Added')) {
-        console.log("Project created successfully via webhook");
-
-        // Refresh projects list
-        await fetchProjects();
-
-        // Close dialog and reset form
-        setIsCreateDialogOpen(false);
-        setNewProjectName("");
-        setNewProjectDescription("");
-        setNewProjectClient("");
-      } else {
-        console.error("Failed to create project via webhook:", responseBody);
+      try {
+        await fetch(webhookUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            // Structure requested by user + description
+            name: newProjectName,
+            description: newProjectDescription,
+            client: newProjectClient,
+            status: "active",
+            health_score: 70,
+            // Additional context
+            id: newProject.id,
+            created_at: newProject.created_at,
+            creator_role: userData?.role
+          }),
+        });
+        console.log("Project creation webhook sent successfully");
+      } catch (webhookError) {
+        // Log but don't fail, as project is already created
+        console.error("Error sending project creation webhook:", webhookError);
       }
+
+      // 3. Success handling
+      console.log("Project created successfully");
+
+      // Refresh projects list
+      await fetchProjects();
+
+      // Close dialog and reset form
+      setIsCreateDialogOpen(false);
+      setNewProjectName("");
+      setNewProjectDescription("");
+      setNewProjectClient("");
+
     } catch (error) {
-      console.error("Error creating project:", error);
+      console.error("Error in project creation flow:", error);
     }
   };
 
