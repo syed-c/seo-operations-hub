@@ -501,12 +501,18 @@ export function Sidebar() {
         {!collapsed && (
           <div className="mt-3 p-3 rounded-xl bg-muted/50 flex items-center gap-3">
             <Avatar className="w-9 h-9">
-              <AvatarImage src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=64&h=64&fit=crop&crop=face" />
-              <AvatarFallback>JD</AvatarFallback>
+              <AvatarFallback>
+                {teamUser?.first_name?.[0] || teamUser?.email?.[0]?.toUpperCase() || "U"}
+                {teamUser?.last_name?.[0] || ""}
+              </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">John Doe</p>
-              <p className="text-xs text-muted-foreground truncate">SEO Lead</p>
+              <p className="text-sm font-medium truncate">
+                {teamUser?.first_name && teamUser?.last_name
+                  ? `${teamUser.first_name} ${teamUser.last_name}`
+                  : teamUser?.email?.split('@')[0] || "User"}
+              </p>
+              <p className="text-xs text-muted-foreground truncate">{teamUser?.role || "Member"}</p>
             </div>
           </div>
         )}
