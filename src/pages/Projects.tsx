@@ -173,26 +173,24 @@ export default function Projects() {
       setHealth(70);
       setStatus("active");
 
-      // Trigger webhook for new project creation
-      try {
-        const webhookUrl = "https://auton8n.n8n.shivahost.in/webhook/2b740420-f669-42ac-9d10-de506e7dff9b";
-        await fetch(webhookUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            event: 'project_created',
-            project: data,
-            timestamp: new Date().toISOString(),
-            creator_role: teamUser?.role
-          }),
-        });
+      // Trigger webhook for new project creation (non-blocking)
+      const webhookUrl = "https://auton8n.n8n.shivahost.in/webhook/2b740420-f669-42ac-9d10-de506e7dff9b";
+      fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          event: 'project_created',
+          project: data,
+          timestamp: new Date().toISOString(),
+          creator_role: teamUser?.role
+        }),
+      }).then(() => {
         console.log('Project creation webhook sent successfully');
-      } catch (webhookError) {
+      }).catch((webhookError) => {
         console.error('Error sending project creation webhook:', webhookError);
-        // We don't throw here to avoid showing an error to the user since the project was created
-      }
+      });
     }
   });
 
