@@ -89,7 +89,7 @@ export function BacklinkReportsDashboard({ projectId }: { projectId?: string }) 
               </div>
               <div>
                 <p className="text-2xl font-bold">{stats.total}</p>
-                <p className="text-sm text-muted-foreground">Total Reports</p>
+                <p className="text-sm text-muted-foreground">Total Tasks Analyzed</p>
               </div>
             </div>
           </CardContent>
@@ -143,7 +143,7 @@ export function BacklinkReportsDashboard({ projectId }: { projectId?: string }) 
         {/* Status Breakdown Pie Chart */}
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">Status Breakdown</CardTitle>
+            <CardTitle className="text-lg text-left">Task Status Breakdown</CardTitle>
           </CardHeader>
           <CardContent>
             {statusPieData.length > 0 ? (
