@@ -243,10 +243,72 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
               {/* Tabs for Details */}
               <Tabs defaultValue="created_links" className="w-full">
                 <TabsList className="w-full">
+                  <TabsTrigger value="report_doc" className="flex-1">Report Document</TabsTrigger>
                   <TabsTrigger value="created_links" className="flex-1">Created Links</TabsTrigger>
                   <TabsTrigger value="indexed_blogs" className="flex-1">Indexed Blogs</TabsTrigger>
                   <TabsTrigger value="issues" className="flex-1">Issues</TabsTrigger>
                 </TabsList>
+
+                {/* Report Document Tab (Summary View) */}
+                <TabsContent value="report_doc" className="mt-4 space-y-4">
+                  <div className="prose prose-sm dark:prose-invert max-w-none bg-muted/30 p-6 rounded-2xl border border-border/50">
+                    <div className="flex items-center justify-between mb-6">
+                      <h2 className="text-xl font-bold m-0">Review Analysis Document</h2>
+                      <Badge className={cn('px-3 py-1', status?.bgColor, status?.color)}>
+                        {status?.label.toUpperCase()}
+                      </Badge>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                      <div>
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Task Details</h3>
+                        <p className="m-0 text-foreground font-medium">{report.tasks?.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1">{report.projects?.name}</p>
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider mb-2">Submission Result</h3>
+                        <p className="m-0 text-foreground font-medium">
+                          {report.total_working} / {report.total_links_checked} Links Working
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">Health Score: {report.health_percentage}%</p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-6">
+                      <section>
+                        <h3 className="text-lg font-bold mb-3 pb-2 border-b">Executive Summary</h3>
+                        <p className="text-sm leading-relaxed">
+                          This report summarizes the verification results for the <strong>{report.tasks?.title}</strong> task.
+                          A total of <strong>{report.total_links_checked}</strong> URLs were checked across
+                          <strong>{report.payloads?.length || 1}</strong> submission batches.
+                          The overall health is <strong>{report.status}</strong> with a success rate of <strong>{report.health_percentage}%</strong>.
+                        </p>
+                      </section>
+
+                      {report.total_dead > 0 && (
+                        <section className="bg-destructive/5 p-4 rounded-xl border border-destructive/20">
+                          <h3 className="text-lg font-bold mb-2 text-destructive flex items-center gap-2 m-0">
+                            <AlertCircle className="w-5 h-5" />
+                            Security / Health Alerts
+                          </h3>
+                          <p className="text-sm mt-2 m-0">
+                            Detected <strong>{report.total_dead}</strong> dead links that require immediate attention.
+                            {report.indexed_blogs.critical_blogs > 0 && ` There are ${report.indexed_blogs.critical_blogs} blogs in critical state due to multiple dead interlinks.`}
+                          </p>
+                        </section>
+                      )}
+
+                      <section>
+                        <h3 className="text-lg font-bold mb-3 pb-2 border-b">Detailed Methodology</h3>
+                        <ul className="list-disc pl-5 space-y-1 text-sm">
+                          <li>Verified all newly created target URLs for availability.</li>
+                          <li>Crawled indexed blog posts to verify internal linking health.</li>
+                          <li>Identified cross-domain redirect issues and 404 response codes.</li>
+                        </ul>
+                      </section>
+                    </div>
+                  </div>
+                </TabsContent>
 
                 {/* Created Links Tab */}
                 <TabsContent value="created_links" className="mt-4 space-y-2">
@@ -287,52 +349,101 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
                 </TabsContent>
 
                 {/* Indexed Blogs Tab */}
-                <TabsContent value="indexed_blogs" className="mt-4 space-y-2">
+                <TabsContent value="indexed_blogs" className="mt-4 space-y-4">
                   {!indexedBlogs || indexedBlogs.total_blogs === 0 ? (
-                    <p className="text-muted-foreground text-center py-4">No indexed blogs in this report</p>
+                    <div className="text-center py-12 bg-muted/20 rounded-2xl border border-dashed">
+                      <FileText className="w-12 h-12 mx-auto text-muted-foreground/30 mb-2" />
+                      <p className="text-muted-foreground">No indexed blogs analyzed</p>
+                    </div>
                   ) : (
-                    <div className="space-y-3">
-                      <div className="flex gap-4 text-sm mb-4">
-                        <span className="text-success">Healthy: {indexedBlogs.healthy_blogs}</span>
-                        <span className="text-warning">Warning: {indexedBlogs.warning_blogs}</span>
-                        <span className="text-destructive">Critical: {indexedBlogs.critical_blogs}</span>
+                    <div className="space-y-4">
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="bg-success/10 p-3 rounded-xl border border-success/20 text-center">
+                          <p className="text-lg font-bold text-success">{indexedBlogs.healthy_blogs}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-success/70">Healthy</p>
+                        </div>
+                        <div className="bg-warning/10 p-3 rounded-xl border border-warning/20 text-center">
+                          <p className="text-lg font-bold text-warning">{indexedBlogs.warning_blogs}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-warning/70">Warning</p>
+                        </div>
+                        <div className="bg-destructive/10 p-3 rounded-xl border border-destructive/20 text-center">
+                          <p className="text-lg font-bold text-destructive">{indexedBlogs.critical_blogs}</p>
+                          <p className="text-[10px] uppercase tracking-wider text-destructive/70">Critical</p>
+                        </div>
                       </div>
-                      {indexedBlogs.blog_details?.map((blog, idx) => (
-                        <Card key={idx} className={cn('p-3 border-l-4',
-                          blog.blog_status === 'critical' ? 'border-l-destructive' :
-                            blog.blog_status === 'warning' ? 'border-l-warning' : 'border-l-success'
-                        )}>
-                          <div className="flex items-center justify-between mb-2">
-                            <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <FileText className={cn('w-4 h-4 flex-shrink-0',
-                                blog.blog_status === 'critical' ? 'text-destructive' :
-                                  blog.blog_status === 'warning' ? 'text-warning' : 'text-success'
-                              )} />
-                              <a
-                                href={blog.blog_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-sm truncate hover:underline font-medium"
-                              >
-                                {blog.blog_title || blog.blog_url}
-                              </a>
-                            </div>
-                            <Badge variant={blog.blog_status === 'critical' ? 'destructive' : blog.blog_status === 'warning' ? 'secondary' : 'default'} className="flex-shrink-0 ml-2">
-                              {blog.blog_status}
-                            </Badge>
-                          </div>
-                          <p className="text-xs text-muted-foreground ml-6 mb-2">
-                            {blog.total_interlinks} interlinks ({blog.working_interlinks} working, {blog.dead_interlinks} dead)
-                          </p>
-                          {blog.issues.length > 0 && (
-                            <div className="ml-6 text-xs text-destructive">
-                              {blog.issues.map((issue, i) => (
-                                <p key={i}>• {issue}</p>
-                              ))}
-                            </div>
-                          )}
-                        </Card>
-                      ))}
+
+                      <div className="space-y-3">
+                        {indexedBlogs.blog_details?.map((blog, idx) => {
+                          const blogStatus = statusConfig[blog.blog_status as BacklinkReportStatus] || statusConfig.healthy;
+                          const BlogIcon = blogStatus.icon;
+
+                          return (
+                            <Card key={idx} className="overflow-hidden border-none shadow-sm bg-muted/30">
+                              <CardContent className="p-0">
+                                <div className={cn("px-4 py-3 flex items-center justify-between border-b bg-card",
+                                  blog.blog_status === 'critical' ? 'border-destructive/20' :
+                                    blog.blog_status === 'warning' ? 'border-warning/20' : 'border-success/20'
+                                )}>
+                                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                                    <div className={cn("p-2 rounded-lg", blogStatus.bgColor)}>
+                                      <BlogIcon className={cn("w-4 h-4", blogStatus.color)} />
+                                    </div>
+                                    <div className="min-w-0">
+                                      <h4 className="text-sm font-semibold truncate m-0">
+                                        {blog.blog_title || 'Untitled Blog Post'}
+                                      </h4>
+                                      <a
+                                        href={blog.blog_url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="text-[10px] text-muted-foreground hover:underline flex items-center gap-1 mt-0.5"
+                                      >
+                                        {blog.blog_url}
+                                        <ExternalLink className="w-2 h-2" />
+                                      </a>
+                                    </div>
+                                  </div>
+                                  <Badge className={cn("ml-2 font-mono text-[10px] py-0 px-2", blogStatus.bgColor, blogStatus.color)}>
+                                    {blog.blog_status?.toUpperCase()}
+                                  </Badge>
+                                </div>
+
+                                <div className="p-4 bg-muted/20">
+                                  <div className="flex items-center justify-between mb-3">
+                                    <span className="text-xs font-medium text-muted-foreground">Interlink Health</span>
+                                    <div className="flex gap-2">
+                                      <span className="text-[10px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded">
+                                        {blog.working_interlinks} WORKING
+                                      </span>
+                                      {blog.dead_interlinks > 0 && (
+                                        <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">
+                                          {blog.dead_interlinks} DEAD
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+
+                                  {blog.issues.length > 0 ? (
+                                    <div className="space-y-1.5 mt-2">
+                                      {blog.issues.map((issue, i) => (
+                                        <div key={i} className="flex gap-2 p-2 bg-destructive/5 rounded-lg border border-destructive/10">
+                                          <AlertCircle className="w-3 h-3 text-destructive mt-0.5 shrink-0" />
+                                          <p className="text-[11px] text-destructive leading-tight m-0">{issue}</p>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-2 p-2 bg-success/5 rounded-lg border border-success/10">
+                                      <CheckCircle className="w-3 h-3 text-success shrink-0" />
+                                      <p className="text-[11px] text-success m-0">All interlinks are healthy</p>
+                                    </div>
+                                  )}
+                                </div>
+                              </CardContent>
+                            </Card>
+                          );
+                        })}
+                      </div>
                     </div>
                   )}
                 </TabsContent>
@@ -414,7 +525,7 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
                       {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
                     </Button>
                     <pre className="bg-muted p-4 rounded-lg overflow-x-auto text-xs max-h-96">
-                      {JSON.stringify(report.report_payload, null, 2)}
+                      {JSON.stringify(report.payloads, null, 2)}
                     </pre>
                   </div>
                 </CollapsibleContent>

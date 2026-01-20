@@ -185,40 +185,61 @@ export function useBacklinkReportStats(projectId?: string) {
 
       if (error) throw error;
 
-      const reports = (data || []).map(r => ({
-        ...r,
-        projectName: (r as any).projects?.name,
-        assigneeName: (r as any).users?.first_name
-          ? `${(r as any).users.first_name} ${(r as any).users.last_name || ''}`.trim()
-          : (r as any).users?.email
-      }));
+      // Group reports by task_id before calculating stats
+      const reportsByTask: Record<string, any> = {};
 
-      // Calculate statistics
-      const total = reports.length;
-      const critical = reports.filter(r => r.status === 'critical').length;
-      const warning = reports.filter(r => r.status === 'warning').length;
-      const healthy = reports.filter(r => r.status === 'healthy').length;
+      (data || []).forEach(r => {
+        const taskId = r.task_id || `no-task-${r.id}`;
+        if (!reportsByTask[taskId]) {
+          reportsByTask[taskId] = {
+            ...r,
+            projectName: (r as any).projects?.name,
+            assigneeName: (r as any).users?.first_name
+              ? `${(r as any).users.first_name} ${(r as any).users.last_name || ''}`.trim()
+              : (r as any).users?.email,
+            task_reports_count: 1
+          };
+        } else {
+          const group = reportsByTask[taskId];
+          group.total_links_checked += (r.total_links_checked || 0);
+          group.total_working += (r.total_working || 0);
+          group.total_dead += (r.total_dead || 0);
 
-      // Calculate link metrics from actual data
+          // Use most severe status
+          if (r.status === 'critical') group.status = 'critical';
+          else if (r.status === 'warning' && group.status !== 'critical') group.status = 'warning';
+
+          // Latest date
+          if (new Date(r.submitted_at) > new Date(group.submitted_at)) {
+            group.submitted_at = r.submitted_at;
+          }
+
+          group.task_reports_count++;
+        }
+      });
+
+      const uniqueTaskReports = Object.values(reportsByTask);
+
+      // Calculate statistics based on unique tasks
+      const total = uniqueTaskReports.length;
+      const critical = uniqueTaskReports.filter(r => r.status === 'critical').length;
+      const warning = uniqueTaskReports.filter(r => r.status === 'warning').length;
+      const healthy = uniqueTaskReports.filter(r => r.status === 'healthy').length;
+
+      // Calculate link metrics from aggregated data
       let totalDeadLinks = 0;
       let totalWorkingLinks = 0;
       let totalDeadInterlinks = 0;
       let totalWorkingInterlinks = 0;
 
-      reports.forEach(r => {
+      uniqueTaskReports.forEach(r => {
         totalDeadLinks += r.total_dead || 0;
         totalWorkingLinks += r.total_working || 0;
-
-        const indexedBlogs = r.indexed_blogs_summary as { interlinks_summary?: { dead?: number; working?: number } } | null;
-        if (indexedBlogs?.interlinks_summary) {
-          totalDeadInterlinks += indexedBlogs.interlinks_summary.dead || 0;
-          totalWorkingInterlinks += indexedBlogs.interlinks_summary.working || 0;
-        }
       });
 
-      // Top failing projects
+      // Top failing projects based on unique tasks
       const projectCounts: Record<string, { total: number; critical: number; warning: number; name: string }> = {};
-      reports.forEach(r => {
+      uniqueTaskReports.forEach(r => {
         if (!projectCounts[r.project_id]) {
           projectCounts[r.project_id] = {
             total: 0,
@@ -259,13 +280,13 @@ export function useBacklinkReportStats(projectId?: string) {
         .sort((a, b) => b.critical - a.critical)
         .slice(0, 5);
 
-      // Weekly and monthly trends
+      // Weekly and monthly trends based on unique tasks
       const now = new Date();
       const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
       const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
 
-      const weeklyReports = reports.filter(r => new Date(r.submitted_at) >= weekAgo);
-      const monthlyReports = reports.filter(r => new Date(r.submitted_at) >= monthAgo);
+      const weeklyReports = uniqueTaskReports.filter(r => new Date(r.submitted_at) >= weekAgo);
+      const monthlyReports = uniqueTaskReports.filter(r => new Date(r.submitted_at) >= monthAgo);
 
       return {
         total,
