@@ -5,12 +5,12 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { 
-  FileText, 
-  Search, 
-  Filter, 
-  AlertTriangle, 
-  AlertCircle, 
+import {
+  FileText,
+  Search,
+  Filter,
+  AlertTriangle,
+  AlertCircle,
   CheckCircle,
   Eye,
   Calendar,
@@ -54,7 +54,7 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
     assigneeId,
   });
   const [searchTerm, setSearchTerm] = useState('');
-  const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
+  const [selectedTaskId, setSelectedTaskId] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const { data: reports, isLoading, error } = useBacklinkReports(filters);
@@ -71,10 +71,58 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
     );
   });
 
-  const handleViewReport = (reportId: string) => {
-    setSelectedReportId(reportId);
+  const handleViewReport = (taskId: string) => {
+    setSelectedTaskId(taskId);
     setIsModalOpen(true);
   };
+
+  // Group reports by task_id
+  const groupedReports = (filteredReports || []).reduce((acc: any[], report) => {
+    const taskId = report.task_id;
+    if (!taskId) {
+      acc.push({ ...report, isGroup: false });
+      return acc;
+    }
+
+    const existingGroup = acc.find(g => g.task_id === taskId);
+    if (existingGroup) {
+      existingGroup.total_links_checked += (report.total_links_checked || 0);
+      existingGroup.total_working += (report.total_working || 0);
+      existingGroup.total_dead += (report.total_dead || 0);
+
+      // Update status to most severe
+      if (report.status === 'critical') {
+        existingGroup.status = 'critical';
+      } else if (report.status === 'warning' && existingGroup.status !== 'critical') {
+        existingGroup.status = 'warning';
+      }
+
+      // Keep most recent date
+      if (new Date(report.submitted_at) > new Date(existingGroup.submitted_at)) {
+        existingGroup.submitted_at = report.submitted_at;
+      }
+
+      existingGroup.batchCount = (existingGroup.batchCount || 1) + 1;
+    } else {
+      acc.push({
+        ...report,
+        isGroup: true,
+        batchCount: 1,
+        // Ensure numbers are initialized
+        total_links_checked: report.total_links_checked || 0,
+        total_working: report.total_working || 0,
+        total_dead: report.total_dead || 0,
+      });
+    }
+    return acc;
+  }, []);
+
+  // Recalculate health percentage for groups
+  groupedReports.forEach(group => {
+    if (group.isGroup && group.total_links_checked > 0) {
+      group.health_percentage = Math.round((group.total_working / group.total_links_checked) * 100);
+    }
+  });
 
   if (error) {
     return (
@@ -103,12 +151,12 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
               className="pl-10"
             />
           </div>
-          
+
           <Select
             value={filters.status || 'all'}
-            onValueChange={(value) => setFilters(prev => ({ 
-              ...prev, 
-              status: value === 'all' ? undefined : value as BacklinkReportStatus 
+            onValueChange={(value) => setFilters(prev => ({
+              ...prev,
+              status: value === 'all' ? undefined : value as BacklinkReportStatus
             }))}
           >
             <SelectTrigger className="w-[150px]">
@@ -168,7 +216,7 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
               </Card>
             ))}
           </div>
-        ) : filteredReports?.length === 0 ? (
+        ) : groupedReports.length === 0 ? (
           <Card>
             <CardContent className="p-12 text-center">
               <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
@@ -180,7 +228,7 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
           </Card>
         ) : (
           <div className="space-y-3">
-            {filteredReports?.map((report, index) => {
+            {groupedReports.map((report, index) => {
               const status = statusConfig[report.status];
               const StatusIcon = status.icon;
 
@@ -189,7 +237,7 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
                   key={report.id}
                   className="hover:shadow-card-hover transition-all cursor-pointer animate-slide-up"
                   style={{ animationDelay: `${index * 50}ms` }}
-                  onClick={() => handleViewReport(report.id)}
+                  onClick={() => handleViewReport(report.task_id)}
                 >
                   <CardContent className="p-4">
                     <div className="flex items-center gap-4">
@@ -208,7 +256,7 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
                             {status.label}
                           </Badge>
                         </div>
-                        
+
                         <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                           <span className="flex items-center gap-1">
                             <Folder className="w-3 h-3" />
@@ -253,7 +301,7 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
                         size="sm"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleViewReport(report.id);
+                          handleViewReport(report.task_id);
                         }}
                       >
                         <Eye className="w-4 h-4 mr-1" />
@@ -270,11 +318,11 @@ export function BacklinkReportsList({ projectId, assigneeId }: BacklinkReportsLi
 
       {/* Report Detail Modal */}
       <BacklinkReportDetailModal
-        reportId={selectedReportId}
+        taskId={selectedTaskId}
         isOpen={isModalOpen}
         onClose={() => {
           setIsModalOpen(false);
-          setSelectedReportId(null);
+          setSelectedTaskId(null);
         }}
       />
     </>

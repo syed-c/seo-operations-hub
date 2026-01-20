@@ -6,6 +6,7 @@ import { useAuth } from '@/components/AuthGate';
 export interface BacklinkReportFilters {
   projectId?: string;
   assigneeId?: string;
+  taskId?: string;
   status?: BacklinkReportStatus;
   startDate?: string;
   endDate?: string;
@@ -71,6 +72,9 @@ export function useBacklinkReports(filters?: BacklinkReportFilters) {
       if (filters?.status) {
         query = query.eq('status', filters.status);
       }
+      if (filters?.taskId) {
+        query = query.eq('task_id', filters.taskId);
+      }
       if (filters?.startDate) {
         query = query.gte('submitted_at', filters.startDate);
       }
@@ -117,6 +121,35 @@ export function useBacklinkReport(reportId: string) {
       };
     },
     enabled: !!reportId,
+  });
+}
+
+export function useBacklinkReportsByTask(taskId: string) {
+  return useQuery({
+    queryKey: ['backlink-reports-by-task', taskId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('backlink_reports')
+        .select(`
+          id, task_id, project_id, assignee_id, status,
+          submitted_at, checked_at,
+          total_links_checked, total_working, total_dead, health_percentage,
+          created_links_summary, indexed_blogs_summary, report_payload,
+          projects:project_id (id, name),
+          users:assignee_id (id, email, first_name, last_name),
+          tasks:task_id (id, title, type, status)
+        `)
+        .eq('task_id', taskId)
+        .order('submitted_at', { ascending: false });
+
+      if (error) throw error;
+      return (data || []) as unknown as (BacklinkReport & {
+        projects: { id: string; name: string } | null;
+        users: { id: string; email: string; first_name?: string; last_name?: string } | null;
+        tasks: { id: string; title: string; type: string; status: string } | null;
+      })[];
+    },
+    enabled: !!taskId,
   });
 }
 

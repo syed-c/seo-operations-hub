@@ -33,7 +33,7 @@ import {
   User,
   Folder,
 } from 'lucide-react';
-import { useBacklinkReport } from '@/hooks/useBacklinkReports';
+import { useBacklinkReportsByTask } from '@/hooks/useBacklinkReports';
 import { BacklinkReportStatus, BacklinkReportPayload, IndexedBlogsSummary, CreatedLinksSummary } from '@/types';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
@@ -60,19 +60,81 @@ const statusConfig: Record<BacklinkReportStatus, { icon: typeof AlertCircle; col
 };
 
 interface BacklinkReportDetailModalProps {
-  reportId: string | null;
+  taskId: string | null;
   isOpen: boolean;
   onClose: () => void;
 }
 
-export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: BacklinkReportDetailModalProps) {
-  const { data: report, isLoading, error } = useBacklinkReport(reportId || '');
+export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkReportDetailModalProps) {
+  const { data: reports, isLoading, error } = useBacklinkReportsByTask(taskId || '');
   const [isRawJsonOpen, setIsRawJsonOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
+  // Aggregate stats logic
+  const aggregateReport = reports && reports.length > 0 ? reports.reduce((acc, report) => {
+    acc.total_links_checked += (report.total_links_checked || 0);
+    acc.total_working += (report.total_working || 0);
+    acc.total_dead += (report.total_dead || 0);
+
+    // Status aggregation (most severe)
+    if (report.status === 'critical') acc.status = 'critical';
+    else if (report.status === 'warning' && acc.status !== 'critical') acc.status = 'warning';
+
+    // Links created aggregation
+    const created = report.created_links_summary as CreatedLinksSummary | null;
+    if (created) {
+      acc.created_links.working += (created.working || 0);
+      acc.created_links.dead += (created.dead || 0);
+      acc.created_links.total += (created.total || 0);
+      acc.created_links.dead_list = [...acc.created_links.dead_list, ...(created.dead_list || [])];
+    }
+
+    // Indexed blogs aggregation
+    const indexed = report.indexed_blogs_summary as IndexedBlogsSummary | null;
+    if (indexed) {
+      acc.indexed_blogs.total_blogs += (indexed.total_blogs || 0);
+      acc.indexed_blogs.working_blogs += (indexed.working_blogs || 0);
+      acc.indexed_blogs.warning_blogs += (indexed.warning_blogs || 0);
+      acc.indexed_blogs.critical_blogs += (indexed.critical_blogs || 0);
+      acc.indexed_blogs.healthy_blogs += (indexed.healthy_blogs || 0);
+      acc.indexed_blogs.blog_details = [...acc.indexed_blogs.blog_details, ...(indexed.blog_details || [])];
+      acc.indexed_blogs.requires_attention = [...acc.indexed_blogs.requires_attention, ...(indexed.requires_attention || [])];
+    }
+
+    // Keep the one with latest submitted_at as the "main" one for metadata
+    if (new Date(report.submitted_at) > new Date(acc.submitted_at)) {
+      acc.submitted_at = report.submitted_at;
+      acc.projects = report.projects;
+      acc.users = report.users;
+      acc.tasks = report.tasks;
+    }
+
+    acc.payloads.push(report.report_payload);
+
+    return acc;
+  }, {
+    total_links_checked: 0,
+    total_working: 0,
+    total_dead: 0,
+    status: 'healthy' as BacklinkReportStatus,
+    submitted_at: reports[0]?.submitted_at || new Date().toISOString(),
+    created_links: { working: 0, dead: 0, total: 0, dead_list: [] as any[] },
+    indexed_blogs: { total_blogs: 0, working_blogs: 0, warning_blogs: 0, critical_blogs: 0, healthy_blogs: 0, blog_details: [] as any[], requires_attention: [] as any[] },
+    projects: reports[0]?.projects,
+    users: reports[0]?.users,
+    tasks: reports[0]?.tasks,
+    payloads: [] as any[]
+  }) : null;
+
+  if (aggregateReport) {
+    aggregateReport.health_percentage = aggregateReport.total_links_checked > 0
+      ? Math.round((aggregateReport.total_working / aggregateReport.total_links_checked) * 100)
+      : 0;
+  }
+
   const handleCopyJson = () => {
-    if (report?.report_payload) {
-      navigator.clipboard.writeText(JSON.stringify(report.report_payload, null, 2));
+    if (aggregateReport?.payloads) {
+      navigator.clipboard.writeText(JSON.stringify(aggregateReport.payloads, null, 2));
       setCopied(true);
       toast({ title: 'Copied to clipboard' });
       setTimeout(() => setCopied(false), 2000);
@@ -81,11 +143,11 @@ export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: Backlin
 
   if (!isOpen) return null;
 
+  const report = aggregateReport; // Alias for cleaner template
   const status = report?.status ? statusConfig[report.status] : null;
   const StatusIcon = status?.icon || AlertCircle;
-  const payload = report?.report_payload as BacklinkReportPayload | null;
-  const createdLinks = report?.created_links_summary as CreatedLinksSummary | null;
-  const indexedBlogs = report?.indexed_blogs_summary as IndexedBlogsSummary | null;
+  const createdLinks = report?.created_links;
+  const indexedBlogs = report?.indexed_blogs;
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -236,15 +298,15 @@ export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: Backlin
                         <span className="text-destructive">Critical: {indexedBlogs.critical_blogs}</span>
                       </div>
                       {indexedBlogs.blog_details?.map((blog, idx) => (
-                        <Card key={idx} className={cn('p-3 border-l-4', 
-                          blog.blog_status === 'critical' ? 'border-l-destructive' : 
-                          blog.blog_status === 'warning' ? 'border-l-warning' : 'border-l-success'
+                        <Card key={idx} className={cn('p-3 border-l-4',
+                          blog.blog_status === 'critical' ? 'border-l-destructive' :
+                            blog.blog_status === 'warning' ? 'border-l-warning' : 'border-l-success'
                         )}>
                           <div className="flex items-center justify-between mb-2">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <FileText className={cn('w-4 h-4 flex-shrink-0', 
+                              <FileText className={cn('w-4 h-4 flex-shrink-0',
                                 blog.blog_status === 'critical' ? 'text-destructive' :
-                                blog.blog_status === 'warning' ? 'text-warning' : 'text-success'
+                                  blog.blog_status === 'warning' ? 'text-warning' : 'text-success'
                               )} />
                               <a
                                 href={blog.blog_url}
@@ -323,13 +385,13 @@ export function BacklinkReportDetailModal({ reportId, isOpen, onClose }: Backlin
                     </div>
                   )}
 
-                  {(!indexedBlogs?.requires_attention || indexedBlogs.requires_attention.length === 0) && 
-                   (!createdLinks?.dead_list || createdLinks.dead_list.length === 0) && (
-                    <div className="text-center py-8">
-                      <CheckCircle className="w-12 h-12 mx-auto text-success mb-2" />
-                      <p className="text-muted-foreground">No critical issues found!</p>
-                    </div>
-                  )}
+                  {(!indexedBlogs?.requires_attention || indexedBlogs.requires_attention.length === 0) &&
+                    (!createdLinks?.dead_list || createdLinks.dead_list.length === 0) && (
+                      <div className="text-center py-8">
+                        <CheckCircle className="w-12 h-12 mx-auto text-success mb-2" />
+                        <p className="text-muted-foreground">No critical issues found!</p>
+                      </div>
+                    )}
                 </TabsContent>
               </Tabs>
 

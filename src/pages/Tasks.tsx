@@ -754,63 +754,75 @@ export default function Tasks() {
       // Webhook call for backlink leads
       try {
         const webhookUrl = import.meta.env.VITE_BACKLINK_REVIEW_WEBHOOK_URL;
-        console.log('=== BACKLINK WEBHOOK DEBUG ===');
-        console.log('Webhook URL:', webhookUrl);
-        console.log('Webhook URL defined:', !!webhookUrl);
-
         if (webhookUrl) {
-          const payload = {
-            taskId: taskToReview.id,
-            title: taskToReview.title,
-            description: taskToReview.description,
-            status: 'review',
-            projectId: taskToReview.project_id,
-            projectName: taskToReview.projectName,
-            assignee: taskToReview.assignee,
-            backlink_summary: backlinkReviewForm.summary,
-            backlink_submission_type: submissionType,
-            backlink_links_created: submissionType === 'index' ? [] : linksCreated,
-            backlink_links_indexed: submissionType === 'create' ? [] : linksIndexed,
-            backlink_links_created_count: (submissionType === 'index' ? [] : linksCreated).length,
-            backlink_links_indexed_count: (submissionType === 'create' ? [] : linksIndexed).length,
-            submitted_at: new Date().toISOString(),
-          };
+          // Prepare all links for batching
+          const allLinks = [
+            ...linksCreated.map(l => ({ ...l, type: 'create' })),
+            ...linksIndexed.map(l => ({ ...l, type: 'index' }))
+          ];
 
-          console.log('Sending backlink webhook with payload:', payload);
-          console.log('Payload as JSON string:', JSON.stringify(payload));
+          // Batch links in groups of 5
+          const batchSize = 5;
+          const batches = [];
+          for (let i = 0; i < allLinks.length; i += batchSize) {
+            batches.push(allLinks.slice(i, i + batchSize));
+          }
 
-          const response = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Accept': 'application/json'
-            },
-            body: JSON.stringify(payload),
-          });
+          // If no links (shouldn't happen due to validation), send one empty batch payload
+          if (batches.length === 0) {
+            batches.push([]);
+          }
 
-          console.log('Webhook response status:', response.status);
-          console.log('Webhook response ok:', response.ok);
-          console.log('Webhook response headers:', response.headers);
+          console.log(`Sending ${batches.length} webhook batches...`);
 
-          const responseText = await response.text();
-          console.log('Webhook response body:', responseText);
+          for (let i = 0; i < batches.length; i++) {
+            const currentBatch = batches[i];
+            const batchCreated = currentBatch.filter(l => l.type === 'create').map(({ url }) => ({ url }));
+            const batchIndexed = currentBatch.filter(l => l.type === 'index').map(({ url }) => ({ url }));
 
-          if (!response.ok) {
-            console.error('Backlink webhook failed:', response.status, response.statusText);
-            console.error('Response body:', responseText);
-          } else {
-            console.log('✅ Backlink webhook called successfully!');
-            console.log('Response:', responseText);
+            const payload = {
+              taskId: taskToReview.id,
+              title: taskToReview.title,
+              description: taskToReview.description,
+              status: 'review',
+              projectId: taskToReview.project_id,
+              projectName: taskToReview.projectName,
+              assignee: taskToReview.assignee,
+              backlink_summary: backlinkReviewForm.summary,
+              backlink_submission_type: submissionType,
+              backlink_links_created: batchCreated,
+              backlink_links_indexed: batchIndexed,
+              backlink_links_created_count: batchCreated.length,
+              backlink_links_indexed_count: batchIndexed.length,
+              total_links_in_batch: currentBatch.length,
+              batch_number: i + 1,
+              total_batches: batches.length,
+              submitted_at: new Date().toISOString(),
+            };
+
+            console.log(`Sending batch ${i + 1}/${batches.length} with payload:`, payload);
+
+            const response = await fetch(webhookUrl, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+              },
+              body: JSON.stringify(payload),
+            });
+
+            if (!response.ok) {
+              const responseText = await response.text();
+              console.error(`Batch ${i + 1} failed:`, response.status, response.statusText, responseText);
+            } else {
+              console.log(`✅ Batch ${i + 1} called successfully!`);
+            }
           }
         } else {
           console.warn('⚠️ VITE_BACKLINK_REVIEW_WEBHOOK_URL not defined');
         }
       } catch (webhookErr) {
         console.error('❌ Error calling backlink webhook:', webhookErr);
-        if (webhookErr instanceof Error) {
-          console.error('Error message:', webhookErr.message);
-          console.error('Error stack:', webhookErr.stack);
-        }
       }
 
       setIsBacklinkReviewModalOpen(false);
