@@ -163,6 +163,7 @@ export function useBacklinkReportStats(projectId?: string) {
         .from('backlink_reports')
         .select(`
           id,
+          task_id,
           status,
           total_links_checked,
           total_working,
@@ -235,6 +236,12 @@ export function useBacklinkReportStats(projectId?: string) {
       uniqueTaskReports.forEach(r => {
         totalDeadLinks += r.total_dead || 0;
         totalWorkingLinks += r.total_working || 0;
+
+        const indexedBlogs = r.indexed_blogs_summary as { interlinks_summary?: { dead?: number; working?: number } } | null;
+        if (indexedBlogs?.interlinks_summary) {
+          totalDeadInterlinks += indexedBlogs.interlinks_summary.dead || 0;
+          totalWorkingInterlinks += indexedBlogs.interlinks_summary.working || 0;
+        }
       });
 
       // Top failing projects based on unique tasks
@@ -260,7 +267,7 @@ export function useBacklinkReportStats(projectId?: string) {
 
       // Top assignees with critical issues
       const assigneeCounts: Record<string, { total: number; critical: number; name: string }> = {};
-      reports.forEach(r => {
+      uniqueTaskReports.forEach(r => {
         // Handle cases where assignee_id might be null
         const assigneeId = r.assignee_id || 'unassigned';
         if (!assigneeCounts[assigneeId]) {
