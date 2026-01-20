@@ -755,31 +755,25 @@ export default function Tasks() {
       try {
         const webhookUrl = import.meta.env.VITE_BACKLINK_REVIEW_WEBHOOK_URL;
         if (webhookUrl) {
-          // Prepare all links for batching
-          const allLinks = [
-            ...linksCreated.map(l => ({ ...l, type: 'create' })),
-            ...linksIndexed.map(l => ({ ...l, type: 'index' }))
-          ];
-
-          // Batch links in groups of 5
-          const batchSize = 5;
-          const batches = [];
-          for (let i = 0; i < allLinks.length; i += batchSize) {
-            batches.push(allLinks.slice(i, i + batchSize));
+          // Batch "create" links
+          const createBatches = [];
+          for (let i = 0; i < linksCreated.length; i += 5) {
+            createBatches.push(linksCreated.slice(i, i + 5));
           }
 
-          // If no links (shouldn't happen due to validation), send one empty batch payload
-          if (batches.length === 0) {
-            batches.push([]);
+          // Batch "index" links
+          const indexBatches = [];
+          for (let i = 0; i < linksIndexed.length; i += 5) {
+            indexBatches.push(linksIndexed.slice(i, i + 5));
           }
 
-          console.log(`Sending ${batches.length} webhook batches...`);
+          const totalBatches = createBatches.length + indexBatches.length;
+          let currentBatchIndex = 0;
 
-          for (let i = 0; i < batches.length; i++) {
-            const currentBatch = batches[i];
-            const batchCreated = currentBatch.filter(l => l.type === 'create').map(({ url }) => ({ url }));
-            const batchIndexed = currentBatch.filter(l => l.type === 'index').map(({ url }) => ({ url }));
-
+          // Process "create" batches
+          for (let i = 0; i < createBatches.length; i++) {
+            currentBatchIndex++;
+            const batch = createBatches[i];
             const payload = {
               taskId: taskToReview.id,
               title: taskToReview.title,
@@ -789,37 +783,56 @@ export default function Tasks() {
               projectName: taskToReview.projectName,
               assignee: taskToReview.assignee,
               backlink_summary: backlinkReviewForm.summary,
-              backlink_submission_type: submissionType,
-              backlink_links_created: batchCreated,
-              backlink_links_indexed: batchIndexed,
-              backlink_links_created_count: batchCreated.length,
-              backlink_links_indexed_count: batchIndexed.length,
-              total_links_in_batch: currentBatch.length,
-              batch_number: i + 1,
-              total_batches: batches.length,
+              backlink_submission_type: 'create',
+              backlink_links_created: batch,
+              backlink_links_indexed: [],
+              backlink_links_created_count: batch.length,
+              backlink_links_indexed_count: 0,
+              total_links_in_batch: batch.length,
+              batch_number: currentBatchIndex,
+              total_batches: totalBatches,
               submitted_at: new Date().toISOString(),
             };
 
-            console.log(`Sending batch ${i + 1}/${batches.length} with payload:`, payload);
-
-            const response = await fetch(webhookUrl, {
+            await fetch(webhookUrl, {
               method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-              },
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
               body: JSON.stringify(payload),
             });
-
-            if (!response.ok) {
-              const responseText = await response.text();
-              console.error(`Batch ${i + 1} failed:`, response.status, response.statusText, responseText);
-            } else {
-              console.log(`✅ Batch ${i + 1} called successfully!`);
-            }
+            console.log(`✅ Create Batch ${i + 1} sent`);
           }
-        } else {
-          console.warn('⚠️ VITE_BACKLINK_REVIEW_WEBHOOK_URL not defined');
+
+          // Process "index" batches
+          for (let i = 0; i < indexBatches.length; i++) {
+            currentBatchIndex++;
+            const batch = indexBatches[i];
+            const payload = {
+              taskId: taskToReview.id,
+              title: taskToReview.title,
+              description: taskToReview.description,
+              status: 'review',
+              projectId: taskToReview.project_id,
+              projectName: taskToReview.projectName,
+              assignee: taskToReview.assignee,
+              backlink_summary: backlinkReviewForm.summary,
+              backlink_submission_type: 'index',
+              backlink_links_created: [],
+              backlink_links_indexed: batch,
+              backlink_links_created_count: 0,
+              backlink_links_indexed_count: batch.length,
+              total_links_in_batch: batch.length,
+              batch_number: currentBatchIndex,
+              total_batches: totalBatches,
+              submitted_at: new Date().toISOString(),
+            };
+
+            await fetch(webhookUrl, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+            console.log(`✅ Index Batch ${i + 1} sent`);
+          }
         }
       } catch (webhookErr) {
         console.error('❌ Error calling backlink webhook:', webhookErr);
