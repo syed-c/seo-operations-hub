@@ -1,4 +1,4 @@
-import { OpenAI } from 'https://deno.land/x/openai@v4.28.0/mod.ts';
+import { OpenAI } from 'openai';
 
 export interface AIClientOptions {
     apiKey?: string;

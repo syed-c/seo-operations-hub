@@ -1,4 +1,4 @@
-import { DOMParser } from "https://deno.land/x/deno_dom@v0.1.45/deno-dom-wasm.ts";
+import { DOMParser } from "deno-dom";
 
 export async function fetchWithTimeout(url: string, timeout = 10000): Promise<Response> {
     const controller = new AbortController();
@@ -50,13 +50,16 @@ export function extractPageContent(html: string) {
     const title = doc.querySelector('title')?.textContent || '';
     const description = doc.querySelector('meta[name="description"]')?.getAttribute('content') || '';
     const h1 = doc.querySelector('h1')?.textContent || '';
-    const h2s = Array.from(doc.querySelectorAll('h2')).map(el => el.textContent).filter(Boolean);
+    const h2s = Array.from(doc.querySelectorAll('h2')).map((el: any) => el.textContent).filter(Boolean);
     const bodyText = doc.body?.textContent || '';
-    const wordCount = bodyText.split(/\s+/).filter(w => w.length > 0).length;
+    const wordCount = bodyText.split(/\s+/).filter((w: string) => w.length > 0).length;
 
     // Internal/External links
-    const anchors = Array.from(doc.querySelectorAll('a'));
-    const internalLinks = anchors.filter(a => a.getAttribute('href')?.startsWith('/') || a.getAttribute('href')?.includes(doc.baseURI || '')).length;
+    const anchors = Array.from(doc.querySelectorAll('a')) as HTMLAnchorElement[];
+    const internalLinks = anchors.filter((a: HTMLAnchorElement) => {
+        const href = a.getAttribute('href');
+        return href?.startsWith('/') || href?.includes(doc.baseURI || '');
+    }).length;
     const externalLinks = anchors.length - internalLinks;
 
     return {

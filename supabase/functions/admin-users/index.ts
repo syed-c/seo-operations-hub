@@ -1,48 +1,18 @@
-import "https://deno.land/x/xhr@0.1.0/mod.ts";
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from "@supabase/supabase-js";
+import { serveWithNotification } from "../_shared/wrapper.ts";
 
-console.log("Admin operations function started");
-
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, GET, OPTIONS',
-};
-
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { 
-      status: 200,
-      headers: corsHeaders 
-    });
-  }
+serveWithNotification('admin-users', async (req) => {
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseUrl = Deno.env.get('VITE_SUPABASE_URL');
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
-    
+
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      console.error('Missing environment variables');
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
-        }
-      );
+      throw new Error('Missing environment variables');
     }
 
     // Create a Supabase client with the service role key
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      db: { schema: 'public' },
-      auth: {
-        persistSession: false,
-        autoRefreshToken: false,
-        detectSessionInUrl: false,
-      },
-    });
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Get the request data
     let body;
@@ -52,9 +22,9 @@ serve(async (req: Request) => {
       console.error('Failed to parse JSON body:', e);
       return new Response(
         JSON.stringify({ error: 'Invalid JSON body' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -65,9 +35,9 @@ serve(async (req: Request) => {
     if (!action || !table) {
       return new Response(
         JSON.stringify({ error: 'Missing required fields: action and table' }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -81,39 +51,39 @@ serve(async (req: Request) => {
         if (table === 'auth_user') {
           console.log('Identified as auth user creation request');
           const { email, password, email_confirm, user_metadata } = data;
-          
+
           const { data: authResult, error: authError } = await supabaseAdmin.auth.admin.createUser({
             email,
             password: password || undefined, // Only include password if provided
             email_confirm: email_confirm !== false, // Default to true if not specified
             user_metadata: user_metadata || {},
           });
-          
+
           if (authError) {
             console.error('Auth user creation error:', authError);
             // Check if it's an email exists error
             if (authError.code === 'email_exists') {
               return new Response(
                 JSON.stringify({ error: 'A user with this email already exists', code: 'email_exists' }),
-                { 
+                {
                   status: 409, // Conflict status code for duplicate email
-                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
                 }
               );
             } else {
               return new Response(
                 JSON.stringify({ error: authError.message, details: authError }),
-                { 
-                  status: 400, 
-                  headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+                {
+                  status: 400,
+                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
                 }
               );
             }
           }
-          
+
           result = { data: [authResult.user] };
           console.log('Auth user created successfully, ID:', authResult.user.id);
-          
+
           // Create record in users table with profile information
           const { error: userError } = await supabaseAdmin
             .from('users')
@@ -124,27 +94,27 @@ serve(async (req: Request) => {
               last_name: user_metadata?.last_name || null,
               role: user_metadata?.role || null,
             });
-          
+
           if (userError) {
             console.error('Error storing user profile:', userError);
             // This is a fatal error, as we need the user profile record
             return new Response(
               JSON.stringify({ error: userError.message, details: userError }),
-              { 
-                status: 400, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
               }
             );
           } else {
             console.log('User profile stored successfully for user:', authResult.user.id);
           }
-          
+
           // If a password was provided, also insert into user_credentials table
           if (password) {
             // Hash the password before storing
             const { hash } = await import('https://esm.sh/bcrypt-ts@5.0.0');
             const passwordHash = await hash(password, 10); // Use default salt rounds of 10
-            
+
             // Insert password hash into user_credentials table
             const { error: credentialError } = await supabaseAdmin
               .from('user_credentials')
@@ -152,7 +122,7 @@ serve(async (req: Request) => {
                 user_id: authResult.user.id,
                 password_hash: passwordHash
               });
-            
+
             if (credentialError) {
               console.error('Error storing password credentials:', credentialError);
               // This is not a fatal error, as the user profile is already created
@@ -170,11 +140,11 @@ serve(async (req: Request) => {
         // Check if this is for auth user update (for password changes)
         if (table === 'auth_user' && data.password) {
           console.log('Updating password for auth user with ID:', filters?.id);
-          
+
           // Hash the new password
           const { hash } = await import('https://esm.sh/bcrypt-ts@5.0.0');
           const passwordHash = await hash(data.password, 10); // Use default salt rounds of 10
-          
+
           // Update password hash in user_credentials table
           const { error: credentialError } = await supabaseAdmin
             .from('user_credentials')
@@ -183,18 +153,18 @@ serve(async (req: Request) => {
               password_hash: passwordHash,
               password_set_at: new Date().toISOString()
             });
-          
+
           if (credentialError) {
             console.error('Error updating password credentials:', credentialError);
             return new Response(
               JSON.stringify({ error: credentialError.message, details: credentialError }),
-              { 
-                status: 400, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
               }
             );
           }
-          
+
           // Return success response
           result = { data: [{ id: filters.id, password_updated: true }] };
         } else {
@@ -214,26 +184,26 @@ serve(async (req: Request) => {
           if (!filters?.id) {
             return new Response(
               JSON.stringify({ error: 'User ID is required for auth user deletion' }),
-              { 
-                status: 400, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
               }
             );
           }
-          
+
           const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(filters.id);
-          
+
           if (authError) {
             console.error('Auth user deletion error:', authError);
             return new Response(
               JSON.stringify({ error: authError.message, details: authError }),
-              { 
-                status: 400, 
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+              {
+                status: 400,
+                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
               }
             );
           }
-          
+
           result = { data: [] };
         } else {
           let query = supabaseAdmin.from(table).delete();
@@ -259,9 +229,9 @@ serve(async (req: Request) => {
       default:
         return new Response(
           JSON.stringify({ error: 'Invalid action. Use create, update, delete, or select' }),
-          { 
-            status: 400, 
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+          {
+            status: 400,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
           }
         );
     }
@@ -270,9 +240,9 @@ serve(async (req: Request) => {
       console.error('Database error:', result.error);
       return new Response(
         JSON.stringify({ error: result.error.message, details: result.error }),
-        { 
-          status: 400, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        {
+          status: 400,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         }
       );
     }
@@ -280,9 +250,9 @@ serve(async (req: Request) => {
     console.log(`Admin action ${action} successful, returned ${result.data?.length || 0} records`);
     return new Response(
       JSON.stringify({ data: result.data }),
-      { 
+      {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   } catch (error: unknown) {
@@ -290,9 +260,9 @@ serve(async (req: Request) => {
     console.error('Edge function error:', error);
     return new Response(
       JSON.stringify({ error: message }),
-      { 
-        status: 500, 
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+      {
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }

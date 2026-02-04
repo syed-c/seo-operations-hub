@@ -1,153 +1,135 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { createClient } from "@supabase/supabase-js";
+import { serveWithNotification } from "../_shared/wrapper.ts";
 
-console.log("Process Backlink Report function started");
+serveWithNotification('process-backlink-report', async (req) => {
 
-const corsHeaders = {
-  'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-};
-
-interface BacklinkReportPayload {
-  created_links: Array<{
-    url: string;
-    status: 'working' | 'dead';
-    anchor_text?: string;
-    target_url?: string;
-  }>;
-  indexed_blogs: Array<{
-    blog_url: string;
-    is_indexed: boolean;
-    interlink_count: number;
-    interlinks: Array<{
+  interface BacklinkReportPayload {
+    created_links: Array<{
       url: string;
       status: 'working' | 'dead';
+      anchor_text?: string;
+      target_url?: string;
     }>;
-  }>;
-  issues: Array<{
-    type: string;
-    severity: 'critical' | 'warning';
-    url?: string;
-    message: string;
-  }>;
-  requires_attention: Array<{
-    type: string;
-    severity: 'critical' | 'warning';
-    url?: string;
-    message: string;
-  }>;
-  summary: {
-    total_created_links: number;
-    working_links: number;
-    dead_links: number;
-    total_indexed_blogs: number;
-    indexed_count: number;
-    not_indexed_count: number;
-    total_interlinks: number;
-    working_interlinks: number;
-    dead_interlinks: number;
-  };
-}
-
-interface FollowUpTask {
-  title: string;
-  description: string;
-  priority: 'high' | 'medium' | 'low';
-  type: 'backlinks';
-}
-
-function determineFollowUpTasks(payload: BacklinkReportPayload, status: string): FollowUpTask[] {
-  const tasks: FollowUpTask[] = [];
-
-  // Dead created links
-  if (payload.summary.dead_links > 0) {
-    tasks.push({
-      title: 'Fix Dead Backlinks',
-      description: `${payload.summary.dead_links} created backlinks are returning dead/404 status. Please verify and fix these URLs.`,
-      priority: 'high',
-      type: 'backlinks',
-    });
+    indexed_blogs: Array<{
+      blog_url: string;
+      is_indexed: boolean;
+      interlink_count: number;
+      interlinks: Array<{
+        url: string;
+        status: 'working' | 'dead';
+      }>;
+    }>;
+    issues: Array<{
+      type: string;
+      severity: 'critical' | 'warning';
+      url?: string;
+      message: string;
+    }>;
+    requires_attention: Array<{
+      type: string;
+      severity: 'critical' | 'warning';
+      url?: string;
+      message: string;
+    }>;
+    summary: {
+      total_created_links: number;
+      working_links: number;
+      dead_links: number;
+      total_indexed_blogs: number;
+      indexed_count: number;
+      not_indexed_count: number;
+      total_interlinks: number;
+      working_interlinks: number;
+      dead_interlinks: number;
+    };
   }
 
-  // No interlinks (Critical)
-  const blogsWithNoInterlinks = payload.indexed_blogs.filter(b => b.interlinks.length === 0);
-  if (blogsWithNoInterlinks.length > 0) {
-    tasks.push({
-      title: 'Add Interlinks',
-      description: `${blogsWithNoInterlinks.length} blogs have ZERO interlinks. Please add internal links immediately.`,
-      priority: 'high',
-      type: 'backlinks',
-    });
+  interface FollowUpTask {
+    title: string;
+    description: string;
+    priority: 'high' | 'medium' | 'low';
+    type: 'backlinks';
   }
 
-  // Critical blogs (not indexed with dead interlinks) - Keeping as a catch-all high priority, or merging?
-  // User didn't ask for "Fix critical blog interlinks", but implied "Fix Dead Backlinks" (which might cover dead interlinks too?).
-  // User requested: "dead links -> task: Fix Dead Backlinks".
-  // I will include dead interlinks under "Fix Dead Backlinks" or separate "Fix Dead Interlinks"?
-  // User said "dead links -> task: Fix Dead Backlinks". This usually implies external backlinks created.
-  // I'll keep my "Replace dead interlinks" logic but maybe rename it or just keep it as valuable extra.
-  // Actually, "Fix Dead Backlinks" is good for created links.
-  // For dead interlinks, I'll use "Fix Dead Interlinks" to be specific, or map to "Fix Dead Backlinks" if I must.
-  // Let's keep it specific: "Fix Dead Interlinks" (User didn't explicitly forbid extra tasks).
+  function determineFollowUpTasks(payload: BacklinkReportPayload, status: string): FollowUpTask[] {
+    const tasks: FollowUpTask[] = [];
 
-  // Dead interlinks
-  if (payload.summary.dead_interlinks > 0) {
-    tasks.push({
-      title: 'Fix Dead Interlinks',
-      description: `${payload.summary.dead_interlinks} interlinks within blog posts are dead and need replacement.`,
-      priority: 'high',
-      type: 'backlinks',
-    });
-  }
-  if (status === 'warning' || status === 'critical') {
-    // Check for low link count (assuming interlinks < 3 but > 0)
-    const lowInterlinkBlogs = payload.indexed_blogs.filter(b => b.interlink_count > 0 && b.interlink_count < 3);
-    if (lowInterlinkBlogs.length > 0) {
+    // Dead created links
+    if (payload.summary.dead_links > 0) {
       tasks.push({
-        title: 'Fix Link Count',
-        description: `${lowInterlinkBlogs.length} blogs have fewer than 3 interlinks. Consider adding more internal links.`,
-        priority: 'medium',
+        title: 'Fix Dead Backlinks',
+        description: `${payload.summary.dead_links} created backlinks are returning dead/404 status. Please verify and fix these URLs.`,
+        priority: 'high',
         type: 'backlinks',
       });
     }
 
-    // Irrelevant links (from issues)
-    const irrelevantLinkIssues = payload.issues.filter(i => i.type === 'irrelevant_link');
-    if (irrelevantLinkIssues.length > 0) {
+    // No interlinks (Critical)
+    const blogsWithNoInterlinks = payload.indexed_blogs.filter(b => b.interlinks.length === 0);
+    if (blogsWithNoInterlinks.length > 0) {
       tasks.push({
-        title: 'Fix Relevance Issues',
-        description: `${irrelevantLinkIssues.length} links have been flagged as potentially irrelevant. Review and improve anchor text relevance.`,
-        priority: 'medium',
+        title: 'Add Interlinks',
+        description: `${blogsWithNoInterlinks.length} blogs have ZERO interlinks. Please add internal links immediately.`,
+        priority: 'high',
         type: 'backlinks',
       });
     }
-  }
 
-  return tasks;
-}
+    // Critical blogs (not indexed with dead interlinks) - Keeping as a catch-all high priority, or merging?
+    // User didn't ask for "Fix critical blog interlinks", but implied "Fix Dead Backlinks" (which might cover dead interlinks too?).
+    // User requested: "dead links -> task: Fix Dead Backlinks".
+    // I will include dead interlinks under "Fix Dead Backlinks" or separate "Fix Dead Interlinks"?
+    // User said "dead links -> task: Fix Dead Backlinks". This usually implies external backlinks created.
+    // I'll keep my "Replace dead interlinks" logic but maybe rename it or just keep it as valuable extra.
+    // Actually, "Fix Dead Backlinks" is good for created links.
+    // For dead interlinks, I'll use "Fix Dead Interlinks" to be specific, or map to "Fix Dead Backlinks" if I must.
+    // Let's keep it specific: "Fix Dead Interlinks" (User didn't explicitly forbid extra tasks).
 
-serve(async (req: Request) => {
-  // Handle CORS preflight requests
-  if (req.method === 'OPTIONS') {
-    return new Response(null, { status: 200, headers: corsHeaders });
+    // Dead interlinks
+    if (payload.summary.dead_interlinks > 0) {
+      tasks.push({
+        title: 'Fix Dead Interlinks',
+        description: `${payload.summary.dead_interlinks} interlinks within blog posts are dead and need replacement.`,
+        priority: 'high',
+        type: 'backlinks',
+      });
+    }
+    if (status === 'warning' || status === 'critical') {
+      // Check for low link count (assuming interlinks < 3 but > 0)
+      const lowInterlinkBlogs = payload.indexed_blogs.filter(b => b.interlink_count > 0 && b.interlink_count < 3);
+      if (lowInterlinkBlogs.length > 0) {
+        tasks.push({
+          title: 'Fix Link Count',
+          description: `${lowInterlinkBlogs.length} blogs have fewer than 3 interlinks. Consider adding more internal links.`,
+          priority: 'medium',
+          type: 'backlinks',
+        });
+      }
+
+      // Irrelevant links (from issues)
+      const irrelevantLinkIssues = payload.issues.filter(i => i.type === 'irrelevant_link');
+      if (irrelevantLinkIssues.length > 0) {
+        tasks.push({
+          title: 'Fix Relevance Issues',
+          description: `${irrelevantLinkIssues.length} links have been flagged as potentially irrelevant. Review and improve anchor text relevance.`,
+          priority: 'medium',
+          type: 'backlinks',
+        });
+      }
+    }
+
+    return tasks;
   }
 
   try {
-    const supabaseUrl = Deno.env.get('SUPABASE_URL');
+    const supabaseUrl = Deno.env.get('VITE_SUPABASE_URL');
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
-      console.error('Missing environment variables');
-      return new Response(
-        JSON.stringify({ error: 'Server configuration error' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
+      throw new Error('Missing environment variables');
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
-    });
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     // Parse the incoming request
     const body = await req.json();

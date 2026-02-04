@@ -1,79 +1,90 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { corsHeaders } from "../_shared/cors.ts";
+import { createClient } from "@supabase/supabase-js";
 import { fetchWithTimeout, parseSitemap, extractPageContent } from "../_shared/scraping-utils.ts";
 import { calculateScores } from "../_shared/audit-logic.ts";
-import { AIClient } from "../_shared/ai-client.ts";
+import { serveWithNotification } from "../_shared/wrapper.ts";
+import { jobManager } from "../_shared/job-manager.ts";
 
-serve(async (req) => {
-    if (req.method === 'OPTIONS') {
-        return new Response('ok', { headers: corsHeaders });
+const MAX_PAGES_PER_RUN = 10;
+const TIME_BUDGET_MS = 45000; // 45 seconds to stay safe from Edge limits
+
+serveWithNotification('perform-audit', async (req) => {
+    const startTime = Date.now();
+    const supabaseClient = createClient(
+        Deno.env.get('VITE_SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+    );
+
+    const body = await req.json();
+    const { project_id, url, job_id } = body;
+
+    // Use job_id if provided, otherwise this might be a legacy call or direct trigger
+    // For production hardening, we prefer job_id.
+    if (!job_id) {
+        // Fallback: Create a job if not provided? Or just run in legacy mode.
+        // Let's assume for now we want to stick to the new system.
+        throw new Error("Missing job_id. All audits must be stateful.");
     }
 
-    try {
-        const supabaseClient = createClient(
-            Deno.env.get('VITE_SUPABASE_URL') ?? '',
-            Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-        );
+    const job = await jobManager.getJob(job_id);
+    const cursor = job.job_state?.cursor || { urls: [], currentIndex: 0, sitemapFetched: false };
 
-        const { project_id, url } = await req.json();
+    await jobManager.updateStatus(job_id, 'processing');
+    await jobManager.log(job_id, 'perform-audit', 'info', `Starting audit run. Progress: ${cursor.currentIndex}`);
 
-        if (!project_id || !url) {
-            throw new Error("Missing project_id or url");
-        }
+    let urlsToProcess = cursor.urls || [];
 
-        console.log(`Starting audit for ${url}`);
-
-        // 1. Fetch Sitemap to get URLs
-        let urls: string[] = [];
+    // 1. Fetch Sitemap if not already done
+    if (!cursor.sitemapFetched) {
         try {
             const sitemapUrl = url.endsWith('/') ? `${url}sitemap.xml` : `${url}/sitemap.xml`;
             const sitemapRes = await fetchWithTimeout(sitemapUrl);
             if (sitemapRes.ok) {
                 const xml = await sitemapRes.text();
-                urls = await parseSitemap(xml);
-                console.log(`Found ${urls.length} URLs in sitemap`);
+                urlsToProcess = await parseSitemap(xml);
+                await jobManager.log(job_id, 'perform-audit', 'info', `Sitemap found: ${urlsToProcess.length} URLs.`);
             } else {
-                console.warn(`Sitemap not found at ${sitemapUrl}`);
-                urls = [url]; // Fallback to homepage
+                urlsToProcess = [url];
+                await jobManager.log(job_id, 'perform-audit', 'warn', `Sitemap not found, falling back to: ${url}`);
             }
         } catch (err) {
-            console.error("Sitemap fetch error:", err);
-            urls = [url];
+            urlsToProcess = [url];
+            await jobManager.log(job_id, 'perform-audit', 'error', `Sitemap error: ${err.message}`);
+        }
+        cursor.urls = urlsToProcess;
+        cursor.sitemapFetched = true;
+    }
+
+    let processedThisRun = 0;
+
+    // 2. Process Batch
+    for (let i = cursor.currentIndex; i < urlsToProcess.length; i++) {
+        // Guard 1: Max pages per run
+        if (processedThisRun >= MAX_PAGES_PER_RUN) {
+            await jobManager.log(job_id, 'perform-audit', 'info', `Max pages per run reached (${MAX_PAGES_PER_RUN}). Saving state.`);
+            cursor.currentIndex = i;
+            await jobManager.updateState(job_id, cursor, { processed: i, total: urlsToProcess.length });
+            await jobManager.updateStatus(job_id, 'partial');
+            return { status: "partial", next_index: i, message: "Reached batch limit" };
         }
 
-        // Limit to 20 pages for Edge Function limits (can increase if using queues)
-        const pagesToAudit = urls.slice(0, 20);
+        // Guard 2: Time budget
+        if (Date.now() - startTime > TIME_BUDGET_MS) {
+            await jobManager.log(job_id, 'perform-audit', 'info', `Time budget exceeded (${TIME_BUDGET_MS}ms). Saving state.`);
+            cursor.currentIndex = i;
+            await jobManager.updateState(job_id, cursor, { processed: i, total: urlsToProcess.length });
+            await jobManager.updateStatus(job_id, 'partial');
+            return { status: "partial", next_index: i, message: "Reached time limit" };
+        }
 
-        const ai = new AIClient('groq');
-
-        // 2. Process Pages in Parallel (chunks of 5)
-        for (let i = 0; i < pagesToAudit.length; i += 5) {
-            const chunk = pagesToAudit.slice(i, i + 5);
-            await Promise.all(chunk.map(async (pageUrl) => {
-                try {
-                    const htmlRes = await fetchWithTimeout(pageUrl);
-                    if (!htmlRes.ok) return;
-                    const html = await htmlRes.text();
-
-                    const data = extractPageContent(html);
-                    if (!data) return;
-
+        const pageUrl = urlsToProcess[i];
+        try {
+            const htmlRes = await fetchWithTimeout(pageUrl);
+            if (htmlRes.ok) {
+                const html = await htmlRes.text();
+                const data = extractPageContent(html);
+                if (data) {
                     const scores = calculateScores(data);
 
-                    // AI Analysis for this page
-                    const aiAnalysis = await ai.generateJSON(
-                        `Analyze this page metadata for SEO issues in JSON format: { "critique": "...", "recommendations": ["..."] }
-                    Title: ${data.title}
-                    Description: ${data.description}
-                    H1: ${data.h1}
-                    Word Count: ${data.wordCount}`,
-                        'llama3-8b-8192'
-                    );
-
-                    // Upsert to Database
-                    // Note: Assuming 'pages' table exists as per n8n workflow intuition.
-                    // We'll upsert based on url + project_id
                     await supabaseClient.from('pages').upsert({
                         project_id,
                         url: pageUrl,
@@ -84,37 +95,47 @@ serve(async (req) => {
                         technical_score: scores.technical_score,
                         content_score: scores.content_score,
                         seo_score: scores.seo_score,
-                        ai_analysis: aiAnalysis,
+                        ai_status: 'pending',
                         on_page_data: data,
                         last_audited: new Date().toISOString()
                     }, { onConflict: 'project_id, url' });
-
-                } catch (err) {
-                    console.error(`Failed to audit ${pageUrl}:`, err);
                 }
-            }));
+            }
+        } catch (err) {
+            await jobManager.log(job_id, 'perform-audit', 'error', `Failed to audit ${pageUrl}: ${err.message}`);
         }
 
-        // 3. Trigger Report Generation upon completion
-        const functionsUrl = `${Deno.env.get('VITE_SUPABASE_URL')}/functions/v1`;
-        fetch(`${functionsUrl}/generate-report`, {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ project_id })
-        }).catch(err => console.error("Failed to trigger report generation:", err));
-
-        return new Response(
-            JSON.stringify({ success: true, processed: pagesToAudit.length }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-
-    } catch (error) {
-        return new Response(
-            JSON.stringify({ error: error.message }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 400 }
-        );
+        processedThisRun++;
     }
+
+    // 3. Finalize
+    await jobManager.updateStatus(job_id, 'completed');
+    await jobManager.updateState(job_id, { ...cursor, currentIndex: urlsToProcess.length }, { processed: urlsToProcess.length, total: urlsToProcess.length });
+
+    // Trigger Async AI Processing and Report Generation
+    const functionsUrl = `${Deno.env.get('VITE_SUPABASE_URL')}/functions/v1`;
+
+    // Trigger AI
+    fetch(`${functionsUrl}/process-ai`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ project_id, job_id })
+    }).catch(err => console.error("Failed to trigger process-ai:", err));
+
+    // Trigger Report
+    fetch(`${functionsUrl}/generate-report`, {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`,
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ project_id })
+    }).catch(err => console.error("Failed to trigger report generation:", err));
+
+    return { success: true, processed: urlsToProcess.length, status: "completed" };
 });
+
+
