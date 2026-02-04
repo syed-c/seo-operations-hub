@@ -12,13 +12,23 @@ export function serveWithNotification(
     handler: (req: Request) => Promise<any>
 ) {
     serve(async (req) => {
+        console.log(`${functionName}: ${req.method} request received`);
+        
         // Handle CORS preflight
         if (req.method === 'OPTIONS') {
-            return new Response('ok', { headers: corsHeaders });
+            console.log(`${functionName}: Handling OPTIONS request`);
+            return new Response('ok', { 
+                headers: {
+                    ...corsHeaders,
+                    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+                    'Access-Control-Max-Age': '86400',
+                }
+            });
         }
 
         try {
             const result = await handler(req);
+            console.log(`${functionName}: Handler completed successfully`);
 
             // Send success email (async, don't block response)
             // Note: In some edge environments, background tasks must be explicitly waited on or use EdgeRuntime.waitUntil
