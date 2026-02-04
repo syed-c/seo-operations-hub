@@ -3,7 +3,14 @@ import { serveWithNotification } from "../_shared/wrapper.ts";
 import { corsHeaders } from "../_shared/cors.ts";
 
 serveWithNotification('admin-users', async (req) => {
-
+  console.log('admin-users function invoked, method:', req.method);
+  
+  // Don't try to parse body for OPTIONS requests
+  if (req.method === 'OPTIONS') {
+    console.log('OPTIONS request received, returning early');
+    return { success: true };
+  }
+  
   try {
     const supabaseUrl = Deno.env.get('VITE_SUPABASE_URL');
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
