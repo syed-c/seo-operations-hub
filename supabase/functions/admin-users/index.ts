@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { serveWithNotification } from "../_shared/wrapper.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 serveWithNotification('admin-users', async (req) => {
 
