@@ -751,91 +751,31 @@ export default function Tasks() {
 
       if (updateError) throw updateError;
 
-      // Webhook call for backlink leads
+      // Call the Edge Function directly instead of an external webhook
       try {
-        const webhookUrl = import.meta.env.VITE_BACKLINK_REVIEW_WEBHOOK_URL;
-        if (webhookUrl) {
-          // Batch "create" links
-          const createBatches = [];
-          for (let i = 0; i < linksCreated.length; i += 5) {
-            createBatches.push(linksCreated.slice(i, i + 5));
+        console.log('Triggering process-backlink-report Edge Function...');
+        const { data: edgeResult, error: edgeError } = await supabase.functions.invoke('process-backlink-report', {
+          body: {
+            task_id: taskToReview.id,
+            project_id: taskToReview.project_id,
+            assignee_id: teamUser?.id,
+            backlink_summary: backlinkReviewForm.summary,
+            backlink_submission_type: submissionType,
+            links_created: linksCreated,
+            links_indexed: linksIndexed,
+            direct_submission: true // Help the function distinguish from a webhook trigger
           }
+        });
 
-          // Batch "index" links
-          const indexBatches = [];
-          for (let i = 0; i < linksIndexed.length; i += 5) {
-            indexBatches.push(linksIndexed.slice(i, i + 5));
-          }
-
-          const totalBatches = createBatches.length + indexBatches.length;
-          let currentBatchIndex = 0;
-
-          // Process "create" batches
-          for (let i = 0; i < createBatches.length; i++) {
-            currentBatchIndex++;
-            const batch = createBatches[i];
-            const payload = {
-              taskId: taskToReview.id,
-              title: taskToReview.title,
-              description: taskToReview.description,
-              status: 'review',
-              projectId: taskToReview.project_id,
-              projectName: taskToReview.projectName,
-              assignee: taskToReview.assignee,
-              backlink_summary: backlinkReviewForm.summary,
-              backlink_submission_type: 'create',
-              backlink_links_created: batch,
-              backlink_links_indexed: [],
-              backlink_links_created_count: batch.length,
-              backlink_links_indexed_count: 0,
-              total_links_in_batch: batch.length,
-              batch_number: currentBatchIndex,
-              total_batches: totalBatches,
-              submitted_at: new Date().toISOString(),
-            };
-
-            await fetch(webhookUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-            console.log(`✅ Create Batch ${i + 1} sent`);
-          }
-
-          // Process "index" batches
-          for (let i = 0; i < indexBatches.length; i++) {
-            currentBatchIndex++;
-            const batch = indexBatches[i];
-            const payload = {
-              taskId: taskToReview.id,
-              title: taskToReview.title,
-              description: taskToReview.description,
-              status: 'review',
-              projectId: taskToReview.project_id,
-              projectName: taskToReview.projectName,
-              assignee: taskToReview.assignee,
-              backlink_summary: backlinkReviewForm.summary,
-              backlink_submission_type: 'index',
-              backlink_links_created: [],
-              backlink_links_indexed: batch,
-              backlink_links_created_count: 0,
-              backlink_links_indexed_count: batch.length,
-              total_links_in_batch: batch.length,
-              batch_number: currentBatchIndex,
-              total_batches: totalBatches,
-              submitted_at: new Date().toISOString(),
-            };
-
-            await fetch(webhookUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-              body: JSON.stringify(payload),
-            });
-            console.log(`✅ Index Batch ${i + 1} sent`);
-          }
+        if (edgeError) {
+          console.error('Edge Function Error:', edgeError);
+          // Don't throw here as the task update already succeeded, 
+          // but we want to know if automation failed.
+        } else {
+          console.log('Edge Function Success:', edgeResult);
         }
-      } catch (webhookErr) {
-        console.error('❌ Error calling backlink webhook:', webhookErr);
+      } catch (invokeErr) {
+        console.error('Error invoking automation:', invokeErr);
       }
 
       setIsBacklinkReviewModalOpen(false);

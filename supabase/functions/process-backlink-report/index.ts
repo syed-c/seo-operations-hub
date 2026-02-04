@@ -136,7 +136,7 @@ serveWithNotification('process-backlink-report', async (req) => {
     console.log('Received payload:', JSON.stringify(body).substring(0, 500));
 
     // Determine if this is a direct call or a webhook
-    let reportData;
+    let reportData: any;
     let isWebhook = false;
 
     if (body.type === 'INSERT' && body.table === 'backlink_reports' && body.record) {
@@ -144,18 +144,78 @@ serveWithNotification('process-backlink-report', async (req) => {
       isWebhook = true;
       reportData = body.record;
       console.log('Processing Webhook Insert for Report:', reportData.id);
-    } else {
-      // Fallback: Direct call (assumes body IS the report data)
-      // NOTE: In the new architecture, we should rely on the DB Insert.
-      // However, if the user manually calls this, we might want to support it.
-      // But for now, let's assume if it is NOT a webhook, it might be a payload to INSERT.
-      // But the requirement says "Function should: Fetch full report... Perform automation".
-      // Let's strictly support the Webhook format or a format that provides `record`.
+    } else if (body.direct_submission) {
+      // Direct call from the frontend
+      console.log('Processing Direct Submission for Task:', body.task_id);
 
-      // If the body has task_id etc, it's attempting to insert.
-      // We'll skip that logic to avoid duplication with the webhook flow.
+      const { task_id, project_id, assignee_id, links_created = [], links_indexed = [] } = body;
+
+      // Perform Mini-Audit on the submitted links
+      const auditedCreated = await Promise.all(links_created.map(async (link: { url: string }) => {
+        try {
+          const res = await fetch(link.url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+          return { url: link.url, status: res.ok ? 'working' : 'dead' as const };
+        } catch {
+          return { url: link.url, status: 'dead' as const };
+        }
+      }));
+
+      const auditedIndexed = await Promise.all(links_indexed.map(async (link: { url: string }) => {
+        try {
+          const res = await fetch(link.url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+          return { blog_url: link.url, is_indexed: true, interlinks: [], interlink_count: 0 }; // Simplified
+        } catch {
+          return { blog_url: link.url, is_indexed: false, interlinks: [], interlink_count: 0 };
+        }
+      }));
+
+      const deadCount = auditedCreated.filter(l => l.status === 'dead').length;
+      const workingCount = auditedCreated.length - deadCount;
+
+      const status = deadCount > 0 ? 'critical' : (auditedCreated.length === 0 ? 'healthy' : 'healthy');
+
+      const payload: BacklinkReportPayload = {
+        created_links: auditedCreated,
+        indexed_blogs: auditedIndexed.map(b => ({
+          blog_url: b.blog_url,
+          is_indexed: b.is_indexed,
+          interlink_count: 0,
+          interlinks: []
+        })),
+        issues: [],
+        requires_attention: [],
+        summary: {
+          total_created_links: auditedCreated.length,
+          working_links: workingCount,
+          dead_links: deadCount,
+          total_indexed_blogs: auditedIndexed.length,
+          indexed_count: auditedIndexed.filter(b => b.is_indexed).length,
+          not_indexed_count: auditedIndexed.filter(b => !b.is_indexed).length,
+          total_interlinks: 0,
+          working_interlinks: 0,
+          dead_interlinks: 0
+        }
+      };
+
+      // Create the backlink_report record
+      const { data: newReport, error: insertError } = await supabaseAdmin
+        .from('backlink_reports')
+        .insert({
+          task_id,
+          project_id,
+          assignee_id,
+          status,
+          payload,
+          summary: payload.summary
+        })
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+      reportData = newReport;
+    } else {
       return new Response(
-        JSON.stringify({ error: 'This function now expects a Supabase Database Webhook payload (INSERT on backlink_reports)' }),
+        JSON.stringify({ error: 'This function now expects a Supabase Database Webhook or direct_submission payload' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
