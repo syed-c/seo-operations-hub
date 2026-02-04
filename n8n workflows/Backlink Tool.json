@@ -1,0 +1,853 @@
+{
+  "name": "Backlink Tool",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "id": "c055762a-8fe7-4141-a639-df2372f30060",
+      "typeVersion": 1.1,
+      "name": "When Executed by Another Workflow",
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "position": [
+        208,
+        -1552
+      ],
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const target = $('Edit Fields').first().json.target;\n\n// Generate pagination offsets (ONLY 5 pages → 0,10,20,30,40)\nconst pages = [];\nfor (let i = 0; i < 50; i += 10) {\n  pages.push(i);\n}\n\n// Generate query variations\nconst queries = [\n  `\"${target}\" -site:${target}`,\n  `\"https://${target}\" -site:${target}`,\n  `\"http://${target}\" -site:${target}`,\n  `${target} review`,\n  `${target} mentioned`\n];\n\n// Combine (multiplex) queries × pages\nconst results = [];\n\nfor (const q of queries) {\n  for (const start of pages) {\n    results.push({\n      q,\n      start\n    });\n  }\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        432,
+        -1776
+      ],
+      "id": "62e5752f-f70d-4af4-ac29-63f8f58d7e2e",
+      "name": "Generate backlink discovery queries",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "q": "={{ $json.q }}",
+        "additionalFields": {
+          "gl": "us",
+          "hl": "en",
+          "start": "={{ $json.start }}",
+          "num": "100"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-serpapi.serpApi",
+      "typeVersion": 1,
+      "position": [
+        656,
+        -1776
+      ],
+      "id": "24773c45-0a08-4b16-bbab-2d6a346e6a40",
+      "name": "SerpAPI – Google Search",
+      "credentials": {
+        "serpApi": {
+          "id": "TIxEgHzA74uSIfuw",
+          "name": "SerpAPI AUTOPOST"
+        }
+      },
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5ef695c3-ec26-4e8e-b46e-a897b3cd536e",
+              "name": "target",
+              "value": "setupdubai.business",
+              "type": "string"
+            },
+            {
+              "id": "599d4b73-9add-4243-bafd-484871e1ca90",
+              "name": "mode",
+              "value": "home",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        208,
+        -1776
+      ],
+      "id": "73b50363-0d7c-4fea-bcba-1c8b0c1bc228",
+      "name": "Edit Fields",
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        208,
+        -1328
+      ],
+      "id": "a252c1dc-e92e-417b-bd2c-8bd2eac94253",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (const item of $input.all()) {\n  const organic = item.json.organic_results || [];\n\n  for (const r of organic) {\n    results.push({\n      query: item.json.search_parameters?.q || null,\n      page: item.json.search_information?.page_number || 1,\n      position: r.position || null,\n      title: r.title || null,\n      link: r.link || null,\n      source: r.source || null,\n      snippet: r.snippet || null\n    });\n  }\n}\n\nreturn results;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        -1776
+      ],
+      "id": "da06418b-b6d5-4e03-8c6e-0c3ed4becce5",
+      "name": "Extract Organic Results",
+      "executeOnce": false,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst out = [];\n\nfor (const item of $items()) {\n  const link = item.json.link;\n  if (!link || seen.has(link)) continue;\n\n  seen.add(link);\n  out.push(item.json);\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        -1776
+      ],
+      "id": "a5f85a78-77e5-4140-ad41-d53ebad51378",
+      "name": "Filter deduplicate links",
+      "executeOnce": false,
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "url": "={{$json.link}}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 3
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "text"
+            }
+          },
+          "timeout": 8000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1328,
+        -1776
+      ],
+      "id": "3b04f0ad-46db-4374-996a-e2644ce01c58",
+      "name": "Crawl linking pages",
+      "disabled": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "dataPropertyName": "body",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "href",
+              "cssSelector": "a",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            },
+            {
+              "key": "anchor",
+              "cssSelector": "a"
+            },
+            {
+              "key": "rel",
+              "cssSelector": "a",
+              "returnValue": "attribute",
+              "attribute": "rel"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        1552,
+        -1776
+      ],
+      "id": "92df5421-759c-4e2a-a50a-4866de5a0677",
+      "name": "Extract HTML Content",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const target = $node[\"Edit Fields\"].json.target;\nconst pageUrl = $node[\"Crawl linking pages\"].json.url;\n\nconst hrefs = $json.links || [];\nconst anchors = $json.anchor || [];\n\nconst out = [];\n\nfor (let i = 0; i < hrefs.length; i++) {\n  const href = hrefs[i];\n  if (!href) continue;\n  if (!href.includes(target)) continue;\n\n  out.push({\n    linking_page: pageUrl,\n    backlink_url: href,\n    anchor: (anchors[i] || \"\").trim()\n  });\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        -1776
+      ],
+      "id": "331e425e-ebb0-4d2c-954c-ebf3917d651c",
+      "name": "Extract Backlinks From Page",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const target = $node[\"Edit Fields\"].json.target;\n\nfunction classify(anchor) {\n  if (!anchor) return \"empty\";\n  const a = anchor.toLowerCase();\n  if (a.includes(target)) return \"brand\";\n  if (a.startsWith(\"http\")) return \"url\";\n  if (a.split(\" \").length <= 3) return \"exact_or_partial\";\n  return \"generic\";\n}\n\nreturn $input.all().map(i => ({\n  ...i.json,\n  anchor_type: classify(i.json.anchor)\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -1776
+      ],
+      "id": "7b2b5358-5ce7-4f24-8476-5eed5b52b562",
+      "name": "Normalize Anchors",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i => {\n  const d = new URL(i.json.linking_page).hostname.replace(/^www\\./, \"\");\n  return { ...i.json, referring_domain: d };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        -1776
+      ],
+      "id": "eec9de30-70b3-4d32-a0a9-9b06e8c613a9",
+      "name": "Referring Domain",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst out = [];\n\nfor (const i of $input.all()) {\n  const key = i.json.linking_page + \"||\" + i.json.backlink_url;\n  if (seen.has(key)) continue;\n  seen.add(key);\n  out.push(i.json);\n}\n\nreturn out;\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2448,
+        -1776
+      ],
+      "id": "294f4cd5-2d27-42bf-8d8a-406a14a0ad90",
+      "name": "Deduplicate",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(i => {\n  let risk = 0;\n\n  if (i.json.anchor_type === \"exact_or_partial\") risk += 2;\n  if (i.json.referring_domain.includes(\"blogspot\")) risk += 1;\n  if (i.json.referring_domain.endsWith(\".info\")) risk += 2;\n\n  return {\n    ...i.json,\n    risk_score: risk,\n    risk_level:\n      risk >= 4 ? \"high\" :\n      risk >= 2 ? \"medium\" :\n      \"low\"\n  };\n});\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2672,
+        -1776
+      ],
+      "id": "e390750a-6a74-4e94-a0fa-36cace793ca7",
+      "name": "Risk scoring",
+      "disabled": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const allBacklinks = $input.all();\n\n// Handle case where no backlinks found\nif (allBacklinks.length === 0) {\n  return [{\n    summary: {\n      total_backlinks: 0,\n      total_referring_domains: 0,\n      message: \"No backlinks found. This could mean: 1) The target domain has no backlinks in the search results, 2) The pages didn't contain links to your domain, or 3) Try adjusting your target domain.\"\n    },\n    all_backlinks: []\n  }];\n}\n\n// Group by referring domain\nconst byDomain = {};\nfor (const item of allBacklinks) {\n  const domain = item.json.referring_domain;\n  if (!byDomain[domain]) {\n    byDomain[domain] = [];\n  }\n  byDomain[domain].push(item.json);\n}\n\n// Calculate statistics\nconst totalBacklinks = allBacklinks.length;\nconst totalDomains = Object.keys(byDomain).length;\nconst avgBacklinksPerDomain = totalBacklinks / totalDomains;\n\nconst anchorTypes = {};\nconst riskLevels = {};\nconst qualityIndicators = {};\n\nfor (const item of allBacklinks) {\n  const anchorType = item.json.anchor_type;\n  const riskLevel = item.json.risk_level;\n  const quality = item.json.quality_indicator;\n  \n  anchorTypes[anchorType] = (anchorTypes[anchorType] || 0) + 1;\n  riskLevels[riskLevel] = (riskLevels[riskLevel] || 0) + 1;\n  qualityIndicators[quality] = (qualityIndicators[quality] || 0) + 1;\n}\n\nconst nofollowCount = allBacklinks.filter(i => i.json.is_nofollow).length;\nconst dofollowCount = totalBacklinks - nofollowCount;\nconst sponsoredCount = allBacklinks.filter(i => i.json.is_sponsored).length;\nconst ugcCount = allBacklinks.filter(i => i.json.is_ugc).length;\n\nreturn [{\n  summary: {\n    total_backlinks: totalBacklinks,\n    total_referring_domains: totalDomains,\n    avg_backlinks_per_domain: Math.round(avgBacklinksPerDomain * 100) / 100,\n    dofollow_links: dofollowCount,\n    nofollow_links: nofollowCount,\n    sponsored_links: sponsoredCount,\n    ugc_links: ugcCount,\n    anchor_text_distribution: anchorTypes,\n    risk_distribution: riskLevels,\n    quality_distribution: qualityIndicators,\n    top_referring_domains: Object.entries(byDomain)\n      .map(([domain, links]) => ({ \n        domain, \n        count: links.length,\n        avg_risk: (links.reduce((sum, l) => sum + (l.risk_score || 0), 0) / links.length).toFixed(2)\n      }))\n      .sort((a, b) => b.count - a.count)\n      .slice(0, 10),\n    health_score: Math.max(0, 100 - (riskLevels.high || 0) * 10 - (riskLevels.medium || 0) * 3)\n  },\n  all_backlinks: allBacklinks.map(i => i.json)\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3120,
+        -1328
+      ],
+      "id": "6482132b-7174-43a7-825b-5096aa1989ba",
+      "name": "Generate Summary Report",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const target = $('Edit Fields1').first().json.target;\n\n// Generate pagination offsets (5 pages: 0,10,20,30,40)\nconst pages = [];\nfor (let i = 0; i < 50; i += 10) {\n  pages.push(i);\n}\n\n// Enhanced query variations for better backlink discovery\nconst queries = [\n  `\"${target}\" -site:${target}`,\n  `\"https://${target}\" -site:${target}`,\n  `\"http://${target}\" -site:${target}`,\n  `\"www.${target}\" -site:${target}`,\n  `${target} review -site:${target}`,\n  `${target} mentioned -site:${target}`\n];\n\n// Combine queries × pages\nconst results = [];\n\nfor (const q of queries) {\n  for (const start of pages) {\n    results.push({\n      q,\n      start\n    });\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        656,
+        -1328
+      ],
+      "id": "d2876a80-de18-49dc-8805-a847884d4abf",
+      "name": "Generate backlink discovery queries1"
+    },
+    {
+      "parameters": {
+        "q": "={{ $json.q }}",
+        "additionalFields": {
+          "gl": "us",
+          "hl": "en",
+          "start": "={{ $json.start }}",
+          "num": "10"
+        },
+        "requestOptions": {}
+      },
+      "type": "n8n-nodes-serpapi.serpApi",
+      "typeVersion": 1,
+      "position": [
+        880,
+        -1328
+      ],
+      "id": "1e2c4899-ce75-4055-8cb7-24561541c608",
+      "name": "SerpAPI – Google Search1",
+      "credentials": {
+        "serpApi": {
+          "id": "TIxEgHzA74uSIfuw",
+          "name": "SerpAPI AUTOPOST"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "5ef695c3-ec26-4e8e-b46e-a897b3cd536e",
+              "name": "target",
+              "value": "setupdubai.business",
+              "type": "string"
+            },
+            {
+              "id": "599d4b73-9add-4243-bafd-484871e1ca90",
+              "name": "mode",
+              "value": "discovery",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        432,
+        -1328
+      ],
+      "id": "36faf337-3eae-41dc-a7df-8b51eaa2e765",
+      "name": "Edit Fields1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const results = [];\n\nfor (const item of $input.all()) {\n  const organic = item.json.organic_results || [];\n  const searchParams = item.json.search_parameters || {};\n  const searchInfo = item.json.search_information || {};\n\n  for (const r of organic) {\n    if (!r.link) continue;\n    \n    results.push({\n      query: searchParams.q || null,\n      page: searchInfo.page_number || 1,\n      position: r.position || null,\n      title: r.title || null,\n      link: r.link,\n      source: r.source || null,\n      snippet: r.snippet || null,\n      displayed_link: r.displayed_link || null\n    });\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1104,
+        -1328
+      ],
+      "id": "2ee35e5d-2d63-465e-924d-ed89b88e68f2",
+      "name": "Extract Organic Results1",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "jsCode": "const seen = new Set();\nconst out = [];\n\nfor (const item of $items()) {\n  const link = item.json.link;\n  if (!link || seen.has(link)) continue;\n\n  seen.add(link);\n  out.push(item.json);\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1328,
+        -1328
+      ],
+      "id": "4cdaab4a-7a28-4a6b-8b9c-d366ebe9d910",
+      "name": "Filter deduplicate links1",
+      "executeOnce": false
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.link }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "User-Agent",
+              "value": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            },
+            {
+              "name": "Accept",
+              "value": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
+            },
+            {
+              "name": "Accept-Language",
+              "value": "en-US,en;q=0.9"
+            }
+          ]
+        },
+        "options": {
+          "allowUnauthorizedCerts": true,
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 5
+            }
+          },
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "htmlContent"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1552,
+        -1328
+      ],
+      "id": "89e89c09-b0c1-439b-aef8-4acf479e6c3b",
+      "name": "Crawl linking pages1",
+      "continueOnFail": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "operation": "extractHtmlContent",
+        "dataPropertyName": "htmlContent",
+        "extractionValues": {
+          "values": [
+            {
+              "key": "links",
+              "cssSelector": "a",
+              "returnValue": "attribute",
+              "attribute": "href",
+              "returnArray": true
+            },
+            {
+              "key": "anchor",
+              "cssSelector": "a",
+              "returnArray": true
+            },
+            {
+              "key": "rel",
+              "cssSelector": "a",
+              "returnValue": "attribute",
+              "attribute": "rel",
+              "returnArray": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1.2,
+      "position": [
+        1776,
+        -1328
+      ],
+      "id": "efffba1d-ee34-474d-99a0-dec1bb04ceed",
+      "name": "Extract HTML Content1",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get target from the workflow context\nconst target = $('Edit Fields1').first().json.target;\n\n// Get the page URL from the current item\nconst currentItem = $input.item.json;\nconst pageUrl = currentItem.link;\n\n// Get the extracted data\nconst hrefs = currentItem.links || [];\nconst anchors = currentItem.anchor || [];\nconst rels = currentItem.rel || [];\n\nconst out = [];\n\n// Process each link\nfor (let i = 0; i < hrefs.length; i++) {\n  let href = hrefs[i];\n  if (!href) continue;\n  \n  // Skip javascript, mailto, tel, and anchor links\n  if (href.startsWith('javascript:') || \n      href.startsWith('mailto:') || \n      href.startsWith('tel:') || \n      href.startsWith('#')) {\n    continue;\n  }\n  \n  // Handle relative URLs\n  try {\n    if (href.startsWith('/') || href.startsWith('./') || href.startsWith('../')) {\n      const base = new URL(pageUrl);\n      href = new URL(href, base.origin).href;\n    } else if (!href.startsWith('http')) {\n      // Handle URLs without protocol\n      const base = new URL(pageUrl);\n      href = new URL(href, base.origin).href;\n    }\n  } catch (e) {\n    // Skip malformed URLs\n    continue;\n  }\n  \n  // Check if href contains target domain (case-insensitive)\n  const hrefLower = href.toLowerCase();\n  const targetLower = target.toLowerCase();\n  \n  if (!hrefLower.includes(targetLower)) continue;\n\n  const anchorText = (anchors[i] || \"\").trim();\n  const relAttr = (rels[i] || \"\").toLowerCase();\n  \n  out.push({\n    linking_page: pageUrl,\n    backlink_url: href,\n    anchor: anchorText,\n    rel: relAttr,\n    is_nofollow: relAttr.includes('nofollow'),\n    is_sponsored: relAttr.includes('sponsored'),\n    is_ugc: relAttr.includes('ugc')\n  });\n}\n\n// Return results or empty array if nothing found\nreturn out.length > 0 ? out : [];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2000,
+        -1328
+      ],
+      "id": "30a44c99-77f3-439a-aa04-955e928ddc98",
+      "name": "Extract Backlinks From Page1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "// Handle empty input gracefully\nif ($input.all().length === 0) {\n  return [];\n}\n\nconst target = $('Edit Fields1').first().json.target;\nconst targetBase = target.split('.')[0]; // Get domain name without TLD\n\nfunction classify(anchor) {\n  if (!anchor || anchor.trim() === '') return \"empty\";\n  const a = anchor.toLowerCase().trim();\n  \n  // Check for brand/domain mentions\n  if (a.includes(targetBase) || a.includes(target)) return \"brand\";\n  \n  // Check for naked URLs\n  if (a.startsWith('http://') || a.startsWith('https://') || a.startsWith('www.')) return \"url\";\n  \n  // Generic anchor text\n  const genericTerms = ['click here', 'read more', 'learn more', 'here', 'this', 'website', 'link', 'click', 'more info', 'visit', 'source', 'article'];\n  if (genericTerms.some(term => a === term || a === term + '.')) return \"generic\";\n  \n  // Exact or partial match (short anchors with potential keywords)\n  const wordCount = a.split(/\\s+/).length;\n  if (wordCount <= 4 && a.length > 3 && a.length < 50) return \"exact_or_partial\";\n  \n  return \"descriptive\";\n}\n\nreturn $input.all().map(i => ({\n  ...i.json,\n  anchor_type: classify(i.json.anchor)\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2224,
+        -1328
+      ],
+      "id": "6e2d74d9-a24e-4a1d-a5c2-fe8d7b9109da",
+      "name": "Normalize Anchors1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "if ($input.all().length === 0) {\n  return [];\n}\n\nreturn $input.all().map(i => {\n  try {\n    const url = new URL(i.json.linking_page);\n    const domain = url.hostname.replace(/^www\\./, \"\");\n    return { \n      ...i.json, \n      referring_domain: domain,\n      referring_protocol: url.protocol.replace(':', '')\n    };\n  } catch (e) {\n    return { \n      ...i.json, \n      referring_domain: 'unknown',\n      referring_protocol: 'unknown'\n    };\n  }\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2448,
+        -1328
+      ],
+      "id": "8bafd13c-8b7d-495a-91c1-d8e21fc79123",
+      "name": "Referring Domain1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "if ($input.all().length === 0) {\n  return [];\n}\n\nconst seen = new Set();\nconst out = [];\n\nfor (const i of $input.all()) {\n  const key = `${i.json.linking_page}||${i.json.backlink_url}`;\n  if (seen.has(key)) continue;\n  seen.add(key);\n  out.push(i.json);\n}\n\nreturn out;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2672,
+        -1328
+      ],
+      "id": "256680bd-12da-4e7b-8fad-bc35d3a80107",
+      "name": "Deduplicate1",
+      "alwaysOutputData": false
+    },
+    {
+      "parameters": {
+        "jsCode": "if ($input.all().length === 0) {\n  return [];\n}\n\nreturn $input.all().map(i => {\n  let risk = 0;\n  const domain = (i.json.referring_domain || '').toLowerCase();\n  const anchorType = i.json.anchor_type;\n  const isNofollow = i.json.is_nofollow;\n  const isSponsored = i.json.is_sponsored;\n  const isUGC = i.json.is_ugc;\n\n  // Anchor text risk factors\n  if (anchorType === \"exact_or_partial\") risk += 2;\n  if (anchorType === \"url\") risk += 1;\n  if (anchorType === \"empty\") risk += 3;\n\n  // Domain quality indicators (negative signals)\n  if (domain.includes('blogspot')) risk += 1;\n  if (domain.includes('wordpress.com')) risk += 1;\n  if (domain.endsWith('.info')) risk += 2;\n  if (domain.endsWith('.biz')) risk += 1;\n  if (domain.includes('free')) risk += 2;\n  if (domain.includes('spam')) risk += 3;\n  if (domain.includes('casino') || domain.includes('poker') || domain.includes('viagra')) risk += 4;\n  \n  // Link attributes\n  if (isNofollow) risk += 1;\n  if (isSponsored) risk += 1;\n  if (isUGC) risk += 1;\n  \n  // Protocol risk\n  if (i.json.referring_protocol === 'http') risk += 1;\n\n  return {\n    ...i.json,\n    risk_score: risk,\n    risk_level:\n      risk >= 5 ? \"high\" :\n      risk >= 3 ? \"medium\" :\n      \"low\",\n    quality_indicator:\n      risk === 0 ? \"excellent\" :\n      risk <= 2 ? \"good\" :\n      risk <= 4 ? \"moderate\" :\n      \"poor\"\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2896,
+        -1328
+      ],
+      "id": "c164b36e-2cb2-4c4b-8acb-df462d8cca53",
+      "name": "Risk scoring1",
+      "alwaysOutputData": false
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "target": "setupdubai.business",
+          "mode": "home"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        []
+      ]
+    },
+    "Generate backlink discovery queries": {
+      "main": [
+        [
+          {
+            "node": "SerpAPI – Google Search",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI – Google Search": {
+      "main": [
+        [
+          {
+            "node": "Extract Organic Results",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Generate backlink discovery queries",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Organic Results": {
+      "main": [
+        [
+          {
+            "node": "Filter deduplicate links",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter deduplicate links": {
+      "main": [
+        [
+          {
+            "node": "Crawl linking pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl linking pages": {
+      "main": [
+        [
+          {
+            "node": "Extract HTML Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract HTML Content": {
+      "main": [
+        [
+          {
+            "node": "Extract Backlinks From Page",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Backlinks From Page": {
+      "main": [
+        [
+          {
+            "node": "Normalize Anchors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Anchors": {
+      "main": [
+        [
+          {
+            "node": "Referring Domain",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Referring Domain": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate": {
+      "main": [
+        [
+          {
+            "node": "Risk scoring",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk scoring": {
+      "main": [
+        []
+      ]
+    },
+    "Generate backlink discovery queries1": {
+      "main": [
+        [
+          {
+            "node": "SerpAPI – Google Search1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "SerpAPI – Google Search1": {
+      "main": [
+        [
+          {
+            "node": "Extract Organic Results1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields1": {
+      "main": [
+        [
+          {
+            "node": "Generate backlink discovery queries1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Organic Results1": {
+      "main": [
+        [
+          {
+            "node": "Filter deduplicate links1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Filter deduplicate links1": {
+      "main": [
+        [
+          {
+            "node": "Crawl linking pages1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crawl linking pages1": {
+      "main": [
+        [
+          {
+            "node": "Extract HTML Content1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract HTML Content1": {
+      "main": [
+        [
+          {
+            "node": "Extract Backlinks From Page1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Backlinks From Page1": {
+      "main": [
+        [
+          {
+            "node": "Normalize Anchors1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Anchors1": {
+      "main": [
+        [
+          {
+            "node": "Referring Domain1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Referring Domain1": {
+      "main": [
+        [
+          {
+            "node": "Deduplicate1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Deduplicate1": {
+      "main": [
+        [
+          {
+            "node": "Risk scoring1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Risk scoring1": {
+      "main": [
+        [
+          {
+            "node": "Generate Summary Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1b9b1364-f9e1-4875-8c13-fa6a8cb92d06",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55ddf2767af1f0624a4aa69d7dcef035162f719baa6c334550734ca340d66366"
+  },
+  "id": "V75IBXkvFFrB4sC4",
+  "tags": [
+    {
+      "updatedAt": "2025-12-16T10:05:09.644Z",
+      "createdAt": "2025-12-16T10:05:09.644Z",
+      "id": "YdKATQ7IqZcVPGI6",
+      "name": "AI CRM"
+    }
+  ]
+}

@@ -1,0 +1,389 @@
+{
+  "name": "On-page Audit ( AI CRM )",
+  "nodes": [
+    {
+      "parameters": {
+        "url": "={{ $json.client }}",
+        "options": {}
+      },
+      "id": "f87b7e45-083e-4e43-83ce-1cb6ba639289",
+      "name": "Scrape Website",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        -512,
+        512
+      ],
+      "typeVersion": 4.2
+    },
+    {
+      "parameters": {},
+      "id": "ffd1d5b2-8345-49ee-a941-dbccc68c9e7f",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        288,
+        512
+      ],
+      "typeVersion": 3,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "fieldsToAggregate": {
+          "fieldToAggregate": [
+            {
+              "fieldToAggregate": "output"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "97ffbdc1-2e3e-46df-8937-7ecf8ddd2534",
+      "name": "Aggregate",
+      "type": "n8n-nodes-base.aggregate",
+      "position": [
+        512,
+        512
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "mode": "markdownToHtml",
+        "markdown": "=# On-Page Technical Audit\n{{ $json.output[0] }}\n\n# On-Page SEO Content Audit\n{{ $json.output[1] }}",
+        "options": {}
+      },
+      "id": "41f1db17-ef64-4c9c-975f-b2417eed5852",
+      "name": "Markdown",
+      "type": "n8n-nodes-base.markdown",
+      "position": [
+        -736,
+        1040
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "sendTo": "adilahmadip@gmail.com",
+        "subject": "=On-Page SEO Audit -  {{ $('When Executed by Another Workflow').item.json.client }}",
+        "message": "={{ $json.data }}",
+        "options": {}
+      },
+      "id": "df05fdff-ca05-45c7-825e-6f1dda6d4281",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        -512,
+        1040
+      ],
+      "webhookId": "2979e4dc-1689-447e-8cd4-eb907b4eedf4",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "zQFMJZg0YfyPqqTU",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const html = $json.data || \"\";\n\n// --------------------------------------------------------\n// 0. CLEAN HTML (strip noise early)\n// --------------------------------------------------------\nconst cleaned = html\n  .replace(/<!--[\\s\\S]*?-->/g, \"\")\n  .replace(/<script[\\s\\S]*?<\\/script>/gi, \"\")\n  .replace(/<style[\\s\\S]*?<\\/style>/gi, \"\")\n  .replace(/\\s+/g, \" \")\n  .trim();\n\n// --------------------------------------------------------\n// 1. TITLE\n// --------------------------------------------------------\nconst title =\n  (cleaned.match(/<title>(.*?)<\\/title>/i)?.[1] || \"\").trim();\n\n// --------------------------------------------------------\n// 2. META TAGS (minimal extraction)\n// --------------------------------------------------------\nconst metaTags = (cleaned.match(/<meta[^>]*>/gi) || []).map(tag => ({\n  name: tag.match(/name=[\"']([^\"']+)[\"']/i)?.[1] || null,\n  property: tag.match(/property=[\"']([^\"']+)[\"']/i)?.[1] || null,\n  content: tag.match(/content=[\"']([^\"']+)[\"']/i)?.[1] || null\n}));\n\n// --------------------------------------------------------\n// 3. CANONICAL\n// --------------------------------------------------------\nconst canonical =\n  cleaned.match(/<link[^>]*rel=[\"']canonical[\"'][^>]*href=[\"']([^\"']+)[\"']/i)?.[1] || \"\";\n\n// --------------------------------------------------------\n// 4. HEADINGS\n// --------------------------------------------------------\nconst headings = { h1: [], h2: [], h3: [], h4: [], h5: [], h6: [] };\nconst headingRegex = /<(h[1-6])[^>]*>(.*?)<\\/\\1>/gi;\n\nlet match;\nwhile ((match = headingRegex.exec(cleaned)) !== null) {\n  const text = match[2].replace(/<[^>]+>/g, \"\").trim();\n  if (text) headings[match[1]].push(text);\n}\n\n// --------------------------------------------------------\n// 5. PARAGRAPHS (used ONLY for content analysis)\n// --------------------------------------------------------\nconst paragraphs = [];\nconst pRegex = /<p[^>]*>(.*?)<\\/p>/gi;\n\nwhile ((match = pRegex.exec(cleaned)) !== null) {\n  const text = match[1].replace(/<[^>]+>/g, \"\").trim();\n  if (text.length > 40) paragraphs.push(text);\n}\n\n// --------------------------------------------------------\n// 6. LINKS (counts only)\n// --------------------------------------------------------\nconst links = [];\nconst linkRegex = /<a[^>]*href=[\"']([^\"']+)[\"'][^>]*>(.*?)<\\/a>/gi;\n\nwhile ((match = linkRegex.exec(cleaned)) !== null) {\n  const url = match[1].trim();\n  const text = match[2].replace(/<[^>]+>/g, \"\").trim();\n  links.push({\n    type:\n      url.startsWith(\"/\") || url.includes($json.client)\n        ? \"internal\"\n        : \"external\",\n    text\n  });\n}\n\n// --------------------------------------------------------\n// 7. IMAGES (signals only)\n// --------------------------------------------------------\nconst images = [];\nconst imgRegex = /<img[^>]*>/gi;\n\nwhile ((match = imgRegex.exec(cleaned)) !== null) {\n  const tag = match[0];\n  const src = tag.match(/src=[\"']([^\"']+)[\"']/i)?.[1] || \"\";\n  const alt = tag.match(/alt=[\"']([^\"']*)[\"']/i)?.[1] || \"\";\n\n  images.push({\n    alt,\n    isSvg: /\\.svg$/i.test(src)\n  });\n}\n\n// --------------------------------------------------------\n// 8. STRUCTURED DATA (schema types only)\n// --------------------------------------------------------\nconst schemaTypes = [];\nconst ldRegex = /<script[^>]*type=[\"']application\\/ld\\+json[\"'][^>]*>([\\s\\S]*?)<\\/script>/gi;\n\nwhile ((match = ldRegex.exec(html)) !== null) {\n  try {\n    const parsed = JSON.parse(match[1]);\n    if (parsed[\"@type\"]) schemaTypes.push(parsed[\"@type\"]);\n  } catch {}\n}\n\n// --------------------------------------------------------\n// 9. TEXT CONTENT + CHUNKS (CONTENT AUDIT ONLY)\n// --------------------------------------------------------\nconst combinedText = [...Object.values(headings).flat(), ...paragraphs].join(\" \");\nconst wordCount = combinedText.split(/\\s+/).filter(Boolean).length;\n\n// smaller chunks = no TPM tantrums\nfunction chunkText(str, size = 1200) {\n  const chunks = [];\n  for (let i = 0; i < str.length; i += size) {\n    chunks.push(str.slice(i, i + size));\n  }\n  return chunks;\n}\n\nconst textChunks = chunkText(combinedText);\n\n// --------------------------------------------------------\n// 10. FINAL OUTPUT (TOKEN-SAFE)\n// --------------------------------------------------------\nreturn [\n  {\n    json: {\n      title,\n      canonical,\n      wordCount,\n      textChunks,\n      shortSummary: combinedText.slice(0, 400),\n\n      technicalData: {\n        title,\n        canonical,\n        wordCount,\n\n        meta: {\n          total: metaTags.length,\n          missingDescription: !metaTags.some(m => m?.name === \"description\"),\n          missingViewport: !metaTags.some(m => m?.name === \"viewport\")\n        },\n\n        headings: {\n          h1: headings.h1.slice(0, 3),\n          h2Count: headings.h2.length,\n          h3Count: headings.h3.length\n        },\n\n        links: {\n          total: links.length,\n          internal: links.filter(l => l.type === \"internal\").length,\n          external: links.filter(l => l.type === \"external\").length,\n          emptyAnchors: links.filter(l => !l.text).length\n        },\n\n        images: {\n          total: images.length,\n          missingAlt: images.filter(i => !i.alt).length,\n          svgIcons: images.filter(i => i.isSvg).length\n        },\n\n        schemaTypes\n      }\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -288,
+        512
+      ],
+      "id": "5caf8c18-2219-4a1c-9c5f-0ff38685878c",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -736,
+        512
+      ],
+      "id": "85bba97b-bd9f-4aff-b647-c0c47faeeebd",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the best SEO Manager in the country—a world-class expert in optimizing websites to rank on Google.\n\nYou will analyze the structured technical dataset from a webpage and perform a full On-Page Technical SEO Audit. \nThe dataset includes: \n- title\n- meta tags\n- canonical\n- headings (H1–H6)\n- links\n- images\n- JSON-LD schema\n- word count\n\nDo NOT expect raw HTML. You must evaluate only what is provided.\n\nAudit Structure:\nYou will review all technical SEO aspects and present your findings in three sections:\n\n1. Critical Issues – Must be fixed immediately.\n2. Quick Wins – Easy fixes with strong impact.\n3. Opportunities for Improvement – Higher-effort tasks with meaningful benefit.\n\nYour analysis should cover:\n- Title & meta tag optimization\n- Canonical correctness\n- Heading hierarchy & structure\n- Image alt text & file relevance\n- Link optimization (internal/external, relevance, duplication)\n- Structured data validation\n- Content depth signals (word count, topical coverage)\n- Page experience & crawlability considerations based on visible data\n\nFormat your output cleanly using bullet points only. \nDo not include explanations of your process or any intro text.\n\nHere is the structured technical data of my landing page:\n{{ JSON.stringify($json[\"technicalData\"], null, 2) }}\n",
+        "needsFallback": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        -64,
+        208
+      ],
+      "id": "9863344f-809b-41ea-bac9-96fd56fb89c1",
+      "name": "Technical Audit"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        432
+      ],
+      "id": "154b9a96-4dcf-4e13-bf8f-7888c369ecb6",
+      "name": "Groq Model",
+      "credentials": {
+        "groqApi": {
+          "id": "GSfcZEa33LUFZNxJ",
+          "name": "Groq account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        80,
+        432
+      ],
+      "id": "86c83242-791f-489a-ab5b-f9995b263188",
+      "name": "OpenAI Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "XeAAY28Y9QQ8mpy2",
+          "name": "AUTOPOST GMB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        -64,
+        944
+      ],
+      "id": "567ef916-d13b-47cd-b2b1-4a4b32ca6d29",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "UjwJiaTKLQc9CiaD",
+          "name": "Groq account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are the best SEO Manager in the country—a world-class expert in optimizing websites to rank on Google.\n\nYou will analyze the structured content dataset from a webpage and produce a detailed SEO Content Audit. \nThis dataset includes:\n- textChunks (segmented raw text content)\n- shortSummary (high-level summary of the page)\n\nUse ONLY this content. Do not assume missing sections or fabricate information.\n\nYour audit has 2 parts:\n\n-------------------------------------------------\nPART 1 — ANALYSIS\n-------------------------------------------------\n\n1. Content Quality Assessment\n   - Evaluate clarity, value, accuracy, E-E-A-T signals, uniqueness, and topical depth.\n   - Identify missing information users expect on this topic.\n   - Highlight fluff, repetition, or unclear messaging.\n\n2. Keyword Research & Content Analysis\n   - Identify the primary and secondary keywords based on the provided content only.\n   - Evaluate keyword density, placement, and relevance.\n   - Detect missing high-intent keywords and semantic variations.\n   - Check if headings and sections support strong topical coverage.\n\n3. Readability Analysis\n   - Assess tone, sentence complexity, flow, and clarity.\n   - Provide readability evaluation using simplified logic (you may approximate readability scores based on content patterns).\n\n-------------------------------------------------\nPART 2 — RECOMMENDATIONS\n-------------------------------------------------\n\nProvide actionable recommendations in clean bullet points:\n- Improvements for ranking higher in Google\n- Enhancements for user engagement and clarity\n- Suggestions for missing sections, FAQs, CTAs, examples, or trust signals\n- Keyword optimization strategy\n- Readability improvements\n\nDo not include introductory or concluding text. Only provide the structured audit.\n\nHere is the structured content of my landing page:\n{{ $json[\"textChunks\"] }}\n",
+        "needsFallback": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        -64,
+        720
+      ],
+      "id": "0a4ae597-086b-44a2-a341-c9338258f0b5",
+      "name": "Content Audit"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        80,
+        944
+      ],
+      "id": "62baa377-5ce9-44b4-af6b-3ee1a46ba341",
+      "name": "OpenAI Model1",
+      "credentials": {
+        "openAiApi": {
+          "id": "XeAAY28Y9QQ8mpy2",
+          "name": "AUTOPOST GMB"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Markdown": {
+      "main": [
+        [
+          {
+            "node": "Send a message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        []
+      ]
+    },
+    "Scrape Website": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Technical Audit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Content Audit",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "Scrape Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Technical Audit": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Technical Audit",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Technical Audit",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Content Audit",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content Audit": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "OpenAI Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Content Audit",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "33103caf-687a-4eff-bb64-ad552fde68c2",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55ddf2767af1f0624a4aa69d7dcef035162f719baa6c334550734ca340d66366"
+  },
+  "id": "4byb91BXeXoUzj4s",
+  "tags": [
+    {
+      "updatedAt": "2025-12-16T10:05:09.644Z",
+      "createdAt": "2025-12-16T10:05:09.644Z",
+      "id": "YdKATQ7IqZcVPGI6",
+      "name": "AI CRM"
+    }
+  ]
+}

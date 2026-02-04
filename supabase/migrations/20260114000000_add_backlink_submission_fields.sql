@@ -7,8 +7,14 @@ ALTER TABLE tasks ADD COLUMN IF NOT EXISTS backlink_links_indexed JSONB;
 ALTER TABLE tasks ADD COLUMN IF NOT EXISTS backlink_submission_type TEXT;
 
 -- Add a check constraint to ensure submission_type is valid
-ALTER TABLE tasks ADD CONSTRAINT backlink_submission_type_check 
-  CHECK (backlink_submission_type IS NULL OR backlink_submission_type IN ('create', 'index', 'both'));
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'backlink_submission_type_check') THEN
+        ALTER TABLE tasks ADD CONSTRAINT backlink_submission_type_check 
+        CHECK (backlink_submission_type IS NULL OR backlink_submission_type IN ('create', 'index', 'both'));
+    END IF;
+END $$;
+
 
 -- Update RLS policies to allow authenticated users to update these fields
 -- The existing RLS policies should already cover this if they allow UPDATE on tasks.

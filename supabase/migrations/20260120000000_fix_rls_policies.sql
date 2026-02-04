@@ -3,6 +3,9 @@
 -- 1. Updates for Reports Table
 DROP POLICY IF EXISTS "Admins can manage all reports" ON reports;
 
+-- Drop existing policy if it exists to allow recreation
+DROP POLICY IF EXISTS "Admins and Leads can manage all reports" ON reports;
+
 CREATE POLICY "Admins and Leads can manage all reports" ON reports
   FOR ALL USING (
     EXISTS (
@@ -20,6 +23,9 @@ CREATE POLICY "Admins and Leads can manage all reports" ON reports
 
 -- 2. Updates for Projects Table (Allow SEO Lead to manage all projects)
 DROP POLICY IF EXISTS "Admins can manage all projects" ON projects;
+
+-- Drop existing policy if it exists to allow recreation
+DROP POLICY IF EXISTS "Admins and Leads can manage all projects" ON projects;
 
 CREATE POLICY "Admins and Leads can manage all projects" ON projects
   FOR ALL USING (

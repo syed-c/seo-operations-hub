@@ -1,0 +1,462 @@
+{
+  "name": "Keyword Ranking Audit ( AI CRM )",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        16
+      ],
+      "id": "baba1094-0a57-48fd-85b7-8e36cd279806",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1344,
+        -112
+      ],
+      "id": "296b2541-87e7-493d-a587-15d04051de6c",
+      "name": "Wait",
+      "webhookId": "3a9c05a3-016d-4cbb-b982-ee06ea24b2df"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "2f2632cb-00e8-4847-8bf7-f9141981dad6",
+              "name": "website",
+              "value": "https://standszone.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        224,
+        16
+      ],
+      "id": "54f7e2af-d463-4f39-b6bc-e6cb3b99d606",
+      "name": "Website"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "pages",
+        "limit": 1000
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        448,
+        16
+      ],
+      "id": "8ec76e7f-1418-4dd3-b752-691ee09aaab9",
+      "name": "Get Pages",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "keywords",
+        "limit": 1000,
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "page_id",
+              "condition": "eq",
+              "keyValue": "={{ $json.id }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        896,
+        -64
+      ],
+      "id": "c3f53b66-ef0a-49a7-a830-5d4ef0658c17",
+      "name": "Get Keywords",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        672,
+        16
+      ],
+      "id": "eb5c6213-a3ab-48ec-837b-ca6b6f200e42",
+      "name": "Loop Over pages"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1120,
+        16
+      ],
+      "id": "20839791-76fd-4f05-be97-586514221cb6",
+      "name": "Loop Over Keywords"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-safeguard-20b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1648,
+        112
+      ],
+      "id": "5f328651-3a43-4e66-8c99-1556e8e9a455",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "pqiHtwdvuuWI34e4",
+          "name": "Backlink Index"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Just give me location name of what country is targeted in keyword\n\nNOTE: just give me location name nothing else\n\nKEYWORD: {{ $json.keyword }}",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        1568,
+        -112
+      ],
+      "id": "17be7416-7df5-4eee-a723-26196ee6ca5a",
+      "name": "Country Extracter"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "DSVpXYk25xT5tvtD",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/DSVpXYk25xT5tvtD",
+          "cachedResultName": "Search Ranking ( AI CRM )"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.3,
+      "position": [
+        2144,
+        -112
+      ],
+      "id": "c0908eb6-ac0e-4b23-a33f-01179ce09a30",
+      "name": "Call 'Search Ranking ( AI CRM )'"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "c40dfebe-2b54-4b24-8d8c-a0a6ab2a13b5",
+              "name": "Keyword",
+              "value": "={{ $('Get Keywords').item.json.keyword }}",
+              "type": "string"
+            },
+            {
+              "id": "23155ee2-ab66-4c9f-948d-f9106aedc3c1",
+              "name": "URL",
+              "value": "={{ $('Loop Over pages').item.json.url }}",
+              "type": "string"
+            },
+            {
+              "id": "3b0b0a05-dc8e-468c-9f79-08ac8a39fa19",
+              "name": "Location",
+              "value": "={{ $json.output }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1920,
+        -112
+      ],
+      "id": "90e9a00d-ad82-4e0c-be5a-ebc1ff405ea3",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "tableId": "keyword_rankings",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "keyword_id",
+              "fieldValue": "={{ $('Get Keywords').item.json.id }}"
+            },
+            {
+              "fieldId": "location",
+              "fieldValue": "={{ $('Country Extracter').item.json.output }}"
+            },
+            {
+              "fieldId": "device",
+              "fieldValue": "mobile"
+            },
+            {
+              "fieldId": "position",
+              "fieldValue": "={{ $('Call \\'Search Ranking ( AI CRM )\\'').item.json.status }}"
+            },
+            {
+              "fieldId": "search_volume",
+              "fieldValue": "={{ $('Get Keywords').item.json.volume }}"
+            },
+            {
+              "fieldId": "recorded_at",
+              "fieldValue": "={{ $now }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2592,
+        16
+      ],
+      "id": "18c67b78-71a8-46b1-83d9-77980012e888",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// UUID v4 without external packages\nfunction uuidv4() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\nreturn [\n  {\n    json: {\n      id: uuidv4()\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        -112
+      ],
+      "id": "6a726282-ff4a-4c4b-ad78-a357da0f7586",
+      "name": "UUID Generator"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "Country Extracter",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Website",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Website": {
+      "main": [
+        [
+          {
+            "node": "Get Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Pages": {
+      "main": [
+        [
+          {
+            "node": "Loop Over pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Keywords": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over pages": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Get Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Keywords": {
+      "main": [
+        [
+          {
+            "node": "Loop Over pages",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Country Extracter",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Country Extracter": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call 'Search Ranking ( AI CRM )'": {
+      "main": [
+        [
+          {
+            "node": "UUID Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Call 'Search Ranking ( AI CRM )'",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Keywords",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UUID Generator": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "e4dab717-f24d-4ec9-a2b5-c62b76a824b0",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55ddf2767af1f0624a4aa69d7dcef035162f719baa6c334550734ca340d66366"
+  },
+  "id": "8TFDQ03JyIFeVjMe",
+  "tags": [
+    {
+      "updatedAt": "2025-12-16T10:05:09.644Z",
+      "createdAt": "2025-12-16T10:05:09.644Z",
+      "id": "YdKATQ7IqZcVPGI6",
+      "name": "AI CRM"
+    }
+  ]
+}

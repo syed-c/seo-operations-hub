@@ -1,0 +1,696 @@
+{
+  "name": "Sitemap Pages Audit ( AI CRM )",
+  "nodes": [
+    {
+      "parameters": {
+        "tableId": "pages",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $('UUID Generator').item.json.id }}"
+            },
+            {
+              "fieldId": "website_id",
+              "fieldValue": "={{ $('Website ID').item.json.id }}"
+            },
+            {
+              "fieldId": "project_id",
+              "fieldValue": "={{ $('Project ID').item.json.id }}"
+            },
+            {
+              "fieldId": "url",
+              "fieldValue": "={{ $('Loop Over Pages').item.json.url }}"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $('Content Filter').item.json.headings.h1[0] }}"
+            },
+            {
+              "fieldId": "page_type",
+              "fieldValue": "={{ $('Page Type').item.json.output }}"
+            },
+            {
+              "fieldId": "content_score",
+              "fieldValue": "={{ $('Content').item.json.output }}"
+            },
+            {
+              "fieldId": "technical_score",
+              "fieldValue": "={{ $('Technical').item.json.output }}"
+            },
+            {
+              "fieldId": "last_audited",
+              "fieldValue": "={{ new Date().toISOString().split('T')[0] }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        3376,
+        656
+      ],
+      "id": "38203963-d355-49ae-8046-6b036f4391e1",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1552,
+        528
+      ],
+      "id": "5b4e7770-6cf1-431a-aca4-87ab5bc51159",
+      "name": "HTTP Request1",
+      "executeOnce": true,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        448
+      ],
+      "id": "f6bf2d20-9c70-4e30-86eb-058b2ad5fab1",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "UjwJiaTKLQc9CiaD",
+          "name": "Groq account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2080,
+        960
+      ],
+      "id": "2dd5b957-21a2-4584-b08c-8486ad2c028b",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "sSfc35cKTQFnw4HE",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2352,
+        528
+      ],
+      "id": "12a986df-5093-4206-a205-23e7f1b06dff",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "aggregate": "aggregateAllItemData",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.aggregate",
+      "typeVersion": 1,
+      "position": [
+        2576,
+        528
+      ],
+      "id": "7303f833-1fdf-454c-95d5-92ccdbd7f00a",
+      "name": "Aggregate"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the following technical SEO data and return the final technical SEO score.\n\nIMPORTANT:\n- The same input must always produce the same score.\n- Do not use subjective judgment.\n- Base scoring only on the presence, absence, and counts in the data.\n\nData:\n{{ JSON.stringify($json.data, null, 2) }}",
+        "options": {
+          "systemMessage": "You are a deterministic Technical SEO scoring engine.\n\nYou DO NOT reason like a human.\nYou DO NOT form opinions.\nYou DO NOT guess intent.\nYou DO NOT reward creativity or effort.\n\nYou evaluate technical SEO using a FIXED, CONSISTENT scoring logic.\n\n=====================\nSCORING MODEL\n=====================\n\nStart from a base score of 100.\n\nApply ONLY the following deductions.\nIf a signal is missing from the data, assume it is NOT present.\n\nIndexability & Crawlability:\n- Not indexable: -40\n- Not followable: -20\n\nMeta & Head:\n- Missing title: -10\n- Title length < 30 or > 65: -5\n- Missing meta description: -8\n- Missing canonical: -6\n\nRobots Directives:\n- robots contains \"noindex\": -30\n- googlebot contains \"noindex\": -30\n\nHeadings:\n- No H1: -15\n- More than 1 H1: -10\n- H2 count = 0: -5\n\nImages:\n- imagesMissingAlt > 0:\n  - Deduct 1 point per missing ALT\n  - Maximum deduction: -10\n\nPerformance Signals:\n- scripts > 20: -5\n- scripts > 35: -10\n- stylesheets > 10: -5\n\nMobile & Charset:\n- Missing viewport: -15\n- Missing charset: -5\n\nOpenGraph:\n- Missing og:title: -4\n- Missing og:description: -4\n- Missing og:type: -2\n\nTwitter:\n- Missing twitter:card: -3\n\n=====================\nFINAL RULES\n=====================\n\n- Never add points. Only deduct.\n- Never infer quality beyond explicit data.\n- Never change scoring weights.\n- Clamp final score between 0 and 100.\n- Round to the nearest integer.\n- If the same input is provided again, the score MUST remain within ±1 point.\n\n=====================\nOUTPUT FORMAT\n=====================\n\nReturn ONLY the final integer score.\nNo text.\nNo symbols.\nNo explanation.\nNo formatting.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2000,
+        224
+      ],
+      "id": "945f32cf-9136-49a4-b368-98738018500d",
+      "name": "Technical",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the following page content and return the final content quality score.\n\nIMPORTANT:\n- The same input must always produce the same score.\n- Do not use subjective judgment.\n- Score ONLY based on the structured data provided.\n\nContent Data (JSON):\n{{ JSON.stringify($json, null, 2) }}\n",
+        "options": {
+          "systemMessage": "You are a deterministic SEO Content Scoring Engine.\n\nYou do NOT think like a human reader.\nYou do NOT guess intent.\nYou do NOT reward style, creativity, or persuasion.\nYou do NOT assume quality beyond measurable signals.\n\nYou score content using a FIXED deduction-based model.\n\n=====================\nSCORING MODEL\n=====================\n\nStart from a base score of 100.\n\nApply ONLY the deductions below.\nIf a signal is missing from the data, assume it is NOT present.\n\n---------------------\nCORE STRUCTURE\n---------------------\n\n- Missing H1: -25\n- More than 1 H1: -10\n\n- H2 count = 0: -20\n- H2 count between 1–2: -10\n\n---------------------\nCONTENT DEPTH\n---------------------\n\nUse stats.wordCount:\n\n- wordCount < 300: -40\n- wordCount 300–499: -25\n- wordCount 500–799: -15\n- wordCount 800–1199: -5\n\n---------------------\nCONTENT QUALITY SIGNALS\n---------------------\n\n- paragraphCount < 3: -20\n- paragraphCount 3–5: -10\n\n- heroText missing or empty: -10\n\n---------------------\nREDUNDANCY & STRUCTURE\n---------------------\n\n- issues.multipleH1 = true: -10\n- issues.duplicateH2 length > 0:\n  - Deduct 2 points per duplicate H2\n  - Max deduction: -10\n\n---------------------\nSEMANTIC & INTENT SIGNALS\n---------------------\n\n- No CTA detected in content.ctas: -10\n\n---------------------\nFINAL RULES\n---------------------\n\n- Never add points. Only deduct.\n- Never infer intent or usefulness.\n- Never change scoring weights.\n- Clamp final score between 0 and 100.\n- Round to nearest integer.\n- Identical input MUST result in the same score (±1 max).\n\n=====================\nOUTPUT FORMAT\n=====================\n\nReturn ONLY the final integer score.\nNo text.\nNo symbols.\nNo labels.\nNo formatting.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2000,
+        736
+      ],
+      "id": "fb732d57-ae01-4272-a277-4b16c115570c",
+      "name": "Content",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2880,
+        752
+      ],
+      "id": "3a690a0d-fec8-4aeb-be2a-f097a9d8e0d8",
+      "name": "Groq Chat Model2",
+      "credentials": {
+        "groqApi": {
+          "id": "UjwJiaTKLQc9CiaD",
+          "name": "Groq account 3"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze the following page data and determine the page type.\n\nTechnical:\n{{ JSON.stringify($('Technical Filter').item.json.data, null, 2) }}\n\nHeadings:\n{{ JSON.stringify($('Content Filter').item.json.headings, null, 2) }}\n\nContent:\n{{ JSON.stringify($('Content Filter').item.json.content, null, 2) }}\n\nStats:\n{{ JSON.stringify($('Content Filter').item.json.stats, null, 2) }}\n\nIssues:\n{{ JSON.stringify($('Content Filter').item.json.issues, null, 2) }}\n",
+        "options": {
+          "systemMessage": "You are a page-type classification AI.\n\nYour task is to analyze the provided page data and determine what type of page it is.\n\nYou must classify the page into ONE of the following categories only:\n\n- Homepage\n- Service Page\n- Location Page\n- Blog Post\n- Category / Listing Page\n- Product Page\n- Landing Page\n- About Page\n- Contact Page\n- Resource / Guide Page\n- Other\n\nRules:\n- Choose ONLY ONE category.\n- Base your decision on headings, content intent, structure, keywords, CTAs, and context.\n- Do NOT explain your reasoning.\n- Do NOT include any extra text.\n- Do NOT include formatting, labels, or punctuation.\n\nYour output must be ONLY the page type as plain text.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2800,
+        528
+      ],
+      "id": "860c3fe9-387f-472c-ad43-68a96e0362a1",
+      "name": "Page Type",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// UUID v4 without external packages\nfunction uuidv4() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\nreturn [\n  {\n    json: {\n      id: uuidv4()\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3152,
+        528
+      ],
+      "id": "e6b33a5f-8a2d-418f-8bc8-4253ec4ae25e",
+      "name": "UUID Generator"
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "projects",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "client",
+              "keyValue": "={{ $('Edit Fields').item.json.Website }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        208,
+        976
+      ],
+      "id": "4f159c6c-fdd3-423e-b138-f5a320b30aae",
+      "name": "Project ID",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "tableId": "websites",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "url",
+              "keyValue": "={{ $('Edit Fields').item.json.Website }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        432,
+        976
+      ],
+      "id": "8195597c-90d0-4f69-a926-37eeae6c422c",
+      "name": "Website ID",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('Edit Fields').item.json.Website }}/sitemap.xml",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        656,
+        976
+      ],
+      "id": "6be148f0-8b1a-492e-843e-ff6e5f3b8f25",
+      "name": "Sitemap Extractor"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code Node\n// Converts sitemap XML into a clean list of URLs\n\nconst xml = $input.first().json.data;\n\nif (!xml || typeof xml !== \"string\") {\n  return [];\n}\n\n// Match all <loc>...</loc> values\nconst urls = [...xml.matchAll(/<loc>(.*?)<\\/loc>/g)]\n  .map(match => match[1].trim())\n  .filter(Boolean);\n\n// Return each URL as a separate item\nreturn urls.map((url, index) => ({\n  json: {\n    index: index + 1,\n    url\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        976
+      ],
+      "id": "f132a22f-d05f-40c1-8774-1505e4b49bb5",
+      "name": "Sitemap List"
+    },
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1104,
+        976
+      ],
+      "id": "44091485-7ebb-4dc8-84ca-63f8aad178ca",
+      "name": "Loop Over Pages"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code Node\n// Purpose: Split raw HTML into Technical SEO + Content SEO payloads\n\nconst html = items[0]?.json?.data;\nif (!html || typeof html !== \"string\") {\n  return [];\n}\n\n/* ---------------- HELPERS ---------------- */\n\nconst matchOne = (regex) => (html.match(regex)?.[1] || \"\").trim();\nconst matchAll = (regex) => [...html.matchAll(regex)].map(m => m[1]?.trim()).filter(Boolean);\n\nconst stripTags = (str = \"\") =>\n  str\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, \"\")\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, \"\")\n    .replace(/<!--[\\s\\S]*?-->/g, \"\")\n    .replace(/<\\/?[^>]+>/g, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n\n/* ---------------- TECHNICAL SEO ---------------- */\n\nconst metaTags = matchAll(/<meta[^>]+>/gi);\n\nconst technical = {\n  title: matchOne(/<title>(.*?)<\\/title>/i),\n  metaDescription: matchOne(/<meta[^>]+name=[\"']description[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n  canonical: matchOne(/<link[^>]+rel=[\"']canonical[\"'][^>]+href=[\"']([^\"']+)[\"']/i),\n\n  robots: matchOne(/<meta[^>]+name=[\"']robots[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n  googlebot: matchOne(/<meta[^>]+name=[\"']googlebot[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n\n  charset: matchOne(/<meta[^>]+charset=[\"']?([^\"'>\\s]+)/i),\n  viewport: matchOne(/<meta[^>]+name=[\"']viewport[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n\n  indexable: !/noindex/i.test(html),\n  followable: !/nofollow/i.test(html),\n\n  og: {\n    title: matchOne(/property=[\"']og:title[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n    description: matchOne(/property=[\"']og:description[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n    type: matchOne(/property=[\"']og:type[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n    locale: matchOne(/property=[\"']og:locale[\"'][^>]+content=[\"']([^\"']+)[\"']/i)\n  },\n\n  twitter: {\n    card: matchOne(/name=[\"']twitter:card[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n    title: matchOne(/name=[\"']twitter:title[\"'][^>]+content=[\"']([^\"']+)[\"']/i),\n    description: matchOne(/name=[\"']twitter:description[\"'][^>]+content=[\"']([^\"']+)[\"']/i)\n  },\n\n  counts: {\n    scripts: matchAll(/<script\\b/gi).length,\n    stylesheets: matchAll(/<link[^>]+rel=[\"']stylesheet[\"']/gi).length,\n    images: matchAll(/<img\\b[^>]*>/gi).length,\n    imagesMissingAlt: matchAll(/<img\\b(?![^>]*alt=)[^>]*>/gi).length\n  },\n\n  headings: {\n    h1: matchAll(/<h1\\b[^>]*>(.*?)<\\/h1>/gi).length,\n    h2: matchAll(/<h2\\b[^>]*>(.*?)<\\/h2>/gi).length,\n    h3: matchAll(/<h3\\b[^>]*>(.*?)<\\/h3>/gi).length,\n    h4: matchAll(/<h4\\b[^>]*>(.*?)<\\/h4>/gi).length\n  }\n};\n\n/* ---------------- CONTENT SEO ---------------- */\n\nconst visibleText = stripTags(html);\nconst words = visibleText.split(\" \").filter(Boolean);\n\nconst h1s = matchAll(/<h1\\b[^>]*>(.*?)<\\/h1>/gi).map(stripTags);\nconst h2s = matchAll(/<h2\\b[^>]*>(.*?)<\\/h2>/gi).map(stripTags);\n\nconst links = matchAll(/<a\\b[^>]+href=[\"']([^\"']+)[\"']/gi);\n\nconst content = {\n  primaryH1: h1s[0] || \"\",\n  h1Count: h1s.length,\n  h2List: h2s,\n\n  wordCount: words.length,\n  thinContent: words.length < 500,\n\n  ctaDetected: /get quote|contact|get started|book|enquire/i.test(visibleText),\n\n  links: {\n    total: links.length,\n    internal: links.filter(l => l.startsWith(\"/\") || l.includes(\"standszone.com\")).length,\n    external: links.filter(l => !l.startsWith(\"/\") && !l.includes(\"standszone.com\")).length\n  },\n\n  sampleText: visibleText.slice(0, 1200)\n};\n\n/* ---------------- OUTPUT ---------------- */\n\nreturn [\n  {\n    json: {\n      agent: \"technical_seo\",\n      data: technical\n    }\n  },\n  {\n    json: {\n      agent: \"content_seo\",\n      data: content\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        336
+      ],
+      "id": "0512f7fd-5b5f-4284-9e1b-2a02d871d21f",
+      "name": "Technical Filter"
+    },
+    {
+      "parameters": {
+        "jsCode": "// n8n Code Node – Content Audit Extractor (SEO-grade)\n\nconst html = $input.first().json.data;\n\nif (!html || typeof html !== \"string\") {\n  return [{ json: { error: \"No valid HTML provided\" } }];\n}\n\n// ---------- HELPERS ----------\nconst cleanText = (str = \"\") =>\n  str\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, \"\")\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, \"\")\n    .replace(/<!--[\\s\\S]*?-->/g, \"\")\n    .replace(/<\\/?[^>]+>/g, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n\nconst extractAll = (regex) =>\n  [...html.matchAll(regex)].map(m => cleanText(m[1])).filter(Boolean);\n\nconst unique = (arr) => [...new Set(arr)];\n\n// ---------- HEADINGS ----------\nconst h1 = extractAll(/<h1[^>]*>([\\s\\S]*?)<\\/h1>/gi);\nconst h2 = extractAll(/<h2[^>]*>([\\s\\S]*?)<\\/h2>/gi);\nconst h3 = extractAll(/<h3[^>]*>([\\s\\S]*?)<\\/h3>/gi);\n\n// ---------- PARAGRAPHS ----------\nconst paragraphs = extractAll(/<p[^>]*>([\\s\\S]*?)<\\/p>/gi)\n  .filter(p => p.length > 40); // remove junk micro-text\n\n// ---------- LIST ITEMS ----------\nconst listItems = extractAll(/<li[^>]*>([\\s\\S]*?)<\\/li>/gi);\n\n// ---------- CTA TEXT ----------\nconst ctas = extractAll(\n  /<button[^>]*>([\\s\\S]*?)<\\/button>|<a[^>]*class=\"[^\"]*(cta|btn)[^\"]*\"[^>]*>([\\s\\S]*?)<\\/a>/gi\n);\n\n// ---------- HERO TEXT (heuristic) ----------\nconst heroText = paragraphs.slice(0, 3);\n\n// ---------- WORD COUNT ----------\nconst fullText = cleanText(html);\nconst wordCount = fullText.split(\" \").filter(Boolean).length;\n\n// ---------- DUPLICATE HEADINGS ----------\nconst duplicateH2 = h2.filter(\n  (v, i, a) => a.indexOf(v) !== i\n);\n\n// ---------- FINAL OUTPUT ----------\nreturn [\n  {\n    json: {\n      headings: {\n        h1,\n        h2,\n        h3,\n      },\n      content: {\n        heroText,\n        paragraphs,\n        lists: listItems,\n        ctas,\n      },\n      stats: {\n        wordCount,\n        paragraphCount: paragraphs.length,\n        h1Count: h1.length,\n        h2Count: h2.length,\n        h3Count: h3.length,\n      },\n      issues: {\n        multipleH1: h1.length > 1,\n        missingH1: h1.length === 0,\n        duplicateH2,\n      }\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        736
+      ],
+      "id": "e7af374b-971a-463e-8927-38a0cfc65bc9",
+      "name": "Content Filter"
+    },
+    {
+      "parameters": {
+        "amount": 60
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1328,
+        528
+      ],
+      "id": "c9c964ef-a285-460a-9a8f-b8cc8f89893a",
+      "name": "Wait",
+      "webhookId": "4d391235-57fc-4089-b13c-7f1da9785950"
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "b6c6e12a-a0e2-4be2-bdb6-0fc28e08def2",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -240,
+        1200
+      ],
+      "id": "7ec9cb76-0be6-4407-8e3a-8e904f5636fa",
+      "name": "Webhook",
+      "webhookId": "b6c6e12a-a0e2-4be2-bdb6-0fc28e08def2",
+      "disabled": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        976
+      ],
+      "id": "5720688b-90e6-4691-bbf0-a7111c9ae22c",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "57f771a6-8ff9-48a4-92d8-6b4b5c7028be",
+              "name": "Website",
+              "value": "=https://standszone.com",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        -16,
+        976
+      ],
+      "id": "84763fc0-037b-4f62-a1fd-4c8a74eba82e",
+      "name": "Edit Fields"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Content Filter",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Technical Filter",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Loop Over Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Technical",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Content",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Aggregate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Technical": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Aggregate": {
+      "main": [
+        [
+          {
+            "node": "Page Type",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model2": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Page Type",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page Type": {
+      "main": [
+        [
+          {
+            "node": "UUID Generator",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "UUID Generator": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Project ID": {
+      "main": [
+        [
+          {
+            "node": "Website ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Website ID": {
+      "main": [
+        [
+          {
+            "node": "Sitemap Extractor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sitemap Extractor": {
+      "main": [
+        [
+          {
+            "node": "Sitemap List",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sitemap List": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Over Pages": {
+      "main": [
+        [],
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Technical Filter": {
+      "main": [
+        [
+          {
+            "node": "Technical",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content Filter": {
+      "main": [
+        [
+          {
+            "node": "Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Loop Over Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "Project ID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "d09afc84-c595-4366-aefe-5908211e821e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55ddf2767af1f0624a4aa69d7dcef035162f719baa6c334550734ca340d66366"
+  },
+  "id": "RZ3s0yKgeXFoWcbY",
+  "tags": [
+    {
+      "updatedAt": "2025-12-16T10:05:09.644Z",
+      "createdAt": "2025-12-16T10:05:09.644Z",
+      "id": "YdKATQ7IqZcVPGI6",
+      "name": "AI CRM"
+    }
+  ]
+}

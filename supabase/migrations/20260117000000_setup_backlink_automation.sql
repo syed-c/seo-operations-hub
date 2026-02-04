@@ -1,6 +1,7 @@
 -- Migration for Backlink Reports and Automation System
 
--- 1. Create backlink_reports table if not exists
+-- 1. Create backlink_reports table if not exists with BASE columns
+-- If table exists, this is skipped, so we must verify columns exist separately
 CREATE TABLE IF NOT EXISTS public.backlink_reports (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     task_id UUID,
@@ -11,9 +12,22 @@ CREATE TABLE IF NOT EXISTS public.backlink_reports (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- Ensure columns exist (for compatibility with existing table)
+-- Ensure ALL columns exist (for compatibility with existing table)
 DO $$
 BEGIN
+    -- Core columns that might be missing if table was created differently
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'backlink_reports' AND column_name = 'created_at') THEN
+        ALTER TABLE public.backlink_reports ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'backlink_reports' AND column_name = 'updated_at') THEN
+        ALTER TABLE public.backlink_reports ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'backlink_reports' AND column_name = 'status') THEN
+        ALTER TABLE public.backlink_reports ADD COLUMN status TEXT CHECK (status IN ('critical', 'warning', 'healthy'));
+    END IF;
+
     -- Add summary if not exists
     IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'backlink_reports' AND column_name = 'summary') THEN
         ALTER TABLE public.backlink_reports ADD COLUMN summary JSONB DEFAULT '{}'::jsonb;
@@ -46,6 +60,26 @@ CREATE TABLE IF NOT EXISTS public.notifications (
     read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
+
+-- Ensure columns exist for notifications (in case table pre-existed)
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'read') THEN
+        ALTER TABLE public.notifications ADD COLUMN read BOOLEAN DEFAULT FALSE;
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'created_at') THEN
+        ALTER TABLE public.notifications ADD COLUMN created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'type') THEN
+        ALTER TABLE public.notifications ADD COLUMN type TEXT;
+    END IF;
+    
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'data') THEN
+         ALTER TABLE public.notifications ADD COLUMN data JSONB DEFAULT '{}'::jsonb;
+    END IF;
+END $$;
 
 -- 3. Add columns to tasks table
 DO $$
@@ -102,7 +136,7 @@ BEGIN
         ADD CONSTRAINT backlink_reports_assignee_id_fkey 
         FOREIGN KEY (assignee_id) REFERENCES auth.users(id) ON DELETE CASCADE;
     END IF;
-
+    
     -- FK for notifications.user_id
     IF NOT EXISTS (
         SELECT 1 FROM information_schema.table_constraints 
@@ -124,15 +158,32 @@ BEGIN
     END IF;
 END $$;
 
--- 5. Create Indexes
+-- 5. Create Indexes (safe creation)
 CREATE INDEX IF NOT EXISTS idx_backlink_reports_project_id ON public.backlink_reports(project_id);
 CREATE INDEX IF NOT EXISTS idx_backlink_reports_assignee_id ON public.backlink_reports(assignee_id);
 CREATE INDEX IF NOT EXISTS idx_backlink_reports_task_id ON public.backlink_reports(task_id);
 CREATE INDEX IF NOT EXISTS idx_backlink_reports_status ON public.backlink_reports(status);
-CREATE INDEX IF NOT EXISTS idx_backlink_reports_created_at ON public.backlink_reports(created_at DESC);
+
+-- Only create created_at index if column exists (it should now, but extra safe)
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'backlink_reports' AND column_name = 'created_at') THEN
+        CREATE INDEX IF NOT EXISTS idx_backlink_reports_created_at ON public.backlink_reports(created_at DESC);
+    END IF;
+END $$;
+
 CREATE INDEX IF NOT EXISTS idx_tasks_parent_report_id ON public.tasks(parent_report_id);
 CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON public.notifications(user_id);
-CREATE INDEX IF NOT EXISTS idx_notifications_read ON public.notifications(read);
+
+-- Safe index for notifications.read
+DO $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'notifications' AND column_name = 'read') THEN
+        CREATE INDEX IF NOT EXISTS idx_notifications_read ON public.notifications(read);
+    END IF;
+END $$;
+
+
 
 -- 6. Enable RLS
 ALTER TABLE public.backlink_reports ENABLE ROW LEVEL SECURITY;

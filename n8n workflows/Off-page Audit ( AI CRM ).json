@@ -1,0 +1,323 @@
+{
+  "name": "Off-page Audit ( AI CRM )",
+  "nodes": [
+    {
+      "parameters": {
+        "inputSource": "passthrough"
+      },
+      "type": "n8n-nodes-base.executeWorkflowTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        1040,
+        144
+      ],
+      "id": "a2fa28d6-4a74-462d-8d0e-29f9bac84f2a",
+      "name": "When Executed by Another Workflow"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://moz-da-pa1.p.rapidapi.com/v1/getDaPa",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-rapidapi-host",
+              "value": "moz-da-pa1.p.rapidapi.com"
+            },
+            {
+              "name": "x-rapidapi-key",
+              "value": "336da96598msh5d129c3e66749c0p14a98bjsn2b8294572e2c"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.client }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1264,
+        144
+      ],
+      "id": "899b9417-4c47-4db6-82f8-977994a76f2b",
+      "name": "DA PA & Overview"
+    },
+    {
+      "parameters": {
+        "url": "https://best-backlink-checker-api.p.rapidapi.com/excatbacklinks_noneng.php",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "domain",
+              "value": "={{ $('When Executed by Another Workflow').item.json.client }}/"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-rapidapi-host",
+              "value": "best-backlink-checker-api.p.rapidapi.com"
+            },
+            {
+              "name": "x-rapidapi-key",
+              "value": "336da96598msh5d129c3e66749c0p14a98bjsn2b8294572e2c"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1712,
+        144
+      ],
+      "id": "48dc6795-fe40-4039-b7b9-4ae8d48c7086",
+      "name": "Backlinks Detail"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=You are a world-class SEO Audit Specialist. Your job is to analyze the client's domain using the structured Moz API data and the backlink dataset passed from the workflow. Produce a clean, short, client-friendly report with clear action steps.\n\nWrite in a simple, refined, business-friendly style. No long paragraphs. No technical jargon. No filler. Keep each section concise, direct, and helpful.\n\nIMPORTANT: \nYour output MUST be valid HTML. \nDo NOT use markdown. \nDo NOT use # for headings. \nUse only <h1>, <h2>, <p>, <ul>, <li>, <ol>, <strong>, etc.\n\n------------------------------------------------------\nCLIENT INFO\n------------------------------------------------------\nDomain: {{ $('When Executed by Another Workflow').item.json.client }}\n\n------------------------------------------------------\nDOMAIN AUTHORITY DATA\n------------------------------------------------------\nDA: {{ $('Code').item.json.domain_authority }}\nPA: {{ $('Code').item.json.page_authority }}\nSpam Score: {{ $('Code').item.json.spam_score }}\nTotal Backlinks: {{ $('Code').item.json.backlinks_total }}\n\n------------------------------------------------------\nBACKLINK DATA (ARRAY)\n------------------------------------------------------\n{{ JSON.stringify($('Backlinks Detail').all()) }}\n\n------------------------------------------------------\nOUTPUT STRUCTURE — FOLLOW EXACTLY\n------------------------------------------------------\n\nYou must output the entire report in clean HTML using the exact structure below:\n\n<h1>Off-Page SEO Audit Report for {{ $('When Executed by Another Workflow').item.json.client }}</h1>\n\n<h2>1. Summary of the SEO Audit</h2>\n<p>Write 5–8 short sentences explaining:</p>\n<ul>\n<li>overall backlink quality</li>\n<li>authority strength</li>\n<li>spam risk</li>\n<li>anchor text health</li>\n<li>relevance of linking domains</li>\n<li>main concerns</li>\n</ul>\n<p>Use a simple, direct, human-friendly tone. No long paragraphs.</p>\n\n<h2>2. Main Issues</h2>\n<ul>\n<li>directory / stat link overuse</li>\n<li>low authority referring domains</li>\n<li>toxic or suspicious backlinks</li>\n<li>weak anchor text diversity</li>\n<li>lack of contextual/editorial backlinks</li>\n<li>unnatural backlink velocity (if visible)</li>\n</ul>\n\n<h2>3. What You Should Do</h2>\n<ul>\n<li>disavow recommendations</li>\n<li>what to stop doing</li>\n<li>what to start doing</li>\n<li>backlink strategy focus areas</li>\n<li>anchor text improvements</li>\n</ul>\n\n<h2>4. 30-Day Plan</h2>\n<h3>Week 1–2</h3>\n<ul><li>2–3 specific tasks</li></ul>\n\n<h3>Week 2–3</h3>\n<ul><li>2–3 specific tasks</li></ul>\n\n<h3>Week 3–4</h3>\n<ul><li>2–3 specific tasks</li></ul>\n\n<h3>Ongoing</h3>\n<ul><li>2–3 specific tasks</li></ul>\n\n<h2>5. Outcome</h2>\n<p>Write 4–6 short sentences describing:</p>\n<ul>\n<li>expected improvements in authority and trust</li>\n<li>ranking stability</li>\n<li>risk reduction</li>\n<li>timeline for visible results (without exaggeration)</li>\n</ul>\n\n------------------------------------------------------\nSTYLE RULES\n------------------------------------------------------\n<ul>\n<li>No markdown, only HTML.</li>\n<li>No long paragraphs.</li>\n<li>No repeating or summarizing the input.</li>\n<li>No technical jargon.</li>\n<li>No invented metrics.</li>\n<li>If data is missing, skip it without guessing.</li>\n<li>Keep everything clean, structured, and client-friendly.</li>\n</ul>\n\nNow generate the final SEO Audit Report in valid HTML format only.\n",
+        "needsFallback": true,
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 2.2,
+      "position": [
+        1936,
+        144
+      ],
+      "id": "1c3a6ff7-3620-49ad-9844-84d78be8335f",
+      "name": "Audit Report",
+      "executeOnce": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $json.data; // the stringified JSON from API\n\nlet parsed;\ntry {\n  parsed = JSON.parse(raw);\n} catch (err) {\n  throw new Error(\"Invalid API JSON: \" + err.message);\n}\n\n// Normalize numeric strings to numbers\nObject.keys(parsed).forEach(key => {\n  const v = parsed[key];\n  if (typeof v === \"string\" && !isNaN(v)) {\n    parsed[key] = Number(v);\n  }\n});\n\nreturn [\n  {\n    json: {\n      domain_authority: parsed.domain_authority,\n      page_authority: parsed.page_authority,\n      spam_score: parsed.spam_score,\n      backlinks_total: parsed.external_urls_to_url,\n      backlinks_nofollow: parsed.external_nofollow_urls_to_url\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1488,
+        144
+      ],
+      "id": "794f239e-5988-4d1b-9039-41b35d83d1b7",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        2016,
+        368
+      ],
+      "id": "8f1d9aff-3784-447d-b79c-dd28c60c1d8a",
+      "name": "OpenAI Chat Model",
+      "credentials": {
+        "openAiApi": {
+          "id": "XeAAY28Y9QQ8mpy2",
+          "name": "AUTOPOST GMB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "sendTo": "adilahmadip@gmail.com",
+        "subject": "=Off-Page SEO Audit -  {{ $('When Executed by Another Workflow').item.json.client }}",
+        "message": "={{ $json.output }}",
+        "options": {}
+      },
+      "id": "3f272a16-9d31-40e2-b0b4-763d314392fa",
+      "name": "Send a message",
+      "type": "n8n-nodes-base.gmail",
+      "position": [
+        2288,
+        144
+      ],
+      "webhookId": "2979e4dc-1689-447e-8cd4-eb907b4eedf4",
+      "typeVersion": 2.1,
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "zQFMJZg0YfyPqqTU",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1792,
+        352
+      ],
+      "id": "463b2541-29b3-4c87-afb2-e17f68410479",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "GSfcZEa33LUFZNxJ",
+          "name": "Groq account 2"
+        }
+      }
+    }
+  ],
+  "pinData": {
+    "When Executed by Another Workflow": [
+      {
+        "json": {
+          "id": "0c3ed3fc-98d5-41f7-a033-a628dcf67873",
+          "name": "Kenneth",
+          "description": "#1",
+          "client": "https://standsbay.com/exhibition-stand-builder-saudi-arabia",
+          "status": "active",
+          "health_score": null,
+          "created_at": "2025-12-24T11:10:31.263891+00:00",
+          "updated_at": "2025-12-24T11:10:31.263891+00:00"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "DA PA & Overview": [
+      {
+        "json": {
+          "data": "{\n    \"domain_authority\": 19,\n    \"external_nofollow_urls_to_url\": \"-1\",\n    \"external_urls_to_url\": 9,\n    \"page_authority\": 25,\n    \"spam_score\": 1\n}"
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ],
+    "Code": [
+      {
+        "json": {
+          "domain_authority": 19,
+          "page_authority": 25,
+          "spam_score": 1,
+          "backlinks_total": 9,
+          "backlinks_nofollow": -1
+        },
+        "pairedItem": {
+          "item": 0
+        }
+      }
+    ]
+  },
+  "connections": {
+    "When Executed by Another Workflow": {
+      "main": [
+        [
+          {
+            "node": "DA PA & Overview",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "DA PA & Overview": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Backlinks Detail": {
+      "main": [
+        [
+          {
+            "node": "Audit Report",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Backlinks Detail",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Audit Report",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Audit Report": {
+      "main": [
+        []
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Audit Report",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6d7ed1b5-8b20-4f07-9361-48736d229ae4",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55ddf2767af1f0624a4aa69d7dcef035162f719baa6c334550734ca340d66366"
+  },
+  "id": "8UjOU6IrHlnMuJVl",
+  "tags": [
+    {
+      "updatedAt": "2025-12-16T10:05:09.644Z",
+      "createdAt": "2025-12-16T10:05:09.644Z",
+      "id": "YdKATQ7IqZcVPGI6",
+      "name": "AI CRM"
+    }
+  ]
+}

@@ -12,11 +12,14 @@ CREATE TABLE IF NOT EXISTS user_credentials (
 ALTER TABLE user_credentials ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for user_credentials
+
 -- Users can view their own credentials
+DROP POLICY IF EXISTS "Users can view own credentials" ON user_credentials;
 CREATE POLICY "Users can view own credentials" ON user_credentials
   FOR SELECT USING (user_id = auth.uid());
 
 -- Admins can manage all credentials (via Edge Functions)
+DROP POLICY IF EXISTS "Admins can manage all credentials" ON user_credentials;
 CREATE POLICY "Admins can manage all credentials" ON user_credentials
   FOR ALL USING (
     EXISTS (

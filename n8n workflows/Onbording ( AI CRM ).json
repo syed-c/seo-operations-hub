@@ -1,0 +1,460 @@
+{
+  "name": "Onbording ( AI CRM )",
+  "nodes": [
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "projects",
+        "returnAll": true
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -176,
+        -304
+      ],
+      "id": "d5bda6d8-06fe-482b-8f55-6ac980d6343c",
+      "name": "Get many rows",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "2b740420-f669-42ac-9d10-de506e7dff9b",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        -176,
+        352
+      ],
+      "id": "d9580201-b2e0-4c8e-a6ad-6d6c970cf98b",
+      "name": "Webhook",
+      "webhookId": "2b740420-f669-42ac-9d10-de506e7dff9b"
+    },
+    {
+      "parameters": {
+        "tableId": "projects",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "name",
+              "fieldValue": "={{ $('Webhook').item.json.body.name }}"
+            },
+            {
+              "fieldId": "description",
+              "fieldValue": "={{ $('Webhook').item.json.body.description }}"
+            },
+            {
+              "fieldId": "client",
+              "fieldValue": "={{ $('Webhook').item.json.body.client }}"
+            },
+            {
+              "fieldId": "status",
+              "fieldValue": "active"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        272,
+        352
+      ],
+      "id": "74b9f7a7-4fc7-49d2-94bc-446b86748feb",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// UUID v4 without external packages\nfunction uuidv4() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0;\n    const v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\nreturn [\n  {\n    json: {\n      id: uuidv4()\n    }\n  }\n];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        48,
+        352
+      ],
+      "id": "988667f5-1f4d-4cf5-90ab-812c2d0f4445",
+      "name": "Code"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "={{ $json.output }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        -176,
+        -80
+      ],
+      "id": "4637889b-8443-4b03-a392-d47f0f0ec85d",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "respondWith": "text",
+        "responseBody": "Project Not Added",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.4,
+      "position": [
+        496,
+        544
+      ],
+      "id": "6cc5be77-2f8b-416d-b68f-eccb4e889a34",
+      "name": "Respond to Webhook1"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "4byb91BXeXoUzj4s",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/4byb91BXeXoUzj4s",
+          "cachedResultName": "On-page Audit ( AI CRM )"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        496,
+        160
+      ],
+      "id": "db049d5b-9156-4cf7-9751-ad80299c0329",
+      "name": "On-Page Audit"
+    },
+    {
+      "parameters": {
+        "workflowId": {
+          "__rl": true,
+          "value": "8UjOU6IrHlnMuJVl",
+          "mode": "list",
+          "cachedResultUrl": "/workflow/8UjOU6IrHlnMuJVl",
+          "cachedResultName": "Off-page Audit ( AI CRM )"
+        },
+        "workflowInputs": {
+          "mappingMode": "defineBelow",
+          "value": {},
+          "matchingColumns": [],
+          "schema": [],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": true
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.executeWorkflow",
+      "typeVersion": 1.2,
+      "position": [
+        496,
+        352
+      ],
+      "id": "67cec414-7287-41cb-878e-7c0bfa7d9490",
+      "name": "Off-Page Audit"
+    },
+    {
+      "parameters": {},
+      "id": "39930dac-8a6f-41cd-82a3-923f6c5ba95a",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "position": [
+        720,
+        256
+      ],
+      "typeVersion": 3,
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "tableId": "reports",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "id",
+              "fieldValue": "={{ $json.id }}"
+            },
+            {
+              "fieldId": "project_id",
+              "fieldValue": "={{ $('Create a row').item.json.id }}"
+            },
+            {
+              "fieldId": "report_type",
+              "fieldValue": "Onboarding"
+            },
+            {
+              "fieldId": "title",
+              "fieldValue": "={{ $('Create a row').item.json.name }} - Onboarding Report"
+            },
+            {
+              "fieldId": "content",
+              "fieldValue": "={{ $json.output }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1520,
+        256
+      ],
+      "id": "ed2baf2a-b8c4-42f6-a1f2-0bb1522db9b9",
+      "name": "Create a row1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "function uuidv4() {\n  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {\n    const r = Math.random() * 16 | 0,\n    v = c === 'x' ? r : (r & 0x3 | 0x8);\n    return v.toString(16);\n  });\n}\n\nreturn items.map(item => ({\n  json: {\n    id: uuidv4(),\n    ...item.json\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        256
+      ],
+      "id": "a666eb92-8628-47cd-a0da-5db795d78edb",
+      "name": "Add UUID"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Merge the following two audit sections into one cohesive audit report. \nPreserve all content, but reorganize into a clean structured hierarchy:\n\n--- REPORT A ---\n{{ $json.output[0] }}\n--- REPORT B ---\n{{ $json.output[1] }}\n\nRequired Output Structure:\n\n<h1>Audit Summary</h1>\n\n<h2>Critical Issues</h2>\n<ul>...</ul>\n\n<h2>Analysis</h2>\n<p>...</p>\n\n<h2>Recommendations</h2>\n<ul>...</ul>\n\n<h2>Conclusion</h2>\n<p>...</p>\n\nOutput only the HTML. No wrapper. No markdown. No backticks. No JSON. No commentary.\n",
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are an AI that merges multiple audit fragments into a single structured report. \nYour output must follow these rules strictly:\n1. Output format MUST be valid HTML only. No Markdown, no text outside <html>.\n2. Use readable semantic tags: <h1>, <h2>, <p>, <ul>, <li>, <table>, <strong>, etc.\n3. Do NOT include <html>, <head>, or <body> wrappers to avoid breaking JSON serialization.\n4. Do not escape HTML entities unnecessarily.\n5. Never generate backticks or code fences.\n6. Never include JSON, YAML, or Markdown formatting.\n7. Never include explanations, commentary, or notes.\n8. The result must be deterministic and parse-safe for JSONB storage.\n"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        944,
+        256
+      ],
+      "id": "a8219470-52bf-4596-a687-377e43e02721",
+      "name": "AI Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        960,
+        480
+      ],
+      "id": "907f692e-b73b-4cd1-8004-0f497f281991",
+      "name": "Groq Chat Model",
+      "credentials": {
+        "groqApi": {
+          "id": "GSfcZEa33LUFZNxJ",
+          "name": "Groq account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        1088,
+        480
+      ],
+      "id": "f8df3c69-090a-4603-8987-647dcfef5847",
+      "name": "Groq Chat Model1",
+      "credentials": {
+        "groqApi": {
+          "id": "jyI3dXJlIT9NRA1y",
+          "name": "Groq account 5"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Code",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "On-Page Audit",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Off-Page Audit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Respond to Webhook1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On-Page Audit": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Off-Page Audit": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Respond to Webhook": {
+      "main": [
+        []
+      ]
+    },
+    "Add UUID": {
+      "main": [
+        [
+          {
+            "node": "Create a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI Agent": {
+      "main": [
+        [
+          {
+            "node": "Add UUID",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model1": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "AI Agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "dda96758-c37c-44bf-b13f-d20c4048be41",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55ddf2767af1f0624a4aa69d7dcef035162f719baa6c334550734ca340d66366"
+  },
+  "id": "ZAD1YKeIoZWdcCsf",
+  "tags": [
+    {
+      "updatedAt": "2025-12-16T10:05:09.644Z",
+      "createdAt": "2025-12-16T10:05:09.644Z",
+      "id": "YdKATQ7IqZcVPGI6",
+      "name": "AI CRM"
+    }
+  ]
+}

@@ -1,0 +1,1148 @@
+{
+  "name": "Weekly SEO Audit - Rebuilt",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "weeks",
+              "triggerAtDay": [
+                1
+              ]
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        -1104,
+        288
+      ],
+      "id": "d24ba567-b785-4e9c-b240-52bdfd4834cc",
+      "name": "Weekly Schedule"
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "tableId": "projects",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "status",
+              "condition": "eq",
+              "keyValue": "active"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        -864,
+        288
+      ],
+      "id": "f796ec8c-f89b-4d9a-8e36-ba36059e6e08",
+      "name": "Get Active Projects",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        -624,
+        288
+      ],
+      "id": "12e3baf5-f9c2-4ae9-8ba6-a32c543d69fd",
+      "name": "Loop Projects"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.client }}/sitemap.xml",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        -384,
+        288
+      ],
+      "id": "0cce4e5f-4dd4-478e-8dd1-8aba29117160",
+      "name": "Fetch Sitemap",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Detect sitemap type and extract page URLs\nconst xml = $input.first()?.json?.data || \"\";\nconst projectId = $('Loop Projects').item.json.id;\nconst clientUrl = $('Loop Projects').item.json.client;\n\nif (!xml || typeof xml !== \"string\" || xml.length < 100) {\n  // Fallback: return just the homepage\n  return [{\n    json: {\n      url: clientUrl,\n      project_id: projectId,\n      client: clientUrl\n    }\n  }];\n}\n\n// Check if this is a sitemap index (contains references to other sitemaps)\nconst isIndex = xml.includes('<sitemapindex') || xml.includes('page-sitemap.xml');\n\nif (isIndex) {\n  // Extract the page-sitemap.xml URL for WordPress sites\n  const pageSitemapMatch = xml.match(/<loc>\\s*(https?:\\/\\/[^<]*page-sitemap\\.xml)\\s*<\\/loc>/i);\n  if (pageSitemapMatch) {\n    return [{\n      json: {\n        sitemap_url: pageSitemapMatch[1],\n        project_id: projectId,\n        client: clientUrl,\n        needs_second_fetch: true\n      }\n    }];\n  }\n}\n\n// Direct URL extraction from urlset sitemap\nconst matches = [...xml.matchAll(/<loc>\\s*(https?:\\/\\/[^<]+)\\s*<\\/loc>/gi)];\nconst urls = matches\n  .map(m => m[1].trim())\n  .filter(url => {\n    // Filter out non-page URLs\n    const lower = url.toLowerCase();\n    return !lower.includes('.xml') && \n           !lower.includes('.jpg') && \n           !lower.includes('.png') && \n           !lower.includes('.pdf') &&\n           !lower.includes('/wp-content/') &&\n           !lower.includes('/feed/');\n  })\n  .slice(0, 50); // Limit to 50 pages per project\n\nif (urls.length === 0) {\n  return [{\n    json: {\n      url: clientUrl,\n      project_id: projectId,\n      client: clientUrl\n    }\n  }];\n}\n\nreturn urls.map(url => ({\n  json: {\n    url: url,\n    project_id: projectId,\n    client: clientUrl\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -144,
+        288
+      ],
+      "id": "f985f420-0552-4dc8-a790-a99989818446",
+      "name": "Parse Sitemap"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "cond-wp-check",
+              "leftValue": "={{ $json.needs_second_fetch }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        96,
+        288
+      ],
+      "id": "518f7af0-35cb-4c4e-b107-1f69f4f8a337",
+      "name": "WordPress Sitemap?"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.sitemap_url }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        336,
+        160
+      ],
+      "id": "76d1dac7-54a3-4741-96fb-b06f342ed3eb",
+      "name": "Fetch WP Page Sitemap",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract URLs from WordPress page-sitemap.xml\nconst xml = $input.first()?.json?.data || \"\";\nconst projectId = $('Loop Projects').item.json.id;\nconst clientUrl = $('Loop Projects').item.json.client;\n\nif (!xml || typeof xml !== \"string\") {\n  return [{\n    json: {\n      url: clientUrl,\n      project_id: projectId,\n      client: clientUrl\n    }\n  }];\n}\n\nconst matches = [...xml.matchAll(/<loc>\\s*(https?:\\/\\/[^<]+)\\s*<\\/loc>/gi)];\nconst urls = matches\n  .map(m => m[1].trim())\n  .filter(url => !url.toLowerCase().includes('.xml'))\n  .slice(0, 50);\n\nif (urls.length === 0) {\n  return [{\n    json: {\n      url: clientUrl,\n      project_id: projectId,\n      client: clientUrl\n    }\n  }];\n}\n\nreturn urls.map(url => ({\n  json: {\n    url: url,\n    project_id: projectId,\n    client: clientUrl\n  }\n}));\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        576,
+        160
+      ],
+      "id": "55296529-6e56-4a69-ac89-7c396794dcf8",
+      "name": "Extract WP URLs"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        816,
+        288
+      ],
+      "id": "c018149b-3343-4c68-a814-c63dab9f0e92",
+      "name": "Merge All URLs"
+    },
+    {
+      "parameters": {
+        "options": {
+          "reset": false
+        }
+      },
+      "type": "n8n-nodes-base.splitInBatches",
+      "typeVersion": 3,
+      "position": [
+        1056,
+        288
+      ],
+      "id": "4a543095-cf90-4b0f-9a99-f1bc2cc2ab4a",
+      "name": "Loop Pages"
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1296,
+        288
+      ],
+      "id": "ec856801-8637-40e1-9a4c-1d0276537541",
+      "name": "Fetch Page HTML",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Store current page context for later use\nconst pageUrl = $('Loop Pages').item.json.url;\nconst projectId = $('Loop Pages').item.json.project_id;\nconst clientUrl = $('Loop Pages').item.json.client;\nconst html = $input.first()?.json?.data || \"\";\n\nreturn [{\n  json: {\n    page_url: pageUrl,\n    project_id: projectId,\n    client: clientUrl,\n    html: html,\n    html_length: html.length\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1536,
+        288
+      ],
+      "id": "43f02eb2-e14d-4f8a-a26d-9be5741788e2",
+      "name": "Store Page Context"
+    },
+    {
+      "parameters": {
+        "jsCode": "// On-Page & Technical SEO Data Extraction\nconst item = $input.first()?.json || {};\nconst html = item.html || \"\";\nconst pageUrl = item.page_url;\nconst projectId = item.project_id;\nconst clientUrl = item.client;\n\n// Safety check\nif (!html || typeof html !== \"string\" || html.length < 200) {\n  return [{\n    json: {\n      page_url: pageUrl,\n      project_id: projectId,\n      client: clientUrl,\n      error: \"invalid_html\",\n      on_page: null,\n      technical: null\n    }\n  }];\n}\n\n// Helpers\nconst stripTags = (str = \"\") =>\n  str\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, \"\")\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, \"\")\n    .replace(/<!--[\\s\\S]*?-->/g, \"\")\n    .replace(/<\\/?[^>]+>/g, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n\nconst extractOne = (regex) => {\n  const m = html.match(regex);\n  return m ? stripTags(m[1]) || null : null;\n};\n\nconst extractAll = (regex, limit = 50) =>\n  [...html.matchAll(regex)]\n    .map(m => stripTags(m[1]))\n    .filter(Boolean)\n    .slice(0, limit);\n\nconst count = (regex) => (html.match(regex) || []).length;\n\n// CMS Detection\nlet cms = \"other\";\nif (/wp-content|wp-includes|elementor/i.test(html)) cms = \"wordpress\";\nelse if (/_next\\/static|__NEXT_DATA__/i.test(html)) cms = \"nextjs\";\nelse if (/data-reactroot|id=\"root\"/i.test(html)) cms = \"react\";\n\n// Rendering\nlet rendering = \"server-rendered\";\nif (cms === \"nextjs\") rendering = \"nextjs-ssr-or-ssg\";\nif (cms === \"react\") rendering = \"react-hydrated\";\n\n// Meta tags\nconst meta = {\n  title: extractOne(/<title[^>]*>([\\s\\S]*?)<\\/title>/i),\n  description: extractOne(/<meta[^>]+name=[\"']description[\"'][^>]+content=[\"'](.*?)[\"']/i),\n  robots: extractOne(/<meta[^>]+name=[\"']robots[\"'][^>]+content=[\"'](.*?)[\"']/i),\n  canonical: extractOne(/<link[^>]+rel=[\"']canonical[\"'][^>]+href=[\"'](.*?)[\"']/i),\n  lang: extractOne(/<html[^>]+lang=[\"'](.*?)[\"']/i),\n  viewport: extractOne(/<meta[^>]+name=[\"']viewport[\"'][^>]+content=[\"'](.*?)[\"']/i)\n};\n\n// Headings\nconst headings = {\n  h1: extractOne(/<h1[^>]*>([\\s\\S]*?)<\\/h1>/i),\n  h1_count: count(/<h1[\\s>]/gi),\n  h2: extractAll(/<h2[^>]*>([\\s\\S]*?)<\\/h2>/gi),\n  h2_count: count(/<h2[\\s>]/gi),\n  h3_count: count(/<h3[\\s>]/gi)\n};\n\n// Images\nconst images = {\n  total: count(/<img[\\s>]/gi),\n  missing_alt: count(/<img(?![^>]*\\balt=)[^>]*>/gi)\n};\n\n// Links\nconst links = [...html.matchAll(/<a[^>]+href=[\"'](.*?)[\"']/gi)]\n  .map(m => m[1])\n  .filter(Boolean);\n\nlet internal = 0;\nlet external = 0;\nlet empty_anchors = 0;\n\nlinks.forEach(href => {\n  if (href === \"#\" || href === \"javascript:void(0)\") {\n    empty_anchors++;\n  } else if (/^https?:\\/\\//i.test(href)) {\n    external++;\n  } else {\n    internal++;\n  }\n});\n\n// Assets\nconst cssCount = count(/<link[^>]+rel=[\"']stylesheet[\"']/gi);\nconst jsCount = count(/<script[\\s>]/gi);\n\nconst assets = {\n  css_count: cssCount,\n  js_count: jsCount,\n  total: cssCount + jsCount,\n  verdict: cssCount + jsCount > 80 ? \"too_many\" : cssCount + jsCount > 40 ? \"heavy\" : \"normal\"\n};\n\n// Performance hints\nconst performance = {\n  preload_count: count(/rel=[\"']preload[\"']/gi),\n  preconnect_count: count(/rel=[\"']preconnect[\"']/gi),\n  lazy_images: count(/loading=[\"']lazy[\"']/gi)\n};\n\n// Social\nconst social = {\n  open_graph: /property=[\"']og:/i.test(html),\n  twitter_cards: /name=[\"']twitter:/i.test(html)\n};\n\n// Schema\nconst schema = /application\\/ld\\+json/i.test(html);\n\n// Indexability\nconst indexable = !(/noindex/i.test(meta.robots || \"\"));\n\n// Word count (approximate)\nconst bodyMatch = html.match(/<body[^>]*>([\\s\\S]*?)<\\/body>/i);\nconst bodyText = bodyMatch ? stripTags(bodyMatch[1]) : stripTags(html);\nconst wordCount = bodyText.split(/\\s+/).filter(w => w.length > 1).length;\n\n// Calculate scores (0-100)\nlet technicalScore = 100;\nlet contentScore = 100;\n\n// Technical deductions\nif (!meta.title) technicalScore -= 15;\nif (!meta.description) technicalScore -= 10;\nif (!meta.canonical) technicalScore -= 5;\nif (!meta.viewport) technicalScore -= 10;\nif (!indexable) technicalScore -= 20;\nif (!schema) technicalScore -= 5;\nif (!social.open_graph) technicalScore -= 5;\nif (assets.verdict === \"too_many\") technicalScore -= 15;\nelse if (assets.verdict === \"heavy\") technicalScore -= 8;\nif (images.missing_alt > 5) technicalScore -= 10;\nelse if (images.missing_alt > 0) technicalScore -= 5;\n\n// Content deductions\nif (!headings.h1) contentScore -= 20;\nif (headings.h1_count > 1) contentScore -= 10;\nif (headings.h2_count === 0) contentScore -= 10;\nif (wordCount < 300) contentScore -= 20;\nelse if (wordCount < 500) contentScore -= 10;\nif (internal === 0) contentScore -= 15;\nif (empty_anchors > 3) contentScore -= 10;\n\n// Clamp scores\ntechnicalScore = Math.max(0, Math.min(100, technicalScore));\ncontentScore = Math.max(0, Math.min(100, contentScore));\n\nreturn [{\n  json: {\n    page_url: pageUrl,\n    project_id: projectId,\n    client: clientUrl,\n    word_count: wordCount,\n    technical_score: technicalScore,\n    content_score: contentScore,\n    seo_score: Math.round((technicalScore + contentScore) / 2),\n    on_page: {\n      meta,\n      headings,\n      images,\n      links: { internal, external, empty_anchors, total: links.length },\n      assets\n    },\n    technical: {\n      cms,\n      rendering,\n      performance,\n      social,\n      schema,\n      indexable\n    }\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        192
+      ],
+      "id": "07e94246-91cc-4152-a141-3e75e8b20690",
+      "name": "Extract On-Page & Technical"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Content Structure Extraction\nconst item = $input.first()?.json || {};\nconst html = item.html || \"\";\nconst pageUrl = item.page_url;\n\nif (!html || typeof html !== \"string\" || html.length < 200) {\n  return [{\n    json: {\n      page_url: pageUrl,\n      content_structure: null\n    }\n  }];\n}\n\nconst clean = (str = \"\") =>\n  str\n    .replace(/<script[\\s\\S]*?<\\/script>/gi, \"\")\n    .replace(/<style[\\s\\S]*?<\\/style>/gi, \"\")\n    .replace(/<!--[\\s\\S]*?-->/g, \"\")\n    .replace(/<\\/?[^>]+>/g, \" \")\n    .replace(/\\s+/g, \" \")\n    .trim();\n\nconst bodyMatch = html.match(/<body[^>]*>([\\s\\S]*?)<\\/body>/i);\nconst body = bodyMatch ? bodyMatch[1] : html;\n\nconst sections = [];\nconst h2Blocks = body.split(/<h2[^>]*>/i).slice(1);\n\nif (h2Blocks.length) {\n  h2Blocks.forEach(block => {\n    const h2Match = block.match(/^([\\s\\S]*?)<\\/h2>/i);\n    const h2Text = h2Match ? clean(h2Match[1]) : null;\n    const content = clean(block.replace(/^([\\s\\S]*?)<\\/h2>/i, \"\")).substring(0, 500);\n    sections.push({ section: h2Text, content_preview: content });\n  });\n} else {\n  const flatContent = clean(body).substring(0, 1000);\n  sections.push({ section: null, content_preview: flatContent });\n}\n\nreturn [{\n  json: {\n    page_url: pageUrl,\n    content_structure: {\n      section_count: sections.length,\n      sections: sections.slice(0, 10)\n    }\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1776,
+        384
+      ],
+      "id": "64ed8fab-9f9a-47b1-985c-d502deafa484",
+      "name": "Extract Content Structure"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        2016,
+        288
+      ],
+      "id": "6154562f-28f8-408c-a6ba-85d9bc2302df",
+      "name": "Merge Page Data"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Analyze this page and identify SEO issues with severity levels.\n\nPage URL: {{ $json.page_url }}\n\nOn-Page Data:\n{{ JSON.stringify($json.on_page, null, 2) }}\n\nTechnical Data:\n{{ JSON.stringify($json.technical, null, 2) }}\n\nContent Structure:\n{{ JSON.stringify($json.content_structure, null, 2) }}\n\nScores:\n- Technical Score: {{ $json.technical_score }}/100\n- Content Score: {{ $json.content_score }}/100\n- SEO Score: {{ $json.seo_score }}/100\n- Word Count: {{ $json.word_count }}\n\nOutput a concise HTML report with:\n1. Critical Issues (if any)\n2. High Priority Issues (if any)\n3. Medium Priority Issues (if any)\n4. Quick Wins\n\nUse <h3> for issue titles, <ul><li> for details. Be specific and actionable.\n",
+        "hasOutputParser": true,
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are a senior SEO auditor. Analyze the provided data and output ONLY valid HTML.\n\nRules:\n- Use only <h2>, <h3>, <ul>, <li>, <p>, <strong> tags\n- Be concise and specific\n- Focus on actionable issues only\n- Do not repeat data that looks fine\n- If a category has no issues, skip it entirely\n- Maximum 500 words total"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        2256,
+        288
+      ],
+      "id": "4f5c5b8a-561d-4a55-aa5e-4d421ed668b6",
+      "name": "Page Audit Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2256,
+        512
+      ],
+      "id": "95b379e6-2668-40b5-9e02-1fbc68df8579",
+      "name": "Groq Model (Page)",
+      "credentials": {
+        "groqApi": {
+          "id": "yTDVsQWW2lkHLuqr",
+          "name": "CRM 1"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-120b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        2384,
+        512
+      ],
+      "id": "41ed1ef8-9c8b-46cb-b64a-71fdc5b15714",
+      "name": "Groq Fallback (Page)",
+      "credentials": {
+        "groqApi": {
+          "id": "VCkIU6DNmTmTazs7",
+          "name": "CRM 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"audit_html\": \"<h2>Page Audit</h2><h3>Critical Issues</h3><ul><li>Missing H1 tag</li></ul>\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        2496,
+        512
+      ],
+      "id": "06d078b8-1812-4031-8402-d384858dd400",
+      "name": "Page Audit Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare page data for database update\nconst mergedData = $('Merge Page Data').item.json;\nconst auditResult = $input.first()?.json || {};\n\nconst pageUrl = mergedData.page_url;\nconst projectId = mergedData.project_id;\n\nreturn [{\n  json: {\n    url: pageUrl,\n    project_id: projectId,\n    title: mergedData.on_page?.meta?.title || null,\n    word_count: mergedData.word_count || 0,\n    technical_score: mergedData.technical_score || 0,\n    content_score: mergedData.content_score || 0,\n    seo_score: mergedData.seo_score || 0,\n    last_audited: new Date().toISOString(),\n    audit_html: auditResult.audit_html || auditResult.output || \"<p>Audit completed</p>\",\n    on_page_data: mergedData.on_page,\n    technical_data: mergedData.technical,\n    content_structure: mergedData.content_structure\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2576,
+        288
+      ],
+      "id": "7faafc3e-1495-49b4-855c-b996bafd0d89",
+      "name": "Prepare Page Update"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        2816,
+        288
+      ],
+      "id": "57d0ed74-8c9e-4ad0-ada5-26a73961b384",
+      "name": "Upsert Page to DB",
+      "alwaysOutputData": true,
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Collect page audit data for project report\nconst pageData = $('Prepare Page Update').item.json;\n\n// Store in workflow static data for aggregation\nconst staticData = $getWorkflowStaticData('global');\nconst projectId = pageData.project_id;\n\nif (!staticData.pageAudits) {\n  staticData.pageAudits = {};\n}\n\nif (!staticData.pageAudits[projectId]) {\n  staticData.pageAudits[projectId] = [];\n}\n\nstaticData.pageAudits[projectId].push({\n  url: pageData.url,\n  title: pageData.title,\n  technical_score: pageData.technical_score,\n  content_score: pageData.content_score,\n  seo_score: pageData.seo_score,\n  word_count: pageData.word_count,\n  audit_html: pageData.audit_html\n});\n\nreturn [{ json: { collected: true, project_id: projectId } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3056,
+        288
+      ],
+      "id": "513d5cc3-0e54-4081-9094-b42c43372b29",
+      "name": "Collect Page Audits"
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        3296,
+        288
+      ],
+      "id": "07d27914-0971-4db1-b00d-1599504b3a21",
+      "name": "Rate Limit (2s)",
+      "webhookId": "rate-limit-001"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "check-more-pages",
+              "leftValue": "={{ $('Loop Pages').context.noItemsLeft }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3536,
+        288
+      ],
+      "id": "545c5147-9fd8-491d-9460-2b487523b3e8",
+      "name": "All Pages Done?"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://moz-da-pa1.p.rapidapi.com/v1/getDaPa",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-rapidapi-host",
+              "value": "moz-da-pa1.p.rapidapi.com"
+            },
+            {
+              "name": "x-rapidapi-key",
+              "value": "336da96598msh5d129c3e66749c0p14a98bjsn2b8294572e2c"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $('Loop Projects').item.json.client }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        3776,
+        160
+      ],
+      "id": "a99048f3-09ca-4050-8006-0920df4272df",
+      "name": "Fetch DA/PA",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "url": "https://best-backlink-checker-api.p.rapidapi.com/excatbacklinks_noneng.php",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "domain",
+              "value": "={{ $('Loop Projects').item.json.client }}"
+            }
+          ]
+        },
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "x-rapidapi-host",
+              "value": "best-backlink-checker-api.p.rapidapi.com"
+            },
+            {
+              "name": "x-rapidapi-key",
+              "value": "8c3f42fb44mshb4b30d8fa97bea5p1d9cc7jsn72f7bdc445f6"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 60000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        3776,
+        400
+      ],
+      "id": "1fe657d6-99d6-4912-b0cf-cf8c04bf97c5",
+      "name": "Fetch Backlinks",
+      "alwaysOutputData": true,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse DA/PA response\nconst raw = $input.first()?.json?.data || $input.first()?.json || {};\n\nlet parsed = raw;\nif (typeof raw === \"string\") {\n  try {\n    parsed = JSON.parse(raw);\n  } catch (err) {\n    parsed = {};\n  }\n}\n\nreturn [{\n  json: {\n    domain_authority: Number(parsed.domain_authority) || 0,\n    page_authority: Number(parsed.page_authority) || 0,\n    spam_score: Number(parsed.spam_score) || 0,\n    backlinks_total: Number(parsed.external_urls_to_url) || 0,\n    backlinks_nofollow: Number(parsed.external_nofollow_urls_to_url) || 0\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4016,
+        160
+      ],
+      "id": "0b6e9f97-4d26-4fb7-9b03-6046078503ea",
+      "name": "Parse DA/PA"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse backlinks response\nconst raw = $input.first()?.json || {};\n\nlet backlinks = [];\nif (Array.isArray(raw)) {\n  backlinks = raw;\n} else if (raw.data && Array.isArray(raw.data)) {\n  backlinks = raw.data;\n} else if (raw.backlinks && Array.isArray(raw.backlinks)) {\n  backlinks = raw.backlinks;\n}\n\n// Limit to first 50 backlinks for report\nconst limitedBacklinks = backlinks.slice(0, 50).map(bl => ({\n  source_url: bl.source_url || bl.url || bl.source || 'Unknown',\n  anchor_text: bl.anchor_text || bl.anchor || '',\n  domain_authority: bl.domain_authority || bl.da || 0,\n  dofollow: bl.dofollow !== false\n}));\n\nreturn [{\n  json: {\n    backlinks: limitedBacklinks,\n    backlink_count: backlinks.length\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4016,
+        400
+      ],
+      "id": "00a378dd-1b09-44bf-8ab7-2c7387642bca",
+      "name": "Parse Backlinks"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        4256,
+        288
+      ],
+      "id": "0674bdea-6b91-4c46-ba51-020dd95afe87",
+      "name": "Merge Domain Data"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare complete project audit data\nconst dapaData = $('Parse DA/PA').item.json;\nconst backlinksData = $('Parse Backlinks').item.json;\nconst projectData = $('Loop Projects').item.json;\n\n// Get collected page audits from static data\nconst staticData = $getWorkflowStaticData('global');\nconst projectId = projectData.id;\nconst pageAudits = staticData.pageAudits?.[projectId] || [];\n\n// Calculate aggregate scores\nconst avgTechnicalScore = pageAudits.length > 0 \n  ? Math.round(pageAudits.reduce((sum, p) => sum + (p.technical_score || 0), 0) / pageAudits.length)\n  : 0;\nconst avgContentScore = pageAudits.length > 0\n  ? Math.round(pageAudits.reduce((sum, p) => sum + (p.content_score || 0), 0) / pageAudits.length)\n  : 0;\nconst avgSeoScore = pageAudits.length > 0\n  ? Math.round(pageAudits.reduce((sum, p) => sum + (p.seo_score || 0), 0) / pageAudits.length)\n  : 0;\n\nreturn [{\n  json: {\n    project_id: projectId,\n    project_name: projectData.name || projectData.client,\n    domain: projectData.client,\n    domain_authority: dapaData.domain_authority,\n    page_authority: dapaData.page_authority,\n    spam_score: dapaData.spam_score,\n    backlinks_total: dapaData.backlinks_total,\n    backlinks: backlinksData.backlinks,\n    backlink_count: backlinksData.backlink_count,\n    pages_audited: pageAudits.length,\n    avg_technical_score: avgTechnicalScore,\n    avg_content_score: avgContentScore,\n    avg_seo_score: avgSeoScore,\n    page_summaries: pageAudits.map(p => ({\n      url: p.url,\n      title: p.title,\n      seo_score: p.seo_score\n    }))\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4496,
+        288
+      ],
+      "id": "bd73cd29-ac5c-4845-a72a-d20d711914b6",
+      "name": "Prepare Project Data"
+    },
+    {
+      "parameters": {
+        "promptType": "define",
+        "text": "=Generate a comprehensive Weekly SEO Audit Report for this domain.\n\nDomain: {{ $json.domain }}\nProject: {{ $json.project_name }}\n\n## Domain Metrics\n- Domain Authority: {{ $json.domain_authority }}\n- Page Authority: {{ $json.page_authority }}\n- Spam Score: {{ $json.spam_score }}\n- Total Backlinks: {{ $json.backlinks_total }}\n\n## Pages Audited: {{ $json.pages_audited }}\n- Average Technical Score: {{ $json.avg_technical_score }}/100\n- Average Content Score: {{ $json.avg_content_score }}/100\n- Average SEO Score: {{ $json.avg_seo_score }}/100\n\n## Page Summaries\n{{ JSON.stringify($json.page_summaries, null, 2) }}\n\n## Backlink Sample (first 20)\n{{ JSON.stringify($json.backlinks.slice(0, 20), null, 2) }}\n\nCreate a professional HTML report with:\n1. Executive Summary (key metrics and overall health)\n2. On-Page SEO Overview (aggregate findings)\n3. Technical SEO Overview\n4. Off-Page SEO Analysis (backlinks, DA/PA)\n5. Priority Action Items (top 5 things to fix this week)\n6. 30-Day Improvement Plan\n\nUse proper HTML structure with h1, h2, h3, ul, li, p, strong tags.\nBe specific, actionable, and professional.\n",
+        "hasOutputParser": true,
+        "needsFallback": true,
+        "options": {
+          "systemMessage": "You are a senior SEO consultant generating weekly audit reports for clients.\n\nRules:\n- Output ONLY valid, semantic HTML\n- Use h1 for main title, h2 for sections, h3 for subsections\n- Be concise but thorough\n- Include specific metrics and scores\n- Prioritize actionable recommendations\n- Professional tone suitable for client delivery\n- Maximum 1500 words"
+        }
+      },
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3,
+      "position": [
+        4736,
+        288
+      ],
+      "id": "b96c5855-2b54-4c95-9d7e-3250252b927a",
+      "name": "Weekly Report Agent"
+    },
+    {
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        4736,
+        512
+      ],
+      "id": "4adf15d5-7e71-489f-873b-a7a3cf2656e1",
+      "name": "Groq Model (Report)",
+      "credentials": {
+        "groqApi": {
+          "id": "GSfcZEa33LUFZNxJ",
+          "name": "Groq account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "model": {
+          "__rl": true,
+          "value": "gpt-4.1",
+          "mode": "list",
+          "cachedResultName": "gpt-4.1"
+        },
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenAi",
+      "typeVersion": 1.2,
+      "position": [
+        4864,
+        512
+      ],
+      "id": "72a9dba5-f8f5-4279-9584-b439bd43cbe8",
+      "name": "OpenAI Fallback (Report)",
+      "credentials": {
+        "openAiApi": {
+          "id": "XeAAY28Y9QQ8mpy2",
+          "name": "AUTOPOST GMB"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsonSchemaExample": "{\n  \"report_html\": \"<h1>Weekly SEO Audit Report</h1><h2>Executive Summary</h2><p>...</p>\"\n}"
+      },
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        4976,
+        512
+      ],
+      "id": "50f676e4-c599-47f4-814c-f01690d57d36",
+      "name": "Report Parser"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Prepare final report for database insertion\nconst projectData = $('Prepare Project Data').item.json;\nconst reportResult = $input.first()?.json || {};\n\nconst reportHtml = reportResult.report_html || reportResult.output || '<h1>Weekly Audit Report</h1><p>Report generation completed.</p>';\n\n// Create metrics object\nconst metrics = {\n  domain_authority: projectData.domain_authority,\n  page_authority: projectData.page_authority,\n  spam_score: projectData.spam_score,\n  backlinks_total: projectData.backlinks_total,\n  pages_audited: projectData.pages_audited,\n  avg_technical_score: projectData.avg_technical_score,\n  avg_content_score: projectData.avg_content_score,\n  avg_seo_score: projectData.avg_seo_score,\n  audit_date: new Date().toISOString()\n};\n\n// Combine HTML report with metrics as JSONB content\nconst content = {\n  html: reportHtml,\n  metrics: metrics,\n  page_summaries: projectData.page_summaries\n};\n\nreturn [{\n  json: {\n    project_id: projectData.project_id,\n    report_type: 'Weekly Audit',\n    title: `${projectData.project_name} - Weekly SEO Audit Report`,\n    content: JSON.stringify(content),\n    generated_at: new Date().toISOString()\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5056,
+        288
+      ],
+      "id": "9acb2cfd-e7ae-4e08-874c-cf278a350c91",
+      "name": "Prepare Report Insert"
+    },
+    {
+      "parameters": {
+        "tableId": "reports",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldValue": "={{ $json.project_id }}"
+            },
+            {
+              "fieldValue": "={{ $json.report_type }}"
+            },
+            {
+              "fieldValue": "={{ $json.title }}"
+            },
+            {
+              "fieldValue": "={{ $json.content }}"
+            },
+            {
+              "fieldValue": "={{ $json.generated_at }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        5296,
+        288
+      ],
+      "id": "677378f7-0385-42d0-ac4e-223c5d17c575",
+      "name": "Insert Report to DB",
+      "credentials": {
+        "supabaseApi": {
+          "id": "RO6dbNmQfgtzDx58",
+          "name": "Ai CRM"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Clean up static data for this project\nconst staticData = $getWorkflowStaticData('global');\nconst projectId = $('Loop Projects').item.json.id;\n\nif (staticData.pageAudits && staticData.pageAudits[projectId]) {\n  delete staticData.pageAudits[projectId];\n}\n\nreturn [{ json: { cleanup: 'complete', project_id: projectId } }];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5536,
+        288
+      ],
+      "id": "0d92954c-4472-4d1c-a2a4-49c9bdfd4f4f",
+      "name": "Cleanup Static Data"
+    },
+    {
+      "parameters": {
+        "amount": 30
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        5776,
+        288
+      ],
+      "id": "8af108ae-e6b6-4394-92ec-17c366c7108a",
+      "name": "Wait Between Projects (30s)",
+      "webhookId": "project-wait-001"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Weekly Schedule": {
+      "main": [
+        [
+          {
+            "node": "Get Active Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Projects": {
+      "main": [
+        [
+          {
+            "node": "Loop Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Projects": {
+      "main": [
+        [
+          {
+            "node": "Fetch Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Sitemap": {
+      "main": [
+        [
+          {
+            "node": "Parse Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Sitemap": {
+      "main": [
+        [
+          {
+            "node": "WordPress Sitemap?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "WordPress Sitemap?": {
+      "main": [
+        [
+          {
+            "node": "Fetch WP Page Sitemap",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Merge All URLs",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Fetch WP Page Sitemap": {
+      "main": [
+        [
+          {
+            "node": "Extract WP URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract WP URLs": {
+      "main": [
+        [
+          {
+            "node": "Merge All URLs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge All URLs": {
+      "main": [
+        [
+          {
+            "node": "Loop Pages",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Loop Pages": {
+      "main": [
+        [
+          {
+            "node": "Fetch Page HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Page HTML": {
+      "main": [
+        [
+          {
+            "node": "Store Page Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Store Page Context": {
+      "main": [
+        [
+          {
+            "node": "Extract On-Page & Technical",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract Content Structure",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract On-Page & Technical": {
+      "main": [
+        [
+          {
+            "node": "Merge Page Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Content Structure": {
+      "main": [
+        [
+          {
+            "node": "Merge Page Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Page Data": {
+      "main": [
+        [
+          {
+            "node": "Page Audit Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Model (Page)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Page Audit Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Fallback (Page)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Page Audit Agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Page Audit Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Page Audit Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Page Audit Agent": {
+      "main": [
+        [
+          {
+            "node": "Prepare Page Update",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Page Update": {
+      "main": [
+        [
+          {
+            "node": "Upsert Page to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upsert Page to DB": {
+      "main": [
+        [
+          {
+            "node": "Collect Page Audits",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Collect Page Audits": {
+      "main": [
+        [
+          {
+            "node": "Rate Limit (2s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch DA/PA": {
+      "main": [
+        [
+          {
+            "node": "Parse DA/PA",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Backlinks": {
+      "main": [
+        [
+          {
+            "node": "Parse Backlinks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse DA/PA": {
+      "main": [
+        [
+          {
+            "node": "Merge Domain Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Backlinks": {
+      "main": [
+        [
+          {
+            "node": "Merge Domain Data",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Domain Data": {
+      "main": [
+        [
+          {
+            "node": "Prepare Project Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Project Data": {
+      "main": [
+        [
+          {
+            "node": "Weekly Report Agent",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Model (Report)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Weekly Report Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenAI Fallback (Report)": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Weekly Report Agent",
+            "type": "ai_languageModel",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Report Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Weekly Report Agent",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Weekly Report Agent": {
+      "main": [
+        [
+          {
+            "node": "Prepare Report Insert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Report Insert": {
+      "main": [
+        [
+          {
+            "node": "Insert Report to DB",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Insert Report to DB": {
+      "main": [
+        [
+          {
+            "node": "Cleanup Static Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Cleanup Static Data": {
+      "main": [
+        [
+          {
+            "node": "Wait Between Projects (30s)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Between Projects (30s)": {
+      "main": [
+        [
+          {
+            "node": "Loop Projects",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "99da52c8-b99d-4e8e-a36a-c5a8a582138e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "55ddf2767af1f0624a4aa69d7dcef035162f719baa6c334550734ca340d66366"
+  },
+  "id": "g5vgMelBntcAR6hy",
+  "tags": [
+    {
+      "updatedAt": "2025-12-16T10:05:09.644Z",
+      "createdAt": "2025-12-16T10:05:09.644Z",
+      "id": "YdKATQ7IqZcVPGI6",
+      "name": "AI CRM"
+    }
+  ]
+}

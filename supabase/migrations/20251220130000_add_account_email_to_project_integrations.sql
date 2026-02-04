@@ -4,7 +4,8 @@
 ALTER TABLE project_integrations 
 ADD COLUMN IF NOT EXISTS account_email TEXT;
 
--- Create index for account email lookups
-CREATE INDEX IF NOT EXISTS idx_project_integrations_account_email 
+-- Create index for account email lookups (idempotent check)
+DROP INDEX IF EXISTS idx_project_integrations_account_email;
+CREATE INDEX idx_project_integrations_account_email 
 ON project_integrations(account_email) 
 WHERE account_email IS NOT NULL;
