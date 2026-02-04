@@ -140,6 +140,9 @@ serveWithNotification('process-backlink-report', async (req) => {
     let reportData: any;
     let isWebhook = false;
 
+    console.log('Checking body.type:', body.type);
+    console.log('Checking body.direct_submission:', body.direct_submission);
+
     if (body.type === 'INSERT' && body.table === 'backlink_reports' && body.record) {
       // Database Webhook
       isWebhook = true;
@@ -222,8 +225,12 @@ serveWithNotification('process-backlink-report', async (req) => {
         .single();
 
       if (insertError) throw insertError;
+      console.log('Successfully created backlink report:', newReport?.id);
       reportData = newReport;
     } else {
+      console.error('Request did not match webhook or direct_submission pattern');
+      console.error('body.type:', body.type);
+      console.error('body.direct_submission:', body.direct_submission);
       return new Response(
         JSON.stringify({ error: 'This function now expects a Supabase Database Webhook or direct_submission payload' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

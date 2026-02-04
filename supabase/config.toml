@@ -44,29 +44,17 @@ enable_confirmations = false
 [functions.admin-users]
 verify_jwt = false
 
-[functions.rank-checker]
-verify_jwt = false
-
-[functions.content-audit]
-verify_jwt = false
-
-[functions.backlink-monitor]
-verify_jwt = false
-
-[functions.technical-audit]
-verify_jwt = false
-
-[functions.backlink-crawler]
-verify_jwt = false
-
-[functions.gsc-analytics]
-verify_jwt = false
-
-[functions.keyword-difficulty]
-verify_jwt = false
-
-[functions.send-notification]
-verify_jwt = false
-
 [functions.process-backlink-report]
+verify_jwt = false
+
+[functions.perform-audit]
+verify_jwt = false
+
+[functions.generate-report]
+verify_jwt = false
+
+[functions.onboarding]
+verify_jwt = false
+
+[functions.process-ai]
 verify_jwt = false
