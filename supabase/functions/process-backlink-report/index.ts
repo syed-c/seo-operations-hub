@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import { serveWithNotification } from "../_shared/wrapper.ts";
+import { corsHeaders } from "../_shared/cors.ts";
 
 serveWithNotification('process-backlink-report', async (req) => {
 
@@ -147,8 +148,17 @@ serveWithNotification('process-backlink-report', async (req) => {
     } else if (body.direct_submission) {
       // Direct call from the frontend
       console.log('Processing Direct Submission for Task:', body.task_id);
+      console.log('Full body received:', JSON.stringify(body, null, 2));
 
       const { task_id, project_id, assignee_id, links_created = [], links_indexed = [] } = body;
+      
+      if (!task_id || !project_id || !assignee_id) {
+        console.error('Missing required fields:', { task_id, project_id, assignee_id });
+        return new Response(
+          JSON.stringify({ error: 'Missing required fields: task_id, project_id, or assignee_id' }),
+          { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
 
       // Perform Mini-Audit on the submitted links
       const auditedCreated = await Promise.all(links_created.map(async (link: { url: string }) => {
