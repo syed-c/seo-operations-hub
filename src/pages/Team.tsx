@@ -48,7 +48,7 @@ export default function Team() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  
+
   // Form state for new user
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -56,11 +56,13 @@ export default function Team() {
   const [selectedRole, setSelectedRole] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  
+
   // Form state for editing user
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editRole, setEditRole] = useState("");
+  const [editPassword, setEditPassword] = useState("");
+  const [editConfirmPassword, setEditConfirmPassword] = useState("");
 
   const loadRoles = async () => {
     // Load predefined roles that match the database schema
@@ -75,7 +77,7 @@ export default function Team() {
       { id: 'client', name: 'Client' },
       { id: 'viewer', name: 'Viewer' }
     ];
-    
+
     setRoles(predefinedRoles);
     if (predefinedRoles.length > 0 && !selectedRole) {
       setSelectedRole(predefinedRoles[0].name);
@@ -94,14 +96,14 @@ export default function Team() {
         role, 
         created_at
       `);
-      
+
       setLoading(false);
-      
+
       if (result?.error) {
         console.error("Error loading users:", result.error);
         return;
       }
-      
+
       const transformedData = (result?.data || []).map((user: any) => ({
         id: user.id,
         email: user.email,
@@ -111,7 +113,7 @@ export default function Team() {
         role_name: user.role || "No role",
         created_at: user.created_at,
       }));
-      
+
       setUsers(transformedData);
     } catch (err: any) {
       setLoading(false);
@@ -156,7 +158,7 @@ export default function Team() {
     try {
       // First, create the auth user using the secure admin Edge Function
       const adminApiClient1 = await import('@/lib/adminApiClient');
-      
+
       // Create auth user via admin function
       const authUserData: any = {
         email,
@@ -166,14 +168,14 @@ export default function Team() {
           last_name: lastName || null,
         }
       };
-      
+
       // Only add password if it's provided to avoid null/undefined issues
       if (password) {
         authUserData.password = password;
       }
-      
+
       const authResult = await adminApiClient1.createRecord('auth_user', authUserData);
-      
+
       // Check if there was an error returned as part of the response (like 409 duplicate email)
       if (authResult?.error) {
         if (authResult.status === 409 || authResult.error.includes('email_exists') || authResult.error.includes('A user with this email already exists')) {
@@ -181,11 +183,11 @@ export default function Team() {
         }
         throw new Error(authResult.error);
       }
-      
+
       // Handle different response structures for auth user creation
       let userId: string | undefined;
       const authData = authResult as { data?: Array<{ id: string }>; id?: string } | Array<{ id: string }>;
-      
+
       if (authData && typeof authData === 'object' && 'data' in authData && authData.data && authData.data.length > 0) {
         userId = authData.data[0].id;
       } else if (Array.isArray(authData) && authData.length > 0) {
@@ -197,11 +199,11 @@ export default function Team() {
       } else {
         throw new Error('Failed to create auth user - invalid response structure');
       }
-      
+
       if (!userId) {
         throw new Error('Failed to create auth user - no user ID returned');
       }
-      
+
       // User profile and credentials are already created in the Edge Function
       // Just set newUser to a dummy value to continue with the flow
       const newUser = {
@@ -211,14 +213,14 @@ export default function Team() {
         last_name: lastName || null,
         role: selectedRole || null,
       };
-      
+
       console.log('Create user result:', newUser);
-      
+
       toast({
         title: "Success",
         description: "Team member added successfully!",
       });
-      
+
       setFirstName("");
       setLastName("");
       setEmail("");
@@ -241,10 +243,10 @@ export default function Team() {
       // Delete from custom users table first using admin function
       const adminApiClient3 = await import('@/lib/adminApiClient');
       await adminApiClient3.deleteRecords('users', { id });
-      
+
       // Then delete the auth user using the secure admin function
       await adminApiClient3.deleteRecords('auth_user', { id });
-      
+
       toast({
         title: "Deleted",
         description: "Team member removed",
@@ -265,25 +267,45 @@ export default function Team() {
     setEditFirstName(user.first_name || "");
     setEditLastName(user.last_name || "");
     setEditRole(user.role || "");
+    setEditPassword("");
+    setEditConfirmPassword("");
     setEditDialogOpen(true);
   };
 
   const saveEdit = async () => {
     if (!editingUser) return;
-    
+
     try {
       const adminApiClient2 = await import('@/lib/adminApiClient');
+
+      // 1. Update Profile in 'users' table
       await adminApiClient2.updateRecords('users', {
         first_name: editFirstName || null,
         last_name: editLastName || null,
         role: editRole || null,
       }, { id: editingUser.id });
-      
+
+      // 2. Update Password if provided
+      if (editPassword) {
+        if (editPassword.length < 8) {
+          throw new Error("Password must be at least 8 characters");
+        }
+        if (editPassword !== editConfirmPassword) {
+          throw new Error("Passwords do not match");
+        }
+
+        await adminApiClient2.updateRecords('auth_user', {
+          password: editPassword
+        }, { id: editingUser.id });
+
+        console.log("Password updated for user:", editingUser.id);
+      }
+
       toast({
         title: "Updated",
         description: "Team member updated successfully",
       });
-      
+
       setEditDialogOpen(false);
       setEditingUser(null);
       loadUsers();
@@ -299,10 +321,10 @@ export default function Team() {
   return (
     <MainLayout>
       <Header title="Team" subtitle="Assign owners, view roles, and capacities" />
-      
+
       <div className="flex items-center justify-between mb-6">
         <p className="text-muted-foreground">{users.length} team members</p>
-        
+
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button className="gap-2 rounded-xl">
@@ -395,9 +417,9 @@ export default function Team() {
           </DialogContent>
         </Dialog>
       </div>
-      
+
       {loading && <p className="text-sm text-muted-foreground mb-4">Loading...</p>}
-      
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {users.map((user) => (
           <Card
@@ -432,8 +454,8 @@ export default function Team() {
             <CardContent className="flex items-center gap-3">
               <Avatar className="w-10 h-10">
                 <AvatarFallback>
-                  {(user.first_name ? user.first_name.charAt(0) : '') + 
-                   (user.last_name ? user.last_name.charAt(0) : user.email.charAt(0).toUpperCase())}
+                  {(user.first_name ? user.first_name.charAt(0) : '') +
+                    (user.last_name ? user.last_name.charAt(0) : user.email.charAt(0).toUpperCase())}
                 </AvatarFallback>
               </Avatar>
               <div>
@@ -489,6 +511,32 @@ export default function Team() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            <div className="border-t pt-4 mt-2">
+              <Label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Security</Label>
+              <div className="grid gap-4 mt-3">
+                <div className="space-y-2">
+                  <Label htmlFor="editPassword">New Password (leave blank to keep current)</Label>
+                  <Input
+                    id="editPassword"
+                    type="password"
+                    value={editPassword}
+                    onChange={(e) => setEditPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="editConfirmPassword">Confirm New Password</Label>
+                  <Input
+                    id="editConfirmPassword"
+                    type="password"
+                    value={editConfirmPassword}
+                    onChange={(e) => setEditConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+              </div>
             </div>
           </div>
           <DialogFooter>
