@@ -28,26 +28,14 @@ serveWithNotification('admin-users', async (req) => {
       body = await req.json();
     } catch (e) {
       console.error('Failed to parse JSON body:', e);
-      return new Response(
-        JSON.stringify({ error: 'Invalid JSON body' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+      throw new Error('Invalid JSON body');
     }
 
     const { action, table, data, filters } = body;
     console.log(`Admin action: ${action} on table: ${table}`, { data, filters });
 
     if (!action || !table) {
-      return new Response(
-        JSON.stringify({ error: 'Missing required fields: action and table' }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+      throw new Error('Missing required fields: action and table');
     }
 
     let result;
@@ -71,21 +59,9 @@ serveWithNotification('admin-users', async (req) => {
             console.error('Auth user creation error:', authError);
             // Check if it's an email exists error
             if (authError.code === 'email_exists') {
-              return new Response(
-                JSON.stringify({ error: 'A user with this email already exists', code: 'email_exists' }),
-                {
-                  status: 409, // Conflict status code for duplicate email
-                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                }
-              );
+              throw new Error('A user with this email already exists');
             } else {
-              return new Response(
-                JSON.stringify({ error: authError.message, details: authError }),
-                {
-                  status: 400,
-                  headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-                }
-              );
+              throw new Error(authError.message || 'Failed to create auth user');
             }
           }
 
@@ -106,13 +82,7 @@ serveWithNotification('admin-users', async (req) => {
           if (userError) {
             console.error('Error storing user profile:', userError);
             // This is a fatal error, as we need the user profile record
-            return new Response(
-              JSON.stringify({ error: userError.message, details: userError }),
-              {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              }
-            );
+            throw new Error(userError.message || 'Failed to store user profile');
           } else {
             console.log('User profile stored successfully for user:', authResult.user.id);
           }
@@ -164,13 +134,7 @@ serveWithNotification('admin-users', async (req) => {
 
           if (credentialError) {
             console.error('Error updating password credentials:', credentialError);
-            return new Response(
-              JSON.stringify({ error: credentialError.message, details: credentialError }),
-              {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              }
-            );
+            throw new Error(credentialError.message || 'Failed to update password');
           }
 
           // Return success response
@@ -190,26 +154,14 @@ serveWithNotification('admin-users', async (req) => {
         if (table === 'auth_user') {
           console.log('Deleting auth user with ID:', filters?.id);
           if (!filters?.id) {
-            return new Response(
-              JSON.stringify({ error: 'User ID is required for auth user deletion' }),
-              {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              }
-            );
+            throw new Error('User ID is required for auth user deletion');
           }
 
           const { error: authError } = await supabaseAdmin.auth.admin.deleteUser(filters.id);
 
           if (authError) {
             console.error('Auth user deletion error:', authError);
-            return new Response(
-              JSON.stringify({ error: authError.message, details: authError }),
-              {
-                status: 400,
-                headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-              }
-            );
+            throw new Error(authError.message || 'Failed to delete auth user');
           }
 
           result = { data: [] };
@@ -235,34 +187,17 @@ serveWithNotification('admin-users', async (req) => {
         }
         break;
       default:
-        return new Response(
-          JSON.stringify({ error: 'Invalid action. Use create, update, delete, or select' }),
-          {
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          }
-        );
+        throw new Error('Invalid action. Use create, update, delete, or select');
     }
 
     if (result.error) {
       console.error('Database error:', result.error);
-      return new Response(
-        JSON.stringify({ error: result.error.message, details: result.error }),
-        {
-          status: 400,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      );
+      throw new Error(result.error.message || 'Database operation failed');
     }
 
     console.log(`Admin action ${action} successful, returned ${result.data?.length || 0} records`);
-    return new Response(
-      JSON.stringify({ data: result.data }),
-      {
-        status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      }
-    );
+    // Return plain object for serveWithNotification wrapper to handle
+    return { data: result.data };
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     console.error('Edge function error:', error);
