@@ -123,10 +123,12 @@ serveWithNotification('process-backlink-report', async (req) => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get('VITE_SUPABASE_URL');
+    // Edge functions use SUPABASE_URL, not VITE_SUPABASE_URL
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL');
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {
+      console.error('Missing environment variables:', { hasUrl: !!supabaseUrl, hasKey: !!supabaseServiceRoleKey });
       throw new Error('Missing environment variables');
     }
 

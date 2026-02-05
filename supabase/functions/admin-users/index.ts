@@ -12,12 +12,14 @@ serveWithNotification('admin-users', async (req) => {
   }
   
   try {
-    const supabaseUrl = Deno.env.get('VITE_SUPABASE_URL');
+    // Edge functions use SUPABASE_URL, not VITE_SUPABASE_URL
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') || Deno.env.get('VITE_SUPABASE_URL');
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
     console.log('Environment check:', { 
       hasUrl: !!supabaseUrl, 
-      hasKey: !!supabaseServiceRoleKey 
+      hasKey: !!supabaseServiceRoleKey,
+      url: supabaseUrl?.substring(0, 30) + '...' // Log partial URL for debugging
     });
 
     if (!supabaseUrl || !supabaseServiceRoleKey) {

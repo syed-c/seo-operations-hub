@@ -751,31 +751,49 @@ export default function Tasks() {
 
       if (updateError) throw updateError;
 
-      // Call the Edge Function directly instead of an external webhook
+      // Call the n8n webhook for backlink processing
       try {
-        console.log('Triggering process-backlink-report Edge Function...');
-        const { data: edgeResult, error: edgeError } = await supabase.functions.invoke('process-backlink-report', {
-          body: {
-            task_id: taskToReview.id,
-            project_id: taskToReview.project_id,
-            assignee_id: teamUser?.id,
+        const webhookUrl = import.meta.env.VITE_BACKLINK_REVIEW_WEBHOOK_URL;
+        if (webhookUrl) {
+          console.log('Triggering n8n backlink processing webhook...');
+          
+          const webhookPayload = {
+            taskId: taskToReview.id,
+            title: taskToReview.title,
+            description: taskToReview.description,
+            status: 'review',
+            projectId: taskToReview.project_id,
+            projectName: taskToReview.projectName,
+            assignee: taskToReview.assignee ? {
+              id: taskToReview.assignee.id,
+              name: taskToReview.assignee.name
+            } : null,
             backlink_summary: backlinkReviewForm.summary,
+            backlink_links_created: linksCreated,
+            backlink_links_indexed: linksIndexed,
             backlink_submission_type: submissionType,
-            links_created: linksCreated,
-            links_indexed: linksIndexed,
-            direct_submission: true // Help the function distinguish from a webhook trigger
-          }
-        });
+            submitted_at: new Date().toISOString()
+          };
 
-        if (edgeError) {
-          console.error('Edge Function Error:', edgeError);
-          // Don't throw here as the task update already succeeded, 
-          // but we want to know if automation failed.
+          console.log('Sending webhook payload:', webhookPayload);
+
+          const response = await fetch(webhookUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(webhookPayload)
+          });
+
+          if (!response.ok) {
+            console.error('Webhook failed:', response.status, response.statusText);
+          } else {
+            console.log('Webhook called successfully');
+          }
         } else {
-          console.log('Edge Function Success:', edgeResult);
+          console.warn('VITE_BACKLINK_REVIEW_WEBHOOK_URL not configured');
         }
-      } catch (invokeErr) {
-        console.error('Error invoking automation:', invokeErr);
+      } catch (webhookErr) {
+        console.error('Error calling webhook:', webhookErr);
+        // Don't throw here as the task update already succeeded
       }
 
       setIsBacklinkReviewModalOpen(false);
