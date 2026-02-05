@@ -30,13 +30,17 @@ export async function callAdminFunction<T = unknown>(
       throw new Error('Supabase client not initialized');
     }
 
+    console.log('[adminApiClient] Calling admin-users function:', { action, table, data, filters });
+
     const { data: result, error } = await supabase.functions.invoke('admin-users', {
       body: { action, table, data, filters }
     });
 
+    console.log('[adminApiClient] Edge function response:', { result, error });
+
     // Check if there's an error from the Edge Function
     if (error) {
-      console.error('Error calling admin function:', error);
+      console.error('[adminApiClient] Error calling admin function:', error);
       if (error?.status === 409 || error?.message?.includes('email_exists')) {
         return { error: error.message || 'A user with this email already exists', status: 409 };
       }
@@ -45,15 +49,17 @@ export async function callAdminFunction<T = unknown>(
 
     // Check if result contains an error from the edge function
     if (result?.error) {
+      console.error('[adminApiClient] Edge function returned error:', result.error);
       if (result.error.includes('email_exists') || result.error.includes('A user with this email already exists')) {
         return { error: result.error, status: 409 };
       }
       throw new Error(result.error);
     }
 
+    console.log('[adminApiClient] Returning result:', result);
     return result as { data?: T; error?: string; status?: number };
   } catch (error) {
-    console.error('Error calling admin function:', error);
+    console.error('[adminApiClient] Exception in callAdminFunction:', error);
     throw error;
   }
 }

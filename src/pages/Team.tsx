@@ -88,6 +88,7 @@ export default function Team() {
     setLoading(true);
     try {
       const adminApiClient = await import('@/lib/adminApiClient');
+      console.log('[Team.tsx] Calling adminApiClient.selectRecords for users...');
       const result = await adminApiClient.selectRecords('users', `
         id, 
         email, 
@@ -97,14 +98,24 @@ export default function Team() {
         created_at
       `);
 
+      console.log('[Team.tsx] adminApiClient result:', result);
       setLoading(false);
 
       if (result?.error) {
-        console.error("Error loading users:", result.error);
+        console.error("[Team.tsx] Error loading users:", result.error);
         return;
       }
 
-      const transformedData = (result?.data || []).map((user: any) => ({
+      if (!result || !result.data) {
+        console.warn('[Team.tsx] No data returned from adminApiClient');
+        setUsers([]);
+        return;
+      }
+
+      console.log('[Team.tsx] Raw user data:', result.data);
+      console.log('[Team.tsx] Number of users:', result.data.length);
+
+      const transformedData = (result.data || []).map((user: any) => ({
         id: user.id,
         email: user.email,
         first_name: user.first_name || undefined,
@@ -114,10 +125,11 @@ export default function Team() {
         created_at: user.created_at,
       }));
 
+      console.log('[Team.tsx] Transformed user data:', transformedData);
       setUsers(transformedData);
     } catch (err: any) {
       setLoading(false);
-      console.error("Error:", err);
+      console.error("[Team.tsx] Error in loadUsers:", err);
     }
   };
 
