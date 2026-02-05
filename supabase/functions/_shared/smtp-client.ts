@@ -1,9 +1,10 @@
 
-import { SMTPClient } from "denomailer";
+import { SmtpClient } from "denomailer";
 
 export class Mailer {
-    private client: SMTPClient;
+    private client: SmtpClient | null = null;
     private fromEmail: string;
+    private enabled: boolean = false;
 
     constructor() {
         const hostname = Deno.env.get("SMTP_HOST");
@@ -14,23 +15,34 @@ export class Mailer {
 
         if (!hostname || !username || !password) {
             console.warn("SMTP credentials missing. Email capabilities disabled.");
+            this.enabled = false;
+            return;
         }
 
-        this.client = new SMTPClient({
-            connection: {
-                hostname: hostname!,
-                port: port,
-                tls: port === 465,
-                auth: {
-                    username: username!,
-                    password: password!,
+        try {
+            this.client = new SmtpClient({
+                connection: {
+                    hostname: hostname,
+                    port: port,
+                    tls: port === 465,
+                    auth: {
+                        username: username,
+                        password: password,
+                    },
                 },
-            },
-        });
+            });
+            this.enabled = true;
+        } catch (error) {
+            console.error("Failed to initialize SMTP client:", error);
+            this.enabled = false;
+        }
     }
 
     async sendEmail(subject: string, content: string, isHtml = false) {
-        if (!this.fromEmail) return;
+        if (!this.enabled || !this.client || !this.fromEmail) {
+            console.log("Email sending skipped - SMTP not configured");
+            return;
+        }
 
         try {
             await this.client.send({
