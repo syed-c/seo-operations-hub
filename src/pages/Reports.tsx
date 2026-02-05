@@ -52,6 +52,12 @@ export default function Reports() {
 
   const canCreateEditReports = teamUser?.role === 'Super Admin' || teamUser?.role === 'Admin' || teamUser?.role === 'SEO Lead' || teamUser?.role === 'Developer';
 
+  // Check if we have any reports for debugging
+  useEffect(() => {
+    console.log('[Reports.tsx] Reports state:', reports);
+    console.log('[Reports.tsx] Selected project:', selectedProject);
+  }, [reports, selectedProject]);
+
   const load = async () => {
     setLoading(true);
     setError("");
@@ -117,7 +123,9 @@ export default function Reports() {
         query = query.in('project_id', projectIds);
       }
 
+      console.log('[Reports.tsx] Executing query with selectedProject:', selectedProject?.id);
       const { data, error: queryError } = await query;
+      console.log('[Reports.tsx] Query result:', { data, error: queryError });
 
       setLoading(false);
 
@@ -126,15 +134,17 @@ export default function Reports() {
         return;
       }
 
-      setReports(
-        (data || []).map((r: any) => ({
-          ...r,
-          project: r.projects, // Map joined project data
-        }))
-      );
+      const mappedReports = (data || []).map((r: any) => ({
+        ...r,
+        project: r.projects, // Map joined project data
+      }));
+      
+      console.log('[Reports.tsx] Mapped reports:', mappedReports);
+      setReports(mappedReports);
     } catch (err: any) {
       setLoading(false);
       setError(err.message || "Failed to load reports");
+      console.error('[Reports.tsx] Error loading reports:', err);
     }
   };
 
