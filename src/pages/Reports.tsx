@@ -179,7 +179,189 @@ export default function Reports() {
       }
       return content;
     }
-    return JSON.stringify(content);
+    return content; // Return the object as-is for proper handling
+  };
+
+  // Function to render structured report content
+  const renderReportContent = (content: any) => {
+    if (!content) return <p>No content available</p>;
+    
+    // Parse the content if it's a string
+    let parsedContent = content;
+    if (typeof content === 'string') {
+      try {
+        parsedContent = parseContent(content);
+      } catch (e) {
+        return <pre className="text-sm p-4 bg-muted rounded">{content}</pre>;
+      }
+    }
+    
+    // If it's not an object, render as JSON
+    if (typeof parsedContent !== 'object') {
+      return <pre className="text-sm p-4 bg-muted rounded">{JSON.stringify(parsedContent, null, 2)}</pre>;
+    }
+    
+    // Render structured report sections
+    return (
+      <div className="space-y-6">
+        {/* Report Meta */}
+        {parsedContent.report_meta && (
+          <div className="bg-muted/50 p-4 rounded-lg">
+            <h3 className="font-semibold text-lg mb-2">Report Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+              <div>
+                <span className="font-medium">Generated:</span> {parsedContent.report_meta.generated_at ? new Date(parsedContent.report_meta.generated_at).toLocaleString() : 'N/A'}
+              </div>
+              <div>
+                <span className="font-medium">Type:</span> {parsedContent.report_meta.report_type || 'N/A'}
+              </div>
+              <div>
+                <span className="font-medium">Version:</span> {parsedContent.report_meta.version || 'N/A'}
+              </div>
+            </div>
+          </div>
+        )}
+        
+        {/* Executive Summary */}
+        {parsedContent.executive_summary && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.executive_summary.title}
+            </h2>
+            <div 
+              className="prose prose-sm max-w-none dark:prose-invert"
+              dangerouslySetInnerHTML={{ 
+                __html: parsedContent.executive_summary.html || parsedContent.executive_summary 
+              }} 
+            />
+          </div>
+        )}
+        
+        {/* Authority & Trust */}
+        {parsedContent.authority_and_trust && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.authority_and_trust.title}
+            </h2>
+            <div 
+              className="prose prose-sm max-w-none dark:prose-invert"
+              dangerouslySetInnerHTML={{ 
+                __html: parsedContent.authority_and_trust.html || parsedContent.authority_and_trust 
+              }} 
+            />
+            {/* Metrics display if available */}
+            {parsedContent.authority_and_trust.metrics && (
+              <div className="mt-4 p-4 bg-muted rounded">
+                <h3 className="font-semibold mb-2">Key Metrics</h3>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  {parsedContent.authority_and_trust.metrics.domain_authority && (
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">
+                        {parsedContent.authority_and_trust.metrics.domain_authority}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Domain Authority</div>
+                    </div>
+                  )}
+                  {parsedContent.authority_and_trust.metrics.page_authority && (
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">
+                        {parsedContent.authority_and_trust.metrics.page_authority}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Page Authority</div>
+                    </div>
+                  )}
+                  {parsedContent.authority_and_trust.metrics.spam_score && (
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">
+                        {parsedContent.authority_and_trust.metrics.spam_score}%
+                      </div>
+                      <div className="text-sm text-muted-foreground">Spam Score</div>
+                    </div>
+                  )}
+                  {parsedContent.authority_and_trust.metrics.backlinks_total && (
+                    <div className="text-center">
+                      <div className="text-2xl font-bold text-primary">
+                        {parsedContent.authority_and_trust.metrics.backlinks_total.toLocaleString()}
+                      </div>
+                      <div className="text-sm text-muted-foreground">Total Backlinks</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* On-Page SEO */}
+        {parsedContent.on_page_seo && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.on_page_seo.title}
+            </h2>
+            {parsedContent.on_page_seo.critical_issues_html && (
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold mb-3 text-destructive">Critical Issues</h3>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.on_page_seo.critical_issues_html 
+                  }} 
+                />
+              </div>
+            )}
+            {parsedContent.on_page_seo.technical_issues_html && (
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold mb-3 text-warning">Technical Issues</h3>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.on_page_seo.technical_issues_html 
+                  }} 
+                />
+              </div>
+            )}
+            {parsedContent.on_page_seo.quick_wins_html && (
+              <div>
+                <h3 className="text-xl font-semibold mb-3 text-success">Quick Wins</h3>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.on_page_seo.quick_wins_html 
+                  }} 
+                />
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Other sections - render any remaining content */}
+        {Object.entries(parsedContent).map(([key, value]) => {
+          // Skip sections we already handled
+          if (['report_meta', 'executive_summary', 'authority_and_trust', 'on_page_seo'].includes(key)) {
+            return null;
+          }
+          
+          if (value && typeof value === 'object' && (value as any).title) {
+            const section = value as any;
+            return (
+              <div key={key} className="bg-card border rounded-lg p-6">
+                <h2 className="text-2xl font-bold mb-4 text-primary">
+                  {section.title}
+                </h2>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: section.html || section.content || JSON.stringify(section, null, 2)
+                  }} 
+                />
+              </div>
+            );
+          }
+          
+          return null;
+        })}
+      </div>
+    );
   };
 
   return (
@@ -283,11 +465,7 @@ export default function Reports() {
           </DialogHeader>
 
           <div className="mt-4 prose prose-sm max-w-none dark:prose-invert">
-            <div
-              dangerouslySetInnerHTML={{
-                __html: parseContent(selectedReport?.content)
-              }}
-            />
+            {renderReportContent(selectedReport?.content)}
           </div>
         </DialogContent>
       </Dialog>
