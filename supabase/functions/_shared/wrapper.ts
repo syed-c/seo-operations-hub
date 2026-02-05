@@ -28,7 +28,7 @@ export function serveWithNotification(
 
         try {
             const result = await handler(req);
-            console.log(`${functionName}: Handler completed successfully`);
+            console.log(`${functionName}: Handler completed successfully`, result);
 
             // Send success email (async, don't block response)
             // Note: In some edge environments, background tasks must be explicitly waited on or use EdgeRuntime.waitUntil

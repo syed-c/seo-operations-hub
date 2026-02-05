@@ -15,6 +15,11 @@ serveWithNotification('admin-users', async (req) => {
     const supabaseUrl = Deno.env.get('VITE_SUPABASE_URL');
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
+    console.log('Environment check:', { 
+      hasUrl: !!supabaseUrl, 
+      hasKey: !!supabaseServiceRoleKey 
+    });
+
     if (!supabaseUrl || !supabaseServiceRoleKey) {
       throw new Error('Missing environment variables');
     }
@@ -26,6 +31,7 @@ serveWithNotification('admin-users', async (req) => {
     let body;
     try {
       body = await req.json();
+      console.log('Parsed request body:', body);
     } catch (e) {
       console.error('Failed to parse JSON body:', e);
       throw new Error('Invalid JSON body');
@@ -196,6 +202,7 @@ serveWithNotification('admin-users', async (req) => {
     }
 
     console.log(`Admin action ${action} successful, returned ${result.data?.length || 0} records`);
+    console.log('Result data:', JSON.stringify(result.data));
     // Return plain object for serveWithNotification wrapper to handle
     return { data: result.data };
   } catch (error: unknown) {
