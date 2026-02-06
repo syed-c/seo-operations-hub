@@ -32,6 +32,7 @@ type ProjectRecord = {
   client?: string;
   status?: string;
   health_score?: number;
+  backlinks?: number;
   created_at?: string;
 };
 
@@ -134,7 +135,7 @@ export default function Projects() {
         // Then fetch the projects with those IDs
         const { data, error } = await ensureSupabase()
           .from('projects')
-          .select('id, name, client, status, health_score, created_at')
+          .select('id, name, client, status, health_score, backlinks, created_at')
           .in('id', projectIds)
           .order('created_at', { ascending: false });
 
@@ -144,7 +145,7 @@ export default function Projects() {
         // For other roles, fetch all projects
         const { data, error } = await ensureSupabase()
           .from("projects")
-          .select("id, name, client, status, health_score, created_at")
+          .select("id, name, client, status, health_score, backlinks, created_at")
           .order("created_at", { ascending: false });
 
         if (error) throw new Error(error.message);
@@ -158,7 +159,7 @@ export default function Projects() {
     mutationFn: async (newProject: Partial<ProjectRecord>) => {
       const { data, error } = await ensureSupabase()
         .from("projects")
-        .insert(newProject)
+        .insert({...newProject, backlinks: newProject.backlinks || 0})
         .select()
         .single();
 
@@ -213,6 +214,7 @@ export default function Projects() {
         .update({
           status: updatedProject.status,
           health_score: updatedProject.health_score,
+          backlinks: updatedProject.backlinks,
           client: updatedProject.client,
           name: updatedProject.name
         })
@@ -276,6 +278,7 @@ export default function Projects() {
       client,
       status,
       health_score: health,
+      backlinks: 0, // Initialize backlinks to 0 when creating a new project
     });
   };
 
@@ -579,21 +582,25 @@ export default function Projects() {
               />
             </div>
 
-            <div className="grid grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 gap-4 mb-4">
               <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-lg font-semibold">—</p>
-                <p className="text-xs text-muted-foreground">Keywords</p>
-              </div>
-              <div className="text-center p-3 rounded-xl bg-muted/30">
-                <p className="text-lg font-semibold">—</p>
+                {canCreateEditProjects ? (
+                  <input
+                    type="number"
+                    className="text-lg font-semibold bg-transparent outline-none w-full text-center"
+                    value={project.backlinks ?? 0}
+                    onChange={(e) => {
+                      const updatedProjects = projects.map(p =>
+                        p.id === project.id ? { ...p, backlinks: Number(e.target.value) } : p
+                      );
+                      // Optimistic update
+                      queryClient.setQueryData(['projects'], updatedProjects);
+                    }}
+                  />
+                ) : (
+                  <p>{project.backlinks !== undefined ? project.backlinks.toLocaleString() : '0'}</p>
+                )}
                 <p className="text-xs text-muted-foreground">Backlinks</p>
-              </div>
-              <div className="text-center p-3 rounded-xl bg-muted/30">
-                <div className="flex items-center justify-center gap-1">
-                  <p className="text-lg font-semibold">—</p>
-                  <TrendingUp className="w-3.5 h-3.5 text-success" />
-                </div>
-                <p className="text-xs text-muted-foreground">Avg. Pos</p>
               </div>
             </div>
 
