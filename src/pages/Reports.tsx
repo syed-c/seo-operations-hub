@@ -210,7 +210,7 @@ export default function Reports() {
     
     // Render structured report sections
     return (
-      <div className="space-y-6">
+      <div className="space-y-8">
         {/* Report Meta */}
         {parsedContent.report_meta && (
           <div className="bg-muted/50 p-4 rounded-lg">
@@ -258,39 +258,39 @@ export default function Reports() {
             />
             {/* Metrics display if available */}
             {parsedContent.authority_and_trust.metrics && (
-              <div className="mt-4 p-4 bg-muted rounded">
-                <h3 className="font-semibold mb-2">Key Metrics</h3>
+              <div className="mt-6 pt-6 border-t">
+                <h3 className="font-semibold text-lg mb-4">Key Metrics</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {parsedContent.authority_and_trust.metrics.domain_authority && (
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
+                    <div className="bg-primary/5 p-4 rounded-lg text-center">
+                      <div className="text-3xl font-bold text-primary">
                         {parsedContent.authority_and_trust.metrics.domain_authority}
                       </div>
-                      <div className="text-sm text-muted-foreground">Domain Authority</div>
+                      <div className="text-sm text-muted-foreground mt-1">Domain Authority</div>
                     </div>
                   )}
                   {parsedContent.authority_and_trust.metrics.page_authority && (
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
+                    <div className="bg-primary/5 p-4 rounded-lg text-center">
+                      <div className="text-3xl font-bold text-primary">
                         {parsedContent.authority_and_trust.metrics.page_authority}
                       </div>
-                      <div className="text-sm text-muted-foreground">Page Authority</div>
+                      <div className="text-sm text-muted-foreground mt-1">Page Authority</div>
                     </div>
                   )}
                   {parsedContent.authority_and_trust.metrics.spam_score && (
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
+                    <div className="bg-primary/5 p-4 rounded-lg text-center">
+                      <div className="text-3xl font-bold text-primary">
                         {parsedContent.authority_and_trust.metrics.spam_score}%
                       </div>
-                      <div className="text-sm text-muted-foreground">Spam Score</div>
+                      <div className="text-sm text-muted-foreground mt-1">Spam Score</div>
                     </div>
                   )}
                   {parsedContent.authority_and_trust.metrics.backlinks_total && (
-                    <div className="text-center">
-                      <div className="text-2xl font-bold text-primary">
+                    <div className="bg-primary/5 p-4 rounded-lg text-center">
+                      <div className="text-3xl font-bold text-primary">
                         {parsedContent.authority_and_trust.metrics.backlinks_total.toLocaleString()}
                       </div>
-                      <div className="text-sm text-muted-foreground">Total Backlinks</div>
+                      <div className="text-sm text-muted-foreground mt-1">Total Backlinks</div>
                     </div>
                   )}
                 </div>
@@ -432,12 +432,12 @@ export default function Reports() {
           <div className="bg-card border rounded-lg p-6">
             <h2 className="text-2xl font-bold mb-4 text-primary">Data Tables</h2>
             {parsedContent.tables.map((table: any, idx: number) => (
-              <div key={idx} className="mb-6 overflow-x-auto">
-                <table className="w-full border-collapse border border-border">
+              <div key={idx} className="mb-6 overflow-x-auto rounded border">
+                <table className="w-full border-collapse">
                   <thead>
                     <tr className="bg-muted">
                       {table.headers && table.headers.map((header: string, hIdx: number) => (
-                        <th key={hIdx} className="border border-border px-3 py-2 text-left font-medium">
+                        <th key={hIdx} className="border-r last:border-r-0 border-b px-4 py-3 text-left font-semibold bg-muted/50">
                           {header}
                         </th>
                       ))}
@@ -445,9 +445,9 @@ export default function Reports() {
                   </thead>
                   <tbody>
                     {table.rows && table.rows.map((row: any[], rIdx: number) => (
-                      <tr key={rIdx} className={rIdx % 2 === 0 ? 'bg-background' : 'bg-muted/50'}>
+                      <tr key={rIdx} className={rIdx % 2 === 0 ? 'bg-background' : 'bg-muted/30'}>
                         {row.map((cell: any, cIdx: number) => (
-                          <td key={cIdx} className="border border-border px-3 py-2">
+                          <td key={cIdx} className="border-r last:border-r-0 border-b px-4 py-3">
                             {typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
                           </td>
                         ))}
@@ -460,10 +460,110 @@ export default function Reports() {
           </div>
         )}
         
+        {/* Content & Keyword Strategy Review */}
+        {parsedContent.content_keyword_strategy_review && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.content_keyword_strategy_review.title || 'Content & Keyword Strategy Review'}
+            </h2>
+            {parsedContent.content_keyword_strategy_review.content_quality && (
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold mb-3">Content Quality</h3>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.content_keyword_strategy_review.content_quality.html || 
+                           parsedContent.content_keyword_strategy_review.content_quality.description || 
+                           String(parsedContent.content_keyword_strategy_review.content_quality) 
+                  }} 
+                />
+              </div>
+            )}
+            {parsedContent.content_keyword_strategy_review.keyword_coverage && (
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold mb-3">Keyword Coverage</h3>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.content_keyword_strategy_review.keyword_coverage.html || 
+                           parsedContent.content_keyword_strategy_review.keyword_coverage.description || 
+                           String(parsedContent.content_keyword_strategy_review.keyword_coverage) 
+                  }} 
+                />
+              </div>
+            )}
+            {parsedContent.content_keyword_strategy_review.opportunities && (
+              <div>
+                <h3 className="text-xl font-semibold mb-3">Opportunities</h3>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.content_keyword_strategy_review.opportunities.html || 
+                           parsedContent.content_keyword_strategy_review.opportunities.description || 
+                           String(parsedContent.content_keyword_strategy_review.opportunities) 
+                  }} 
+                />
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Off-Page SEO & Backlink Analysis */}
+        {parsedContent.off_page_seo_backlink_analysis && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.off_page_seo_backlink_analysis.title || 'Off-Page SEO & Backlink Analysis'}
+            </h2>
+            {parsedContent.off_page_seo_backlink_analysis.main_issues && (
+              <div className="mb-6">
+                <h3 className="text-xl font-semibold mb-3">Main Issues</h3>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.off_page_seo_backlink_analysis.main_issues.html || 
+                           parsedContent.off_page_seo_backlink_analysis.main_issues.description || 
+                           String(parsedContent.off_page_seo_backlink_analysis.main_issues) 
+                  }} 
+                />
+              </div>
+            )}
+            {parsedContent.off_page_seo_backlink_analysis.recommended_actions && (
+              <div>
+                <h3 className="text-xl font-semibold mb-3">Recommended Actions</h3>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.off_page_seo_backlink_analysis.recommended_actions.html || 
+                           parsedContent.off_page_seo_backlink_analysis.recommended_actions.description || 
+                           String(parsedContent.off_page_seo_backlink_analysis.recommended_actions) 
+                  }} 
+                />
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Expected Outcomes */}
+        {parsedContent.expected_outcomes && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.expected_outcomes.title || 'Expected Outcomes'}
+            </h2>
+            <div 
+              className="prose prose-sm max-w-none dark:prose-invert"
+              dangerouslySetInnerHTML={{ 
+                __html: parsedContent.expected_outcomes.html || 
+                       parsedContent.expected_outcomes.description || 
+                       String(parsedContent.expected_outcomes) 
+              }} 
+            />
+          </div>
+        )}
+        
         {/* Other sections - render any remaining content */}
         {Object.entries(parsedContent).map(([key, value]) => {
           // Skip sections we already handled
-          if (['report_meta', 'executive_summary', 'authority_and_trust', 'on_page_seo', 'risk_assessment', 'action_plan', 'tables'].includes(key)) {
+          if (['report_meta', 'executive_summary', 'authority_and_trust', 'on_page_seo', 'risk_assessment', 'action_plan', 'tables', 'content_keyword_strategy_review', 'off_page_seo_backlink_analysis', 'expected_outcomes'].includes(key)) {
             return null;
           }
           
