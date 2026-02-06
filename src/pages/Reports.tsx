@@ -460,47 +460,70 @@ export default function Reports() {
           </div>
         )}
         
-        {/* Content & Keyword Strategy Review */}
-        {parsedContent.content_keyword_strategy_review && (
+        {/* Content & Keyword Strategy Review (using correct field name from JSON) */}
+        {parsedContent.content_and_keywords && (
           <div className="bg-card border rounded-lg p-6">
             <h2 className="text-2xl font-bold mb-4 text-primary">
-              {parsedContent.content_keyword_strategy_review.title || 'Content & Keyword Strategy Review'}
+              {parsedContent.content_and_keywords.title || 'Content & Keyword Strategy Review'}
             </h2>
-            {parsedContent.content_keyword_strategy_review.content_quality && (
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold mb-3">Content Quality</h3>
+            <div 
+              className="prose prose-sm max-w-none dark:prose-invert"
+              dangerouslySetInnerHTML={{ 
+                __html: parsedContent.content_and_keywords.html || 
+                       String(parsedContent.content_and_keywords) 
+              }} 
+            />
+          </div>
+        )}
+        
+        {/* Off-Page SEO & Backlink Analysis (using correct field name from JSON) */}
+        {parsedContent.off_page_seo && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.off_page_seo.title || 'Off-Page SEO & Backlink Analysis'}
+            </h2>
+            <div 
+              className="prose prose-sm max-w-none dark:prose-invert"
+              dangerouslySetInnerHTML={{ 
+                __html: parsedContent.off_page_seo.html || 
+                       String(parsedContent.off_page_seo) 
+              }} 
+            />
+          </div>
+        )}
+        
+        {/* Risk Assessment (using correct field name and structure from JSON) */}
+        {parsedContent.risk_assessment && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.risk_assessment.title || 'Risk Assessment'}
+            </h2>
+            {parsedContent.risk_assessment.short_term_html && (
+              <div className="mb-4">
                 <div 
                   className="prose prose-sm max-w-none dark:prose-invert"
                   dangerouslySetInnerHTML={{ 
-                    __html: parsedContent.content_keyword_strategy_review.content_quality.html || 
-                           parsedContent.content_keyword_strategy_review.content_quality.description || 
-                           String(parsedContent.content_keyword_strategy_review.content_quality) 
+                    __html: parsedContent.risk_assessment.short_term_html 
                   }} 
                 />
               </div>
             )}
-            {parsedContent.content_keyword_strategy_review.keyword_coverage && (
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold mb-3">Keyword Coverage</h3>
+            {parsedContent.risk_assessment.medium_term_html && (
+              <div className="mb-4">
                 <div 
                   className="prose prose-sm max-w-none dark:prose-invert"
                   dangerouslySetInnerHTML={{ 
-                    __html: parsedContent.content_keyword_strategy_review.keyword_coverage.html || 
-                           parsedContent.content_keyword_strategy_review.keyword_coverage.description || 
-                           String(parsedContent.content_keyword_strategy_review.keyword_coverage) 
+                    __html: parsedContent.risk_assessment.medium_term_html 
                   }} 
                 />
               </div>
             )}
-            {parsedContent.content_keyword_strategy_review.opportunities && (
+            {parsedContent.risk_assessment.algorithmic_risk_html && (
               <div>
-                <h3 className="text-xl font-semibold mb-3">Opportunities</h3>
                 <div 
                   className="prose prose-sm max-w-none dark:prose-invert"
                   dangerouslySetInnerHTML={{ 
-                    __html: parsedContent.content_keyword_strategy_review.opportunities.html || 
-                           parsedContent.content_keyword_strategy_review.opportunities.description || 
-                           String(parsedContent.content_keyword_strategy_review.opportunities) 
+                    __html: parsedContent.risk_assessment.algorithmic_risk_html 
                   }} 
                 />
               </div>
@@ -508,34 +531,38 @@ export default function Reports() {
           </div>
         )}
         
-        {/* Off-Page SEO & Backlink Analysis */}
-        {parsedContent.off_page_seo_backlink_analysis && (
+        {/* Action Plan (using correct field name and structure from JSON) */}
+        {parsedContent.action_plan && (
           <div className="bg-card border rounded-lg p-6">
             <h2 className="text-2xl font-bold mb-4 text-primary">
-              {parsedContent.off_page_seo_backlink_analysis.title || 'Off-Page SEO & Backlink Analysis'}
+              {parsedContent.action_plan.title || 'Action Plan'}
             </h2>
-            {parsedContent.off_page_seo_backlink_analysis.main_issues && (
-              <div className="mb-6">
-                <h3 className="text-xl font-semibold mb-3">Main Issues</h3>
+            {parsedContent.action_plan.immediate_html && (
+              <div className="mb-4">
                 <div 
                   className="prose prose-sm max-w-none dark:prose-invert"
                   dangerouslySetInnerHTML={{ 
-                    __html: parsedContent.off_page_seo_backlink_analysis.main_issues.html || 
-                           parsedContent.off_page_seo_backlink_analysis.main_issues.description || 
-                           String(parsedContent.off_page_seo_backlink_analysis.main_issues) 
+                    __html: parsedContent.action_plan.immediate_html 
                   }} 
                 />
               </div>
             )}
-            {parsedContent.off_page_seo_backlink_analysis.recommended_actions && (
-              <div>
-                <h3 className="text-xl font-semibold mb-3">Recommended Actions</h3>
+            {parsedContent.action_plan.thirty_day_html && (
+              <div className="mb-4">
                 <div 
                   className="prose prose-sm max-w-none dark:prose-invert"
                   dangerouslySetInnerHTML={{ 
-                    __html: parsedContent.off_page_seo_backlink_analysis.recommended_actions.html || 
-                           parsedContent.off_page_seo_backlink_analysis.recommended_actions.description || 
-                           String(parsedContent.off_page_seo_backlink_analysis.recommended_actions) 
+                    __html: parsedContent.action_plan.thirty_day_html 
+                  }} 
+                />
+              </div>
+            )}
+            {parsedContent.action_plan.ninety_day_html && (
+              <div>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.action_plan.ninety_day_html 
                   }} 
                 />
               </div>
@@ -553,7 +580,6 @@ export default function Reports() {
               className="prose prose-sm max-w-none dark:prose-invert"
               dangerouslySetInnerHTML={{ 
                 __html: parsedContent.expected_outcomes.html || 
-                       parsedContent.expected_outcomes.description || 
                        String(parsedContent.expected_outcomes) 
               }} 
             />
@@ -563,7 +589,7 @@ export default function Reports() {
         {/* Other sections - render any remaining content */}
         {Object.entries(parsedContent).map(([key, value]) => {
           // Skip sections we already handled
-          if (['report_meta', 'executive_summary', 'authority_and_trust', 'on_page_seo', 'risk_assessment', 'action_plan', 'tables', 'content_keyword_strategy_review', 'off_page_seo_backlink_analysis', 'expected_outcomes'].includes(key)) {
+          if (['report_meta', 'executive_summary', 'authority_and_trust', 'on_page_seo', 'risk_assessment', 'action_plan', 'tables', 'content_and_keywords', 'off_page_seo', 'expected_outcomes'].includes(key)) {
             return null;
           }
           
