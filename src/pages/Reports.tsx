@@ -172,14 +172,21 @@ export default function Reports() {
       // Check if it looks like a stringified string (double quotes at start/end)
       if (content.startsWith('"') && content.endsWith('"')) {
         try {
-          return JSON.parse(content);
+          // Remove outer quotes and unescape the inner JSON
+          const unescaped = content.slice(1, -1).replace(/\\"/g, '"').replace(/\\n/g, '\n');
+          return JSON.parse(unescaped);
         } catch {
           return content;
         }
       }
-      return content;
+      // Try to parse as regular JSON
+      try {
+        return JSON.parse(content);
+      } catch {
+        return content;
+      }
     }
-    return content; // Return the object as-is for proper handling
+    return content; // Return as-is if it's already an object
   };
 
   // Function to render structured report content
