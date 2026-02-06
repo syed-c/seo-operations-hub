@@ -584,22 +584,7 @@ export default function Projects() {
 
             <div className="grid grid-cols-1 gap-4 mb-4">
               <div className="text-center p-3 rounded-xl bg-muted/30">
-                {canCreateEditProjects ? (
-                  <input
-                    type="number"
-                    className="text-lg font-semibold bg-transparent outline-none w-full text-center"
-                    value={project.backlinks ?? 0}
-                    onChange={(e) => {
-                      const updatedProjects = projects.map(p =>
-                        p.id === project.id ? { ...p, backlinks: Number(e.target.value) } : p
-                      );
-                      // Optimistic update
-                      queryClient.setQueryData(['projects'], updatedProjects);
-                    }}
-                  />
-                ) : (
-                  <p>{project.backlinks !== undefined ? project.backlinks.toLocaleString() : '0'}</p>
-                )}
+                <p className="text-lg font-semibold">{project.backlinks !== undefined ? project.backlinks.toLocaleString() : '0'}</p>
                 <p className="text-xs text-muted-foreground">Backlinks</p>
               </div>
             </div>

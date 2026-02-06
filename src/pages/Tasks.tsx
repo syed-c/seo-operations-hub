@@ -79,7 +79,8 @@ type TaskRecord = {
   backlink_summary?: string | null;
   backlink_links_created?: Array<{ url: string }> | null;
   backlink_links_indexed?: Array<{ url: string }> | null;
-  backlink_submission_type?: 'create' | 'index' | 'both' | null;
+  backlink_links_filtered?: Array<{ url: string }> | null;
+  backlink_submission_type?: 'create' | 'index' | 'both' | 'filtered' | null;
   backlink_report_status?: 'critical' | 'warning' | 'healthy' | null;
   parent_report_id?: string | null;
 };
@@ -117,9 +118,11 @@ export default function Tasks() {
     linkTypes: {
       create: false,
       index: false,
+      filtered: false,
     },
     linksCreated: [] as Array<{ id: string; url: string }>,
     linksIndexed: [] as Array<{ id: string; url: string }>,
+    linksFiltered: [] as Array<{ id: string; url: string }>,
   });
 
   const { teamUser } = useAuth();
@@ -456,6 +459,55 @@ export default function Tasks() {
     };
   }, [load]);
 
+  // Real-time subscription for backlink reports to automatically update task status
+  useEffect(() => {
+    const backlinkReportsChannel = supabase
+      .channel('backlink-reports-changes')
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'backlink_reports' },
+        async (payload) => {
+          console.log('New backlink report generated:', payload.new);
+          const report = payload.new;
+          
+          // Check if the report has a task_id and the task is currently in 'review' status
+          if (report.task_id) {
+            // Find the corresponding task in the current state
+            const taskToUpdate = tasks.find(task => task.id === report.task_id && task.status === 'review');
+            
+            if (taskToUpdate) {
+              // Wait for 10 seconds before updating the task status to 'done'
+              setTimeout(async () => {
+                try {
+                  console.log(`Updating task ${report.task_id} status to done after report generation`);
+                  const { error } = await supabase
+                    .from('tasks')
+                    .update({ status: 'done' })
+                    .eq('id', report.task_id);
+                  
+                  if (error) {
+                    console.error('Error updating task status:', error);
+                  } else {
+                    console.log(`Task ${report.task_id} status updated to done`);
+                    // Reload tasks to reflect the status change
+                    load();
+                  }
+                } catch (err) {
+                  console.error('Error updating task status:', err);
+                }
+              }, 10000); // 10 seconds delay
+            }
+          }
+        }
+      )
+      .subscribe();
+
+    // Cleanup subscription on unmount
+    return () => {
+      supabase.removeChannel(backlinkReportsChannel);
+    };
+  }, [tasks, load]);
+
   const onCreate = async () => {
     if (!form.title.trim()) {
       setError("Task title is required");
@@ -704,8 +756,8 @@ export default function Tasks() {
       return;
     }
 
-    if (!backlinkReviewForm.linkTypes.create && !backlinkReviewForm.linkTypes.index) {
-      setError("Please select at least one link type (Links Created or Links Indexed).");
+    if (!backlinkReviewForm.linkTypes.create && !backlinkReviewForm.linkTypes.index && !backlinkReviewForm.linkTypes.filtered) {
+      setError("Please select at least one link type (Links Created, Links Indexed, or Links Filtered).");
       return;
     }
 
@@ -719,13 +771,26 @@ export default function Tasks() {
       return;
     }
 
+    if (backlinkReviewForm.linkTypes.filtered && backlinkReviewForm.linksFiltered.filter(l => l.url.trim()).length === 0) {
+      setError("Please add at least one link for 'Links Filtered'.");
+      return;
+    }
+
     if (!taskToReview) return;
 
     try {
       // Determine submission type
-      let submissionType: 'create' | 'index' | 'both' = 'create';
-      if (backlinkReviewForm.linkTypes.create && backlinkReviewForm.linkTypes.index) {
+      let submissionType: 'create' | 'index' | 'both' | 'filtered' = 'create';
+      if (backlinkReviewForm.linkTypes.create && backlinkReviewForm.linkTypes.index && backlinkReviewForm.linkTypes.filtered) {
+        submissionType = 'both'; // Use 'both' as default when all three are selected
+      } else if (backlinkReviewForm.linkTypes.create && backlinkReviewForm.linkTypes.index) {
         submissionType = 'both';
+      } else if (backlinkReviewForm.linkTypes.create && backlinkReviewForm.linkTypes.filtered) {
+        submissionType = 'both'; // Use 'both' for create + filtered
+      } else if (backlinkReviewForm.linkTypes.index && backlinkReviewForm.linkTypes.filtered) {
+        submissionType = 'both'; // Use 'both' for index + filtered
+      } else if (backlinkReviewForm.linkTypes.filtered) {
+        submissionType = 'filtered';
       } else if (backlinkReviewForm.linkTypes.index) {
         submissionType = 'index';
       }
@@ -739,13 +804,18 @@ export default function Tasks() {
         .filter(l => l.url.trim())
         .map(l => ({ url: l.url.trim() }));
 
+      const linksFiltered = backlinkReviewForm.linksFiltered
+        .filter(l => l.url.trim())
+        .map(l => ({ url: l.url.trim() }));
+
       // Update task in database
       const { error: updateError } = await supabase.from("tasks").update({
         status: 'review',
         backlink_summary: backlinkReviewForm.summary,
         backlink_submission_type: submissionType,
-        backlink_links_created: submissionType === 'index' ? [] : linksCreated,
-        backlink_links_indexed: submissionType === 'create' ? [] : linksIndexed,
+        backlink_links_created: submissionType === 'index' || submissionType === 'filtered' ? [] : linksCreated,
+        backlink_links_indexed: submissionType === 'create' || submissionType === 'filtered' ? [] : linksIndexed,
+        backlink_links_filtered: submissionType === 'filtered' ? linksFiltered : [],
         updated_at: new Date().toISOString()
       }).eq("id", taskToReview.id);
 
@@ -771,6 +841,7 @@ export default function Tasks() {
             backlink_summary: backlinkReviewForm.summary,
             backlink_links_created: linksCreated,
             backlink_links_indexed: linksIndexed,
+            backlink_links_filtered: linksFiltered,
             backlink_submission_type: submissionType,
             submitted_at: new Date().toISOString()
           };
@@ -800,9 +871,10 @@ export default function Tasks() {
       setTaskToReview(null);
       setBacklinkReviewForm({
         summary: "",
-        linkTypes: { create: false, index: false },
+        linkTypes: { create: false, index: false, filtered: false },
         linksCreated: [],
         linksIndexed: [],
+        linksFiltered: [],
       });
       load();
     } catch (err: unknown) {
@@ -1125,6 +1197,24 @@ export default function Tasks() {
                         Links Indexed
                       </label>
                     </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="link-type-filtered"
+                        checked={backlinkReviewForm.linkTypes.filtered}
+                        onCheckedChange={(checked) =>
+                          setBacklinkReviewForm({
+                            ...backlinkReviewForm,
+                            linkTypes: { ...backlinkReviewForm.linkTypes, filtered: checked as boolean },
+                          })
+                        }
+                      />
+                      <label
+                        htmlFor="link-type-filtered"
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                      >
+                        Links Filtered
+                      </label>
+                    </div>
                   </div>
                 </div>
 
@@ -1152,6 +1242,20 @@ export default function Tasks() {
                         setBacklinkReviewForm({ ...backlinkReviewForm, linksIndexed: links })
                       }
                       placeholder="Enter URL of your blog where links were indexed..."
+                    />
+                  </div>
+                )}
+
+                {/* Links Filtered Table */}
+                {backlinkReviewForm.linkTypes.filtered && (
+                  <div className="space-y-2">
+                    <Label>Links Filtered <span className="text-destructive">*</span></Label>
+                    <LinkSheetEditor
+                      links={backlinkReviewForm.linksFiltered}
+                      onChange={(links) =>
+                        setBacklinkReviewForm({ ...backlinkReviewForm, linksFiltered: links })
+                      }
+                      placeholder="Enter URL of filtered links..."
                     />
                   </div>
                 )}
