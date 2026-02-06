@@ -341,10 +341,129 @@ export default function Reports() {
           </div>
         )}
         
+        {/* Risk Assessment */}
+        {parsedContent.risk_assessment && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.risk_assessment.title || 'Risk Assessment'}
+            </h2>
+            {parsedContent.risk_assessment.description && (
+              <div className="mb-4">
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.risk_assessment.description 
+                  }} 
+                />
+              </div>
+            )}
+            {parsedContent.risk_assessment.risks && Array.isArray(parsedContent.risk_assessment.risks) && (
+              <div className="space-y-4">
+                {parsedContent.risk_assessment.risks.map((risk: any, idx: number) => (
+                  <div key={idx} className="border-l-4 border-destructive pl-4 py-1">
+                    <h3 className="font-semibold">{risk.title || `Risk ${idx + 1}`}</h3>
+                    <p className="text-sm text-muted-foreground">{risk.description}</p>
+                    {risk.severity && (
+                      <span className={`inline-block mt-1 px-2 py-1 text-xs rounded-full ${
+                        risk.severity.toLowerCase() === 'high' ? 'bg-destructive/10 text-destructive' :
+                        risk.severity.toLowerCase() === 'medium' ? 'bg-warning/10 text-warning' :
+                        'bg-success/10 text-success'
+                      }`}>
+                        {risk.severity} Priority
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Action Plan */}
+        {parsedContent.action_plan && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">
+              {parsedContent.action_plan.title || 'Action Plan'}
+            </h2>
+            {parsedContent.action_plan.description && (
+              <div className="mb-4">
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: parsedContent.action_plan.description 
+                  }} 
+                />
+              </div>
+            )}
+            {parsedContent.action_plan.steps && Array.isArray(parsedContent.action_plan.steps) && (
+              <div className="space-y-4">
+                {parsedContent.action_plan.steps.map((step: any, idx: number) => (
+                  <div key={idx} className="flex items-start gap-3">
+                    <div className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                      <span className="text-xs font-bold text-primary">{idx + 1}</span>
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold">{step.title || `Step ${idx + 1}`}</h3>
+                      <p className="text-sm text-muted-foreground">{step.description}</p>
+                      {step.priority && (
+                        <span className={`inline-block mt-2 px-2 py-1 text-xs rounded-full ${
+                          step.priority.toLowerCase() === 'high' ? 'bg-destructive/10 text-destructive' :
+                          step.priority.toLowerCase() === 'medium' ? 'bg-warning/10 text-warning' :
+                          'bg-success/10 text-success'
+                        }`}>
+                          {step.priority} Priority
+                        </span>
+                      )}
+                      {step.estimated_time && (
+                        <span className="ml-2 inline-block mt-2 px-2 py-1 text-xs rounded-full bg-muted text-muted-foreground">
+                          {step.estimated_time}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
+        {/* Tables section - for any table data */}
+        {parsedContent.tables && Array.isArray(parsedContent.tables) && (
+          <div className="bg-card border rounded-lg p-6">
+            <h2 className="text-2xl font-bold mb-4 text-primary">Data Tables</h2>
+            {parsedContent.tables.map((table: any, idx: number) => (
+              <div key={idx} className="mb-6 overflow-x-auto">
+                <table className="w-full border-collapse border border-border">
+                  <thead>
+                    <tr className="bg-muted">
+                      {table.headers && table.headers.map((header: string, hIdx: number) => (
+                        <th key={hIdx} className="border border-border px-3 py-2 text-left font-medium">
+                          {header}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {table.rows && table.rows.map((row: any[], rIdx: number) => (
+                      <tr key={rIdx} className={rIdx % 2 === 0 ? 'bg-background' : 'bg-muted/50'}>
+                        {row.map((cell: any, cIdx: number) => (
+                          <td key={cIdx} className="border border-border px-3 py-2">
+                            {typeof cell === 'object' ? JSON.stringify(cell) : String(cell)}
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        )}
+        
         {/* Other sections - render any remaining content */}
         {Object.entries(parsedContent).map(([key, value]) => {
           // Skip sections we already handled
-          if (['report_meta', 'executive_summary', 'authority_and_trust', 'on_page_seo'].includes(key)) {
+          if (['report_meta', 'executive_summary', 'authority_and_trust', 'on_page_seo', 'risk_assessment', 'action_plan', 'tables'].includes(key)) {
             return null;
           }
           
@@ -358,7 +477,24 @@ export default function Reports() {
                 <div 
                   className="prose prose-sm max-w-none dark:prose-invert"
                   dangerouslySetInnerHTML={{ 
-                    __html: section.html || section.content || JSON.stringify(section, null, 2)
+                    __html: section.html || section.content || (typeof section === 'object' ? JSON.stringify(section, null, 2) : String(section))
+                  }} 
+                />
+              </div>
+            );
+          }
+          
+          // Handle raw string content
+          if (typeof value === 'string') {
+            return (
+              <div key={key} className="bg-card border rounded-lg p-6">
+                <h2 className="text-2xl font-bold mb-4 text-primary capitalize">
+                  {key.replace('_', ' ')}
+                </h2>
+                <div 
+                  className="prose prose-sm max-w-none dark:prose-invert"
+                  dangerouslySetInnerHTML={{ 
+                    __html: value 
                   }} 
                 />
               </div>
