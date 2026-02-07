@@ -622,3 +622,6 @@ function LinkTable({ links, sortBy, sortOrder, onSortChange }: LinkTableProps) {
     </Card>
   );
 }
+
+// Add default export to fix the build error
+export default DetailedBacklinkReportPage;
