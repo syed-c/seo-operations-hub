@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { BacklinkReportPayload } from '@/types';
+import { processBacklinkReportDirectly } from './directBacklinkProcessor';
 
 export interface TaskCompletionData {
   taskId: string;
@@ -32,33 +33,66 @@ export async function completeTaskAndProcessBacklinks(data: TaskCompletionData) 
       throw new Error(`Failed to update task: ${taskUpdateError.message}`);
     }
 
-    // If this is a backlink task, trigger the backlink report processing
+    // If this is a backlink task, create a backlink report record to trigger webhook processing
     if (data.backlink_links_created || data.backlink_links_indexed || data.backlink_links_filtered) {
-      // Call the Supabase function to process backlinks
-      const { data: result, error: functionError } = await supabase
-        .functions
-        .invoke('process-backlink-report', {
-          body: {
-            direct_submission: true,
-            taskId: data.taskId,
-            projectId: data.projectId,
-            assigneeId: data.assigneeId,
-            backlink_links_created: data.backlink_links_created || [],
-            backlink_links_indexed: data.backlink_links_indexed || [],
-            backlink_links_filtered: data.backlink_links_filtered || [],
-            backlink_submission_type: data.backlink_submission_type,
+      // Create a backlink report record which should trigger the webhook
+      const { data: reportData, error: reportError } = await supabase
+        .from('backlink_reports')
+        .insert({
+          task_id: data.taskId,
+          project_id: data.projectId,
+          assignee_id: data.assigneeId,
+          status: 'warning', // Default status, will be updated by webhook processing
+          report_payload: {
+            created_links: {
+              dead: 0,
+              total: (data.backlink_links_created?.length || 0) + (data.backlink_links_indexed?.length || 0),
+              warning: 0,
+              working: 0,
+              dead_list: data.backlink_links_created?.filter(link => link.url.includes('dead')) || [],
+              warning_list: data.backlink_links_created?.filter(link => link.url.includes('warning')) || []
+            },
+            indexed_blogs: null,
+            overall_summary: {
+              total_dead: 0,
+              total_warning: 0,
+              total_working: (data.backlink_links_created?.length || 0) + (data.backlink_links_indexed?.length || 0),
+              health_percentage: 100,
+              total_links_checked: (data.backlink_links_created?.length || 0) + (data.backlink_links_indexed?.length || 0)
+            },
+            submission_type: data.backlink_submission_type || 'create'
+          },
+          created_links_summary: {
+            dead: 0,
+            total: (data.backlink_links_created?.length || 0) + (data.backlink_links_indexed?.length || 0),
+            warning: 0,
+            working: (data.backlink_links_created?.length || 0) + (data.backlink_links_indexed?.length || 0),
+            dead_list: [],
+            warning_list: []
+          },
+          indexed_blogs_summary: null,
+          summary: {
+            total_dead: 0,
+            total_warning: 0,
+            total_working: (data.backlink_links_created?.length || 0) + (data.backlink_links_indexed?.length || 0),
+            health_percentage: 100,
+            total_links_checked: (data.backlink_links_created?.length || 0) + (data.backlink_links_indexed?.length || 0)
           }
-        });
+        })
+        .select()
+        .single();
 
-      if (functionError) {
-        console.error('Error calling process-backlink-report function:', functionError);
-        throw new Error(`Failed to process backlinks: ${functionError.message}`);
+      if (reportError) {
+        console.error('Error creating backlink report:', reportError);
+        throw new Error(`Failed to create backlink report: ${reportError.message}`);
       }
+
+      console.log('Created backlink report for webhook processing:', reportData?.id);
 
       return {
         success: true,
         taskUpdated: true,
-        backlinkProcessingResult: result
+        backlinkProcessingResult: reportData
       };
     }
 

@@ -41,32 +41,21 @@ export function useTaskCompletion() {
         throw new Error(`Failed to update task: ${taskUpdateError.message}`);
       }
 
-      // If this is a backlink task, trigger the backlink report processing
+      // If this is a backlink task, process backlinks directly
       if (data.backlinkLinksCreated || data.backlinkLinksIndexed || data.backlinkLinksFiltered) {
         try {
-          // Call the process-backlink-report function
-          const { data: responseData, error: functionError } = await supabase.functions.invoke('process-backlink-report', {
-            body: {
-              direct_submission: true,
-              taskId: data.taskId,
-              projectId: data.projectId,
-              assigneeId: data.assigneeId,
-              backlink_links_created: data.backlinkLinksCreated || [],
-              backlink_links_indexed: data.backlinkLinksIndexed || [],
-              backlink_links_filtered: data.backlinkLinksFiltered || [],
-              backlink_submission_type: data.backlinkSubmissionType,
-            },
+          await processBacklinkReportDirectly({
+            taskId: data.taskId,
+            projectId: data.projectId,
+            assigneeId: data.assigneeId,
+            backlink_links_created: data.backlinkLinksCreated || [],
+            backlink_links_indexed: data.backlinkLinksIndexed || [],
+            backlink_links_filtered: data.backlinkLinksFiltered || [],
+            backlink_submission_type: data.backlinkSubmissionType,
           });
-
-          if (functionError) {
-            console.error('Error calling process-backlink-report function:', functionError);
-            // Don't throw here as the task is already completed successfully
-            // The backlink processing can be handled separately
-          } else {
-            console.log('Backlink report processing triggered successfully:', responseData);
-          }
+          console.log('Backlink report processed directly');
         } catch (error) {
-          console.error('Error triggering backlink report processing:', error);
+          console.error('Error processing backlink report directly:', error);
           // Continue as the task completion was successful
         }
       }
