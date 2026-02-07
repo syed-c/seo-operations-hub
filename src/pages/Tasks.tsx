@@ -40,6 +40,7 @@ import {
 import { Checkbox } from "@/components/ui/checkbox";
 import { LinkSheetEditor } from "@/components/ui/LinkSheetEditor";
 import { Badge } from "@/components/ui/badge";
+import { useTaskCompletion } from "@/hooks/useTaskCompletion";
 
 const priorityColors = {
   low: "bg-muted text-muted-foreground",
