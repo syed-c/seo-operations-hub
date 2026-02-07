@@ -157,14 +157,33 @@ export default function Projects() {
   // Mutation for creating a project
   const createProjectMutation = useMutation({
     mutationFn: async (newProject: Partial<ProjectRecord>) => {
-      const { data, error } = await ensureSupabase()
-        .from("projects")
-        .insert({...newProject, backlinks: newProject.backlinks || 0})
-        .select()
-        .single();
+      // Only send webhook for new project creation
+      const webhookUrl = "https://auton8n.n8n.shivahost.in/webhook/2b740420-f669-42ac-9d10-de506e7dff9b";
+      
+      const webhookPayload = {
+        event: 'project_created',
+        project: {
+          ...newProject,
+          backlinks: newProject.backlinks || 0
+        },
+        timestamp: new Date().toISOString(),
+        creator_role: teamUser?.role
+      };
 
-      if (error) throw new Error(error.message);
-      return data;
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(webhookPayload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Webhook failed with status ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      return result;
     },
     onSuccess: async (data) => {
       queryClient.invalidateQueries({ queryKey: ['projects'] });
@@ -173,25 +192,10 @@ export default function Projects() {
       setClient("");
       setHealth(70);
       setStatus("active");
-
-      // Trigger webhook for new project creation (non-blocking)
-      const webhookUrl = "https://auton8n.n8n.shivahost.in/webhook/2b740420-f669-42ac-9d10-de506e7dff9b";
-      fetch(webhookUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          event: 'project_created',
-          project: data,
-          timestamp: new Date().toISOString(),
-          creator_role: teamUser?.role
-        }),
-      }).then(() => {
-        console.log('Project creation webhook sent successfully');
-      }).catch((webhookError) => {
-        console.error('Error sending project creation webhook:', webhookError);
-      });
+      console.log('Project creation webhook sent successfully:', data);
+    },
+    onError: (error) => {
+      console.error('Error sending project creation webhook:', error);
     }
   });
 
