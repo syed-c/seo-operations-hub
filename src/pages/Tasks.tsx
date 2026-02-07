@@ -124,13 +124,11 @@ export default function Tasks() {
     linksIndexed: [] as Array<{ id: string; url: string }>,
     linksFiltered: [] as Array<{ id: string; url: string }>,
   });
-  
+
   // Loading states for backlink review submission
   const [isSubmittingBacklink, setIsSubmittingBacklink] = useState(false);
   const [backlinkSubmissionStep, setBacklinkSubmissionStep] = useState('');
-  
-  // Loading states for backlink review submission
-  const [isSubmittingBacklink, setIsSubmittingBacklink] = useState(false);
+
 
   const { teamUser } = useAuth();
   const { selectedProject } = useProject();
@@ -476,12 +474,12 @@ export default function Tasks() {
         async (payload) => {
           console.log('New backlink report generated:', payload.new);
           const report = payload.new;
-          
+
           // Check if the report has a task_id and the task is currently in 'review' status
           if (report.task_id) {
             // Find the corresponding task in the current state
             const taskToUpdate = tasks.find(task => task.id === report.task_id && task.status === 'review');
-            
+
             if (taskToUpdate) {
               // Wait for 10 seconds before updating the task status to 'done'
               setTimeout(async () => {
@@ -491,12 +489,12 @@ export default function Tasks() {
                     .from('tasks')
                     .update({ status: 'done' })
                     .eq('id', report.task_id);
-                  
+
                   if (error) {
                     console.error('Error updating task status:', error);
                   } else {
                     console.log(`Task ${report.task_id} status updated to done`);
-                    
+
                     // Update the link status in the backlinks table based on the report
                     try {
                       // Update created links status based on report payload
@@ -504,7 +502,7 @@ export default function Tasks() {
                         for (const link of report.payload.created_links) {
                           const { error: linkUpdateError } = await supabase
                             .from('backlinks')
-                            .update({ 
+                            .update({
                               link_status: link.status,
                               last_updated_status: new Date().toISOString(),
                               last_check_result: { status: link.status, checked_at: new Date().toISOString() },
@@ -513,7 +511,7 @@ export default function Tasks() {
                             .eq('url', link.url)
                             .eq('task_id', report.task_id)
                             .eq('link_type', 'created');
-                          
+
                           if (linkUpdateError) {
                             console.error('Error updating created link status:', linkUpdateError);
                           } else {
@@ -521,26 +519,26 @@ export default function Tasks() {
                           }
                         }
                       }
-                      
+
                       // Update indexed links status based on report payload
                       if (report.payload?.indexed_blogs) {
                         for (const blog of report.payload.indexed_blogs) {
                           const { error: linkUpdateError } = await supabase
                             .from('backlinks')
-                            .update({ 
+                            .update({
                               link_status: blog.is_indexed ? 'working' : 'dead',
                               last_updated_status: new Date().toISOString(),
-                              last_check_result: { 
-                                status: blog.is_indexed ? 'working' : 'dead', 
-                                is_indexed: blog.is_indexed, 
-                                checked_at: new Date().toISOString() 
+                              last_check_result: {
+                                status: blog.is_indexed ? 'working' : 'dead',
+                                is_indexed: blog.is_indexed,
+                                checked_at: new Date().toISOString()
                               },
                               report_id: report.id
                             })
                             .eq('url', blog.blog_url)
                             .eq('task_id', report.task_id)
                             .eq('link_type', 'indexed');
-                          
+
                           if (linkUpdateError) {
                             console.error('Error updating indexed link status:', linkUpdateError);
                           } else {
@@ -548,23 +546,23 @@ export default function Tasks() {
                           }
                         }
                       }
-                      
+
                       // Update filtered links status
                       const { error: filteredUpdateError } = await supabase
                         .from('backlinks')
-                        .update({ 
+                        .update({
                           link_status: 'filtered',
                           last_updated_status: new Date().toISOString(),
-                          last_check_result: { 
-                            status: 'filtered', 
-                            reason: 'Intentionally filtered', 
-                            checked_at: new Date().toISOString() 
+                          last_check_result: {
+                            status: 'filtered',
+                            reason: 'Intentionally filtered',
+                            checked_at: new Date().toISOString()
                           },
                           report_id: report.id
                         })
                         .eq('task_id', report.task_id)
                         .eq('link_type', 'filtered');
-                      
+
                       if (filteredUpdateError) {
                         console.error('Error updating filtered link status:', filteredUpdateError);
                       } else {
@@ -573,7 +571,7 @@ export default function Tasks() {
                     } catch (linkUpdateError) {
                       console.error('Error updating link statuses:', linkUpdateError);
                     }
-                    
+
                     // Reload tasks to reflect the status change
                     load();
                   }
@@ -838,7 +836,7 @@ export default function Tasks() {
   const handleBacklinkReviewSubmit = async () => {
     setIsSubmittingBacklink(true);
     setBacklinkSubmissionStep('Validating inputs...');
-    
+
     try {
       // Validation
       if (!backlinkReviewForm.summary.trim()) {
@@ -994,7 +992,7 @@ export default function Tasks() {
         const { error: linksInsertError } = await supabase
           .from('backlinks')
           .insert(allLinksToInsert);
-        
+
         if (linksInsertError) {
           console.error('Error inserting links to backlinks table:', linksInsertError);
           // Continue anyway since this is not critical for the report
@@ -1009,22 +1007,22 @@ export default function Tasks() {
         const webhookUrl = import.meta.env.VITE_BACKLINK_REVIEW_WEBHOOK_URL;
         if (webhookUrl) {
           console.log('Triggering n8n backlink processing webhook with batching...');
-          
+
           // Function to send batched requests
           const sendBatchedRequests = async (links: Array<{ url: string }>, batchSize: number = 5, linkType: 'created' | 'indexed' | 'filtered') => {
             const batches = [];
             for (let i = 0; i < links.length; i += batchSize) {
               batches.push(links.slice(i, i + batchSize));
             }
-            
+
             setBacklinkSubmissionStep(`Creating ${batches.length} batches for ${links.length} ${linkType} links...`);
             console.log(`Splitting ${links.length} ${linkType} links into ${batches.length} batches of max ${batchSize} links each`);
-            
+
             for (let i = 0; i < batches.length; i++) {
               const batch = batches[i];
               setBacklinkSubmissionStep(`Sending ${linkType} batch ${i + 1}/${batches.length}...`);
               console.log(`Sending ${linkType} batch ${i + 1}/${batches.length} with ${batch.length} links`);
-              
+
               const webhookPayload = {
                 taskId: taskToReview.id,
                 title: taskToReview.title,
@@ -1065,7 +1063,7 @@ export default function Tasks() {
               } else {
                 console.log(`Webhook called successfully for ${linkType} batch ${i + 1}`);
               }
-              
+
               // Add small delay between batches to avoid overwhelming the system
               if (i < batches.length - 1) {
                 setBacklinkSubmissionStep(`Waiting before next ${linkType} batch... (${i + 2}/${batches.length})`);
@@ -1080,19 +1078,19 @@ export default function Tasks() {
             console.log(`Processing ${linksCreated.length} created links in batches...`);
             await sendBatchedRequests(linksCreated, 5, 'created');
           }
-          
+
           if (backlinkReviewForm.linkTypes.index && linksIndexed.length > 0) {
             setBacklinkSubmissionStep(`Processing ${linksIndexed.length} indexed links in batches...`);
             console.log(`Processing ${linksIndexed.length} indexed links in batches...`);
             await sendBatchedRequests(linksIndexed, 5, 'indexed');
           }
-          
+
           if (backlinkReviewForm.linkTypes.filtered && linksFiltered.length > 0) {
             setBacklinkSubmissionStep(`Processing ${linksFiltered.length} filtered links in batches...`);
             console.log(`Processing ${linksFiltered.length} filtered links in batches...`);
             await sendBatchedRequests(linksFiltered, 5, 'filtered');
           }
-          
+
           setBacklinkSubmissionStep('Finalizing submission...');
           console.log('All batches sent successfully');
         } else {
@@ -1518,8 +1516,8 @@ export default function Tasks() {
                 >
                   Cancel
                 </Button>
-                <Button 
-                  onClick={handleBacklinkReviewSubmit} 
+                <Button
+                  onClick={handleBacklinkReviewSubmit}
                   disabled={isSubmittingBacklink}
                 >
                   {isSubmittingBacklink ? (
