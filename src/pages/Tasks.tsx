@@ -628,9 +628,10 @@ export default function Tasks() {
         // Show backlink-specific review modal
         setBacklinkReviewForm({
           summary: "",
-          linkTypes: { create: false, index: false },
+          linkTypes: { create: false, index: false, filtered: false },
           linksCreated: [],
           linksIndexed: [],
+          linksFiltered: [],
         });
         setIsBacklinkReviewModalOpen(true);
       } else {
@@ -761,17 +762,22 @@ export default function Tasks() {
       return;
     }
 
-    if (backlinkReviewForm.linkTypes.create && backlinkReviewForm.linksCreated.filter(l => l.url.trim()).length === 0) {
+    // Initialize arrays to avoid undefined errors
+    const linksCreatedArray = backlinkReviewForm.linksCreated || [];
+    const linksIndexedArray = backlinkReviewForm.linksIndexed || [];
+    const linksFilteredArray = backlinkReviewForm.linksFiltered || [];
+
+    if (backlinkReviewForm.linkTypes.create && linksCreatedArray.filter(l => l.url && l.url.trim()).length === 0) {
       setError("Please add at least one link for 'Links Created'.");
       return;
     }
 
-    if (backlinkReviewForm.linkTypes.index && backlinkReviewForm.linksIndexed.filter(l => l.url.trim()).length === 0) {
+    if (backlinkReviewForm.linkTypes.index && linksIndexedArray.filter(l => l.url && l.url.trim()).length === 0) {
       setError("Please add at least one link for 'Links Indexed'.");
       return;
     }
 
-    if (backlinkReviewForm.linkTypes.filtered && backlinkReviewForm.linksFiltered.filter(l => l.url.trim()).length === 0) {
+    if (backlinkReviewForm.linkTypes.filtered && linksFilteredArray.filter(l => l.url && l.url.trim()).length === 0) {
       setError("Please add at least one link for 'Links Filtered'.");
       return;
     }
@@ -796,69 +802,110 @@ export default function Tasks() {
       }
 
       // Filter out empty URLs
-      const linksCreated = backlinkReviewForm.linksCreated
-        .filter(l => l.url.trim())
+      const linksCreated = linksCreatedArray
+        .filter(l => l.url && l.url.trim())
         .map(l => ({ url: l.url.trim() }));
 
-      const linksIndexed = backlinkReviewForm.linksIndexed
-        .filter(l => l.url.trim())
+      const linksIndexed = linksIndexedArray
+        .filter(l => l.url && l.url.trim())
         .map(l => ({ url: l.url.trim() }));
 
-      const linksFiltered = backlinkReviewForm.linksFiltered
-        .filter(l => l.url.trim())
+      const linksFiltered = linksFilteredArray
+        .filter(l => l.url && l.url.trim())
         .map(l => ({ url: l.url.trim() }));
 
-      // Update task in database
+      // Update task in database - only update existing columns
+      // Skip backlink-specific columns that may not exist in the DB yet
       const { error: updateError } = await supabase.from("tasks").update({
         status: 'review',
-        backlink_summary: backlinkReviewForm.summary,
-        backlink_submission_type: submissionType,
-        backlink_links_created: submissionType === 'index' || submissionType === 'filtered' ? [] : linksCreated,
-        backlink_links_indexed: submissionType === 'create' || submissionType === 'filtered' ? [] : linksIndexed,
-        backlink_links_filtered: submissionType === 'filtered' ? linksFiltered : [],
         updated_at: new Date().toISOString()
       }).eq("id", taskToReview.id);
 
       if (updateError) throw updateError;
 
-      // Call the n8n webhook for backlink processing
+      // Call the n8n webhook for backlink processing with batching
       try {
         const webhookUrl = import.meta.env.VITE_BACKLINK_REVIEW_WEBHOOK_URL;
         if (webhookUrl) {
-          console.log('Triggering n8n backlink processing webhook...');
+          console.log('Triggering n8n backlink processing webhook with batching...');
           
-          const webhookPayload = {
-            taskId: taskToReview.id,
-            title: taskToReview.title,
-            description: taskToReview.description,
-            status: 'review',
-            projectId: taskToReview.project_id,
-            projectName: taskToReview.projectName,
-            assignee: taskToReview.assignee ? {
-              id: taskToReview.assignee.id,
-              name: taskToReview.assignee.name
-            } : null,
-            backlink_summary: backlinkReviewForm.summary,
-            backlink_links_created: linksCreated,
-            backlink_links_indexed: linksIndexed,
-            backlink_links_filtered: linksFiltered,
-            backlink_submission_type: submissionType,
-            submitted_at: new Date().toISOString()
+          // Function to send batched requests
+          const sendBatchedRequests = async (links: Array<{ url: string }>, batchSize: number = 5) => {
+            const batches = [];
+            for (let i = 0; i < links.length; i += batchSize) {
+              batches.push(links.slice(i, i + batchSize));
+            }
+            
+            console.log(`Splitting ${links.length} links into ${batches.length} batches of max ${batchSize} links each`);
+            
+            for (let i = 0; i < batches.length; i++) {
+              const batch = batches[i];
+              console.log(`Sending batch ${i + 1}/${batches.length} with ${batch.length} links`);
+              
+              const webhookPayload = {
+                taskId: taskToReview.id,
+                title: taskToReview.title,
+                description: taskToReview.description,
+                status: 'review',
+                projectId: taskToReview.project_id,
+                projectName: taskToReview.projectName,
+                assignee: taskToReview.assignee ? {
+                  id: taskToReview.assignee.id,
+                  name: taskToReview.assignee.name
+                } : null,
+                backlink_summary: backlinkReviewForm.summary,
+                backlink_links_created: backlinkReviewForm.linkTypes.create ? batch : [],
+                backlink_links_indexed: backlinkReviewForm.linkTypes.index ? batch : [],
+                backlink_links_filtered: backlinkReviewForm.linkTypes.filtered ? batch : [],
+                backlink_submission_type: submissionType,
+                submitted_at: new Date().toISOString(),
+                batch_info: {
+                  batch_number: i + 1,
+                  total_batches: batches.length,
+                  links_in_batch: batch.length,
+                  total_links: links.length
+                }
+              };
+
+              console.log(`Sending webhook payload for batch ${i + 1}:`, webhookPayload);
+
+              const response = await fetch(webhookUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(webhookPayload)
+              });
+
+              if (!response.ok) {
+                console.error(`Webhook failed for batch ${i + 1}:`, response.status, response.statusText);
+                throw new Error(`Webhook failed for batch ${i + 1}: ${response.status} ${response.statusText}`);
+              } else {
+                console.log(`Webhook called successfully for batch ${i + 1}`);
+              }
+              
+              // Add small delay between batches to avoid overwhelming the system
+              if (i < batches.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 1000));
+              }
+            }
           };
 
-          console.log('Sending webhook payload:', webhookPayload);
-
-          const response = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(webhookPayload)
-          });
-
-          if (!response.ok) {
-            console.error('Webhook failed:', response.status, response.statusText);
-          } else {
-            console.log('Webhook called successfully');
+          // Send batches for each link type that has links
+          if (backlinkReviewForm.linkTypes.create && linksCreated.length > 0) {
+            console.log(`Processing ${linksCreated.length} created links in batches...`);
+            await sendBatchedRequests(linksCreated);
           }
+          
+          if (backlinkReviewForm.linkTypes.index && linksIndexed.length > 0) {
+            console.log(`Processing ${linksIndexed.length} indexed links in batches...`);
+            await sendBatchedRequests(linksIndexed);
+          }
+          
+          if (backlinkReviewForm.linkTypes.filtered && linksFiltered.length > 0) {
+            console.log(`Processing ${linksFiltered.length} filtered links in batches...`);
+            await sendBatchedRequests(linksFiltered);
+          }
+          
+          console.log('All batches sent successfully');
         } else {
           console.warn('VITE_BACKLINK_REVIEW_WEBHOOK_URL not configured');
         }
@@ -1268,9 +1315,10 @@ export default function Tasks() {
                     setTaskToReview(null);
                     setBacklinkReviewForm({
                       summary: "",
-                      linkTypes: { create: false, index: false },
+                      linkTypes: { create: false, index: false, filtered: false },
                       linksCreated: [],
                       linksIndexed: [],
+                      linksFiltered: [],
                     });
                   }}
                 >

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -37,6 +37,8 @@ import { useBacklinkReportsByTask } from '@/hooks/useBacklinkReports';
 import { BacklinkReportStatus, BacklinkReportPayload, IndexedBlogsSummary, CreatedLinksSummary } from '@/types';
 import { cn } from '@/lib/utils';
 import { toast } from '@/hooks/use-toast';
+import { createClient } from '@supabase/supabase-js';
+import { useAuth } from '@/components/AuthGate';
 
 const statusConfig: Record<BacklinkReportStatus, { icon: typeof AlertCircle; color: string; bgColor: string; label: string }> = {
   critical: {
@@ -141,6 +143,77 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
     }
   };
 
+  // State for backlinks data
+  const [createdLinksData, setCreatedLinksData] = useState<any[]>([]);
+  const [indexedLinksData, setIndexedLinksData] = useState<any[]>([]);
+  const [filteredLinksData, setFilteredLinksData] = useState<any[]>([]);
+  const [loadingLinks, setLoadingLinks] = useState(false);
+
+  // Fetch backlinks data when task ID is available
+  useEffect(() => {
+    if (taskId && isOpen) {
+      const fetchBacklinks = async () => {
+        setLoadingLinks(true);
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+          const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+          
+          if (!supabaseUrl || !supabaseAnonKey) {
+            console.error('Supabase environment variables not configured');
+            return;
+          }
+          
+          const supabase = createClient(supabaseUrl, supabaseAnonKey);
+          
+          // Fetch created links
+          const { data: createdData, error: createdError } = await supabase
+            .from('backlinks')
+            .select('*')
+            .eq('task_id', taskId)
+            .eq('link_type', 'created');
+            
+          if (createdError) {
+            console.error('Error fetching created links:', createdError);
+          } else {
+            setCreatedLinksData(createdData || []);
+          }
+          
+          // Fetch indexed links
+          const { data: indexedData, error: indexedError } = await supabase
+            .from('backlinks')
+            .select('*')
+            .eq('task_id', taskId)
+            .eq('link_type', 'indexed');
+            
+          if (indexedError) {
+            console.error('Error fetching indexed links:', indexedError);
+          } else {
+            setIndexedLinksData(indexedData || []);
+          }
+          
+          // Fetch filtered links
+          const { data: filteredData, error: filteredError } = await supabase
+            .from('backlinks')
+            .select('*')
+            .eq('task_id', taskId)
+            .eq('link_type', 'filtered');
+            
+          if (filteredError) {
+            console.error('Error fetching filtered links:', filteredError);
+          } else {
+            setFilteredLinksData(filteredData || []);
+          }
+        } catch (error) {
+          console.error('Error fetching backlinks:', error);
+        } finally {
+          setLoadingLinks(false);
+        }
+      };
+      
+      fetchBacklinks();
+    }
+  }, [taskId, isOpen]);
+
   if (!isOpen) return null;
 
   const report = aggregateReport; // Alias for cleaner template
@@ -212,28 +285,32 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <Card>
                   <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold">{report.total_links_checked || 0}</p>
+                    <p className="text-2xl font-bold">{(createdLinksData.length + indexedLinksData.length) || 0}</p>
                     <p className="text-xs text-muted-foreground">Total Links</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4 text-center">
-                    <p className="text-2xl font-bold text-success">{report.total_working || 0}</p>
+                    <p className="text-2xl font-bold text-success">{(createdLinksData.filter(l => l.link_status === 'working').length + indexedLinksData.filter(l => l.link_status === 'working').length) || 0}</p>
                     <p className="text-xs text-muted-foreground">Working</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4 text-center">
-                    <p className={cn('text-2xl font-bold', (report.total_dead || 0) > 0 && 'text-destructive')}>
-                      {report.total_dead || 0}
+                    <p className={cn('text-2xl font-bold', (createdLinksData.filter(l => l.link_status === 'dead').length + indexedLinksData.filter(l => l.link_status === 'dead').length) > 0 && 'text-destructive')}>
+                      {(createdLinksData.filter(l => l.link_status === 'dead').length + indexedLinksData.filter(l => l.link_status === 'dead').length) || 0}
                     </p>
                     <p className="text-xs text-muted-foreground">Dead</p>
                   </CardContent>
                 </Card>
                 <Card>
                   <CardContent className="p-4 text-center">
-                    <p className={cn('text-2xl font-bold', report.health_percentage < 80 ? 'text-warning' : 'text-success')}>
-                      {report.health_percentage || 0}%
+                    <p className={cn('text-2xl font-bold', 
+                      ((createdLinksData.filter(l => l.link_status === 'working').length + indexedLinksData.filter(l => l.link_status === 'working').length) / 
+                       Math.max(1, createdLinksData.length + indexedLinksData.length)) * 100 < 80 ? 'text-warning' : 'text-success'
+                    )}>
+                      {Math.round(((createdLinksData.filter(l => l.link_status === 'working').length + indexedLinksData.filter(l => l.link_status === 'working').length) / 
+                       Math.max(1, createdLinksData.length + indexedLinksData.length)) * 100) || 0}%
                     </p>
                     <p className="text-xs text-muted-foreground">Health</p>
                   </CardContent>
@@ -246,6 +323,7 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
                   <TabsTrigger value="report_doc" className="flex-1">Report Document</TabsTrigger>
                   <TabsTrigger value="created_links" className="flex-1">Created Links</TabsTrigger>
                   <TabsTrigger value="indexed_blogs" className="flex-1">Indexed Blogs</TabsTrigger>
+                  <TabsTrigger value="filtered_links" className="flex-1">Filtered Links</TabsTrigger>
                   <TabsTrigger value="issues" className="flex-1">Issues</TabsTrigger>
                 </TabsList>
 
@@ -312,20 +390,36 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
 
                 {/* Created Links Tab */}
                 <TabsContent value="created_links" className="mt-4 space-y-2">
-                  {!createdLinks || createdLinks.total === 0 ? (
-                    <p className="text-muted-foreground text-center py-4">No created links in this report</p>
+                  {loadingLinks ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <Card key={i} className="p-3">
+                          <Skeleton className="h-4 w-full" />
+                        </Card>
+                      ))}
+                    </div>
+                  ) : createdLinksData.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-4">No created links found for this task</p>
                   ) : (
                     <div className="space-y-3">
                       <div className="flex gap-4 text-sm mb-4">
-                        <span className="text-success">✓ Working: {createdLinks.working}</span>
-                        <span className="text-destructive">✗ Dead: {createdLinks.dead}</span>
-                        <span>Total: {createdLinks.total}</span>
+                        <span className="text-success">✓ Working: {createdLinksData.filter(l => l.link_status === 'working').length}</span>
+                        <span className="text-destructive">✗ Dead: {createdLinksData.filter(l => l.link_status === 'dead').length}</span>
+                        <span>Pending: {createdLinksData.filter(l => l.link_status === 'pending').length}</span>
+                        <span>Total: {createdLinksData.length}</span>
                       </div>
-                      {createdLinks.dead_list?.map((link, idx) => (
-                        <Card key={idx} className="p-3 border-l-4 border-l-destructive">
+                      
+                      {createdLinksData.map((link, idx) => (
+                        <Card key={link.id} className={`p-3 border-l-4 ${
+                          link.link_status === 'working' ? 'border-l-success' :
+                          link.link_status === 'dead' ? 'border-l-destructive' : 'border-l-muted'
+                        }`}>
                           <div className="flex items-center justify-between">
                             <div className="flex items-center gap-2 min-w-0 flex-1">
-                              <Link className="w-4 h-4 flex-shrink-0 text-destructive" />
+                              <Link className={`w-4 h-4 flex-shrink-0 ${
+                                link.link_status === 'working' ? 'text-success' :
+                                link.link_status === 'dead' ? 'text-destructive' : 'text-muted-foreground'
+                              }`} />
                               <a
                                 href={link.url}
                                 target="_blank"
@@ -335,12 +429,18 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
                                 {link.url}
                               </a>
                             </div>
-                            <Badge variant="destructive" className="flex-shrink-0 ml-2">
-                              Dead
+                            <Badge 
+                              className={`flex-shrink-0 ml-2 ${
+                                link.link_status === 'working' ? 'bg-success text-white' :
+                                link.link_status === 'dead' ? 'bg-destructive text-white' : 'bg-muted'
+                              }`}
+                            >
+                              {link.link_status || 'pending'}
                             </Badge>
                           </div>
                           <p className="text-xs text-muted-foreground mt-1 ml-6">
-                            Reason: {link.reason}
+                            Submitted: {new Date(link.submission_date).toLocaleDateString()}
+                            {link.last_check_result && ` | Last checked: ${new Date(link.last_check_result.checked_at).toLocaleDateString()}`}
                           </p>
                         </Card>
                       ))}
@@ -348,123 +448,139 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
                   )}
                 </TabsContent>
 
-                {/* Indexed Blogs Tab */}
-                <TabsContent value="indexed_blogs" className="mt-4 space-y-4">
-                  {!indexedBlogs || indexedBlogs.total_blogs === 0 ? (
+                {/* Indexed Links Tab */}
+                <TabsContent value="indexed_blogs" className="mt-4 space-y-2">
+                  {loadingLinks ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <Card key={i} className="p-3">
+                          <Skeleton className="h-4 w-full" />
+                        </Card>
+                      ))}
+                    </div>
+                  ) : indexedLinksData.length === 0 ? (
                     <div className="text-center py-12 bg-muted/20 rounded-2xl border border-dashed">
                       <FileText className="w-12 h-12 mx-auto text-muted-foreground/30 mb-2" />
-                      <p className="text-muted-foreground">No indexed blogs analyzed</p>
+                      <p className="text-muted-foreground">No indexed links found for this task</p>
                     </div>
                   ) : (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="bg-success/10 p-3 rounded-xl border border-success/20 text-center">
-                          <p className="text-lg font-bold text-success">{indexedBlogs.healthy_blogs}</p>
-                          <p className="text-[10px] uppercase tracking-wider text-success/70">Healthy</p>
-                        </div>
-                        <div className="bg-warning/10 p-3 rounded-xl border border-warning/20 text-center">
-                          <p className="text-lg font-bold text-warning">{indexedBlogs.warning_blogs}</p>
-                          <p className="text-[10px] uppercase tracking-wider text-warning/70">Warning</p>
-                        </div>
-                        <div className="bg-destructive/10 p-3 rounded-xl border border-destructive/20 text-center">
-                          <p className="text-lg font-bold text-destructive">{indexedBlogs.critical_blogs}</p>
-                          <p className="text-[10px] uppercase tracking-wider text-destructive/70">Critical</p>
-                        </div>
+                    <div className="space-y-3">
+                      <div className="flex gap-4 text-sm mb-4">
+                        <span className="text-success">✓ Working: {indexedLinksData.filter(l => l.link_status === 'working').length}</span>
+                        <span className="text-destructive">✗ Dead: {indexedLinksData.filter(l => l.link_status === 'dead').length}</span>
+                        <span>Pending: {indexedLinksData.filter(l => l.link_status === 'pending').length}</span>
+                        <span>Total: {indexedLinksData.length}</span>
                       </div>
+                      
+                      {indexedLinksData.map((link, idx) => (
+                        <Card key={link.id} className={`p-3 border-l-4 ${
+                          link.link_status === 'working' ? 'border-l-success' :
+                          link.link_status === 'dead' ? 'border-l-destructive' : 'border-l-muted'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Link className={`w-4 h-4 flex-shrink-0 ${
+                                link.link_status === 'working' ? 'text-success' :
+                                link.link_status === 'dead' ? 'text-destructive' : 'text-muted-foreground'
+                              }`} />
+                              <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm truncate hover:underline"
+                              >
+                                {link.url}
+                              </a>
+                            </div>
+                            <Badge 
+                              className={`flex-shrink-0 ml-2 ${
+                                link.link_status === 'working' ? 'bg-success text-white' :
+                                link.link_status === 'dead' ? 'bg-destructive text-white' : 'bg-muted'
+                              }`}
+                            >
+                              {link.link_status || 'pending'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 ml-6">
+                            Submitted: {new Date(link.submission_date).toLocaleDateString()}
+                            {link.last_check_result && ` | Last checked: ${new Date(link.last_check_result.checked_at).toLocaleDateString()}`}
+                          </p>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+                </TabsContent>
 
-                      <div className="space-y-3">
-                        {indexedBlogs.blog_details?.map((blog, idx) => {
-                          const blogStatus = statusConfig[blog.blog_status as BacklinkReportStatus] || statusConfig.healthy;
-                          const BlogIcon = blogStatus.icon;
-
-                          return (
-                            <Card key={idx} className="overflow-hidden border-none shadow-sm bg-muted/30">
-                              <CardContent className="p-0">
-                                <div className={cn("px-4 py-3 flex items-center justify-between border-b bg-card",
-                                  blog.blog_status === 'critical' ? 'border-destructive/20' :
-                                    blog.blog_status === 'warning' ? 'border-warning/20' : 'border-success/20'
-                                )}>
-                                  <div className="flex items-center gap-3 min-w-0 flex-1">
-                                    <div className={cn("p-2 rounded-lg", blogStatus.bgColor)}>
-                                      <BlogIcon className={cn("w-4 h-4", blogStatus.color)} />
-                                    </div>
-                                    <div className="min-w-0">
-                                      <h4 className="text-sm font-semibold truncate m-0">
-                                        {blog.blog_title || 'Untitled Blog Post'}
-                                      </h4>
-                                      <a
-                                        href={blog.blog_url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="text-[10px] text-muted-foreground hover:underline flex items-center gap-1 mt-0.5"
-                                      >
-                                        {blog.blog_url}
-                                        <ExternalLink className="w-2 h-2" />
-                                      </a>
-                                    </div>
-                                  </div>
-                                  <Badge className={cn("ml-2 font-mono text-[10px] py-0 px-2", blogStatus.bgColor, blogStatus.color)}>
-                                    {blog.blog_status?.toUpperCase()}
-                                  </Badge>
-                                </div>
-
-                                <div className="p-4 bg-muted/20">
-                                  <div className="flex items-center justify-between mb-3">
-                                    <span className="text-xs font-medium text-muted-foreground">Interlink Health</span>
-                                    <div className="flex gap-2">
-                                      <span className="text-[10px] font-bold text-success bg-success/10 px-1.5 py-0.5 rounded">
-                                        {blog.working_interlinks} WORKING
-                                      </span>
-                                      {blog.dead_interlinks > 0 && (
-                                        <span className="text-[10px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">
-                                          {blog.dead_interlinks} DEAD
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-
-                                  {blog.issues.length > 0 ? (
-                                    <div className="space-y-1.5 mt-2">
-                                      {blog.issues.map((issue, i) => (
-                                        <div key={i} className="flex gap-2 p-2 bg-destructive/5 rounded-lg border border-destructive/10">
-                                          <AlertCircle className="w-3 h-3 text-destructive mt-0.5 shrink-0" />
-                                          <p className="text-[11px] text-destructive leading-tight m-0">{issue}</p>
-                                        </div>
-                                      ))}
-                                    </div>
-                                  ) : (
-                                    <div className="flex items-center gap-2 p-2 bg-success/5 rounded-lg border border-success/10">
-                                      <CheckCircle className="w-3 h-3 text-success shrink-0" />
-                                      <p className="text-[11px] text-success m-0">All interlinks are healthy</p>
-                                    </div>
-                                  )}
-                                </div>
-                              </CardContent>
-                            </Card>
-                          );
-                        })}
+                {/* Filtered Links Tab */}
+                <TabsContent value="filtered_links" className="mt-4 space-y-2">
+                  {loadingLinks ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map((i) => (
+                        <Card key={i} className="p-3">
+                          <Skeleton className="h-4 w-full" />
+                        </Card>
+                      ))}
+                    </div>
+                  ) : filteredLinksData.length === 0 ? (
+                    <p className="text-muted-foreground text-center py-8">No filtered links found for this task</p>
+                  ) : (
+                    <div className="space-y-3">
+                      <div className="flex gap-4 text-sm mb-4">
+                        <span className="text-success">✓ Filtered: {filteredLinksData.length}</span>
                       </div>
+                      
+                      {filteredLinksData.map((link, idx) => (
+                        <Card key={link.id} className={`p-3 border-l-4 ${
+                          link.link_status === 'filtered' ? 'border-l-success' : 'border-l-muted'
+                        }`}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2 min-w-0 flex-1">
+                              <Link className={`w-4 h-4 flex-shrink-0 ${
+                                link.link_status === 'filtered' ? 'text-success' : 'text-muted-foreground'
+                              }`} />
+                              <a
+                                href={link.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-sm truncate hover:underline"
+                              >
+                                {link.url}
+                              </a>
+                            </div>
+                            <Badge 
+                              className={`flex-shrink-0 ml-2 ${
+                                link.link_status === 'filtered' ? 'bg-success text-white' : 'bg-muted'
+                              }`}
+                            >
+                              {link.link_status || 'pending'}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1 ml-6">
+                            Submitted: {new Date(link.submission_date).toLocaleDateString()}
+                          </p>
+                        </Card>
+                      ))}
                     </div>
                   )}
                 </TabsContent>
 
                 {/* Issues Tab - using requires_attention from indexed_blogs_summary */}
                 <TabsContent value="issues" className="mt-4 space-y-3">
-                  {indexedBlogs?.requires_attention && indexedBlogs.requires_attention.length > 0 && (
+                  {indexedLinksData.some(l => l.link_status === 'dead') && (
                     <div className="space-y-2">
                       <h4 className="font-semibold text-sm flex items-center gap-2">
                         <AlertTriangle className="w-4 h-4 text-warning" />
-                        Blogs Requiring Attention ({indexedBlogs.requires_attention.length})
+                        Dead Indexed Links ({indexedLinksData.filter(l => l.link_status === 'dead').length})
                       </h4>
-                      {indexedBlogs.requires_attention.map((url, idx) => (
-                        <Card key={idx} className="p-3 border-l-4 border-l-warning">
+                      {indexedLinksData.filter(l => l.link_status === 'dead').map((link, idx) => (
+                        <Card key={link.id} className="p-3 border-l-4 border-l-warning">
                           <a
-                            href={url}
+                            href={link.url}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="text-sm hover:underline flex items-center gap-1"
                           >
-                            {url}
+                            {link.url}
                             <ExternalLink className="w-3 h-3" />
                           </a>
                         </Card>
@@ -472,14 +588,14 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
                     </div>
                   )}
 
-                  {createdLinks?.dead_list && createdLinks.dead_list.length > 0 && (
+                  {createdLinksData.some(l => l.link_status === 'dead') && (
                     <div className="space-y-2">
                       <h4 className="font-semibold text-sm flex items-center gap-2">
                         <AlertCircle className="w-4 h-4 text-destructive" />
-                        Dead Created Links ({createdLinks.dead_list.length})
+                        Dead Created Links ({createdLinksData.filter(l => l.link_status === 'dead').length})
                       </h4>
-                      {createdLinks.dead_list.map((link, idx) => (
-                        <Card key={idx} className="p-3 border-l-4 border-l-destructive">
+                      {createdLinksData.filter(l => l.link_status === 'dead').map((link, idx) => (
+                        <Card key={link.id} className="p-3 border-l-4 border-l-destructive">
                           <a
                             href={link.url}
                             target="_blank"
@@ -489,15 +605,15 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
                             {link.url}
                           </a>
                           <p className="text-xs text-muted-foreground mt-1">
-                            {link.reason} (Status: {link.status})
+                            Submitted: {new Date(link.submission_date).toLocaleDateString()}
                           </p>
                         </Card>
                       ))}
                     </div>
                   )}
 
-                  {(!indexedBlogs?.requires_attention || indexedBlogs.requires_attention.length === 0) &&
-                    (!createdLinks?.dead_list || createdLinks.dead_list.length === 0) && (
+                  {createdLinksData.filter(l => l.link_status === 'dead').length === 0 &&
+                    indexedLinksData.filter(l => l.link_status === 'dead').length === 0 && (
                       <div className="text-center py-8">
                         <CheckCircle className="w-12 h-12 mx-auto text-success mb-2" />
                         <p className="text-muted-foreground">No critical issues found!</p>

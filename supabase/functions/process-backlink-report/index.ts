@@ -152,21 +152,104 @@ serveWithNotification('process-backlink-report', async (req) => {
       console.log('Processing Webhook Insert for Report:', reportData.id);
     } else if (body.direct_submission) {
       // Direct call from the frontend
-      console.log('Processing Direct Submission for Task:', body.task_id);
+      console.log('Processing Direct Submission for Task:', body.taskId);
       console.log('Full body received:', JSON.stringify(body, null, 2));
 
-      const { task_id, project_id, assignee_id, links_created = [], links_indexed = [] } = body;
+      const { 
+        taskId, 
+        projectId, 
+        assigneeId, 
+        backlink_links_created = [], 
+        backlink_links_indexed = [],
+        backlink_links_filtered = [],
+        backlink_submission_type,
+        batch_info
+      } = body;
       
-      if (!task_id || !project_id || !assignee_id) {
-        console.error('Missing required fields:', { task_id, project_id, assignee_id });
+      if (!taskId || !projectId || !assigneeId) {
+        console.error('Missing required fields:', { taskId, projectId, assigneeId });
         return new Response(
-          JSON.stringify({ error: 'Missing required fields: task_id, project_id, or assignee_id' }),
+          JSON.stringify({ error: 'Missing required fields: taskId, projectId, or assigneeId' }),
           { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
 
+      // Store submitted links in backlinks table
+      const allLinksToInsert = [];
+
+      // Add created links to storage
+      if (backlink_links_created && backlink_links_created.length > 0) {
+        for (const link of backlink_links_created) {
+          allLinksToInsert.push({
+            url: link.url,
+            source_url: link.url, // Initially same as URL
+            target_url: link.url, // Initially same as URL
+            project_id: projectId,
+            task_id: taskId,
+            link_type: 'created',
+            link_status: 'pending', // Status will be updated when report comes in
+            submission_date: new Date().toISOString(),
+            first_seen_date: new Date().toISOString(),
+            last_updated_status: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+
+      // Add indexed links to storage
+      if (backlink_links_indexed && backlink_links_indexed.length > 0) {
+        for (const link of backlink_links_indexed) {
+          allLinksToInsert.push({
+            url: link.url,
+            source_url: link.url,
+            target_url: link.url,
+            project_id: projectId,
+            task_id: taskId,
+            link_type: 'indexed',
+            link_status: 'pending', // Status will be updated when report comes in
+            submission_date: new Date().toISOString(),
+            first_seen_date: new Date().toISOString(),
+            last_updated_status: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+
+      // Add filtered links to storage
+      if (backlink_links_filtered && backlink_links_filtered.length > 0) {
+        for (const link of backlink_links_filtered) {
+          allLinksToInsert.push({
+            url: link.url,
+            source_url: link.url,
+            target_url: link.url,
+            project_id: projectId,
+            task_id: taskId,
+            link_type: 'filtered',
+            link_status: 'pending', // Status will be updated when report comes in
+            submission_date: new Date().toISOString(),
+            first_seen_date: new Date().toISOString(),
+            last_updated_status: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          });
+        }
+      }
+
+      // Insert all links into backlinks table
+      if (allLinksToInsert.length > 0) {
+        const { error: linksInsertError } = await supabaseAdmin
+          .from('backlinks')
+          .insert(allLinksToInsert);
+        
+        if (linksInsertError) {
+          console.error('Error inserting links to backlinks table:', linksInsertError);
+          // Continue anyway since this is not critical for the report
+        } else {
+          console.log(`Inserted ${allLinksToInsert.length} links to backlinks table`);
+        }
+      }
+
       // Perform Mini-Audit on the submitted links
-      const auditedCreated = await Promise.all(links_created.map(async (link: { url: string }) => {
+      const auditedCreated = await Promise.all(backlink_links_created.map(async (link: { url: string }) => {
         try {
           const res = await fetch(link.url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
           return { url: link.url, status: res.ok ? 'working' : 'dead' as const };
@@ -175,7 +258,7 @@ serveWithNotification('process-backlink-report', async (req) => {
         }
       }));
 
-      const auditedIndexed = await Promise.all(links_indexed.map(async (link: { url: string }) => {
+      const auditedIndexed = await Promise.all(backlink_links_indexed.map(async (link: { url: string }) => {
         try {
           const res = await fetch(link.url, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
           return { blog_url: link.url, is_indexed: true, interlinks: [], interlink_count: 0 }; // Simplified
@@ -216,9 +299,9 @@ serveWithNotification('process-backlink-report', async (req) => {
       const { data: newReport, error: insertError } = await supabaseAdmin
         .from('backlink_reports')
         .insert({
-          task_id,
-          project_id,
-          assignee_id,
+          task_id: taskId,
+          project_id: projectId,
+          assignee_id: assigneeId,
           status,
           payload,
           summary: payload.summary
@@ -330,6 +413,181 @@ serveWithNotification('process-backlink-report', async (req) => {
       // We continue automation even if task update fails, but log it.
     } else {
       console.log(`Task ${task_id} updated to completed with status ${status}`);
+    }
+
+    // 1.5 Update link statuses based on the report data
+    try {
+      // Extract all URLs from the report payload to update their statuses
+      const createdLinkUrls = payload.created_links.map(cl => cl.url);
+      const indexedBlogUrls = payload.indexed_blogs.map(ib => ib.blog_url);
+      
+      // Update created links status
+      if (createdLinkUrls.length > 0) {
+        for (const linkUrl of createdLinkUrls) {
+          const linkEntry = payload.created_links.find(cl => cl.url === linkUrl);
+          const linkStatus = linkEntry?.status || 'dead';
+          
+          // First get the backlink ID to properly track in history
+          const { data: backlinkData, error: fetchError } = await supabaseAdmin
+            .from('backlinks')
+            .select('id, link_status')
+            .eq('url', linkUrl)
+            .eq('task_id', task_id)
+            .eq('link_type', 'created')
+            .maybeSingle();
+          
+          if (fetchError) {
+            console.error('Error fetching backlink for history:', fetchError);
+          } else if (backlinkData) {
+            // Update the backlink status
+            const { error: linkUpdateError } = await supabaseAdmin
+              .from('backlinks')
+              .update({
+                link_status: linkStatus,
+                last_updated_status: new Date().toISOString(),
+                last_check_result: { 
+                  status: linkStatus, 
+                  checked_at: new Date().toISOString(),
+                  original_status_from_report: linkEntry
+                },
+                report_id: reportId
+              })
+              .eq('id', backlinkData.id);
+            
+            if (linkUpdateError) {
+              console.error('Error updating created link status:', linkUpdateError);
+            } else {
+              console.log(`Updated created link ${linkUrl} status to ${linkStatus}`);
+              
+              // Add to status history
+              const { error: historyError } = await supabaseAdmin
+                .from('backlink_status_history')
+                .insert({
+                  backlink_id: backlinkData.id,
+                  old_status: backlinkData.link_status || 'pending',
+                  new_status: linkStatus,
+                  change_reason: 'Report check',
+                  changed_at: new Date().toISOString(),
+                  report_id: reportId
+                });
+              
+              if (historyError) {
+                console.error('Error inserting status history:', historyError);
+              }
+            }
+          }
+        }
+      }
+
+      // Update indexed links status
+      if (indexedBlogUrls.length > 0) {
+        for (const linkUrl of indexedBlogUrls) {
+          const blogEntry = payload.indexed_blogs.find(ib => ib.blog_url === linkUrl);
+          const linkStatus = blogEntry?.is_indexed ? 'working' : 'dead';
+          
+          // First get the backlink ID to properly track in history
+          const { data: backlinkData, error: fetchError } = await supabaseAdmin
+            .from('backlinks')
+            .select('id, link_status')
+            .eq('url', linkUrl)
+            .eq('task_id', task_id)
+            .eq('link_type', 'indexed')
+            .maybeSingle();
+          
+          if (fetchError) {
+            console.error('Error fetching indexed backlink for history:', fetchError);
+          } else if (backlinkData) {
+            const { error: linkUpdateError } = await supabaseAdmin
+              .from('backlinks')
+              .update({
+                link_status: linkStatus,
+                last_updated_status: new Date().toISOString(),
+                last_check_result: { 
+                  status: linkStatus, 
+                  is_indexed: blogEntry?.is_indexed, 
+                  checked_at: new Date().toISOString(),
+                  original_entry_from_report: blogEntry
+                },
+                report_id: reportId
+              })
+              .eq('id', backlinkData.id);
+            
+            if (linkUpdateError) {
+              console.error('Error updating indexed link status:', linkUpdateError);
+            } else {
+              console.log(`Updated indexed link ${linkUrl} status to ${linkStatus}`);
+              
+              // Add to status history
+              const { error: historyError } = await supabaseAdmin
+                .from('backlink_status_history')
+                .insert({
+                  backlink_id: backlinkData.id,
+                  old_status: backlinkData.link_status || 'pending',
+                  new_status: linkStatus,
+                  change_reason: 'Report check',
+                  changed_at: new Date().toISOString(),
+                  report_id: reportId
+                });
+              
+              if (historyError) {
+                console.error('Error inserting indexed status history:', historyError);
+              }
+            }
+          }
+        }
+      }
+
+      // For filtered links, we assume they are intentionally filtered out, so we mark them as 'filtered'
+      const { data: filteredLinksData, error: filteredFetchError } = await supabaseAdmin
+        .from('backlinks')
+        .select('id, link_status')
+        .eq('task_id', task_id)
+        .eq('link_type', 'filtered');
+      
+      if (filteredFetchError) {
+        console.error('Error fetching filtered links:', filteredFetchError);
+      } else if (filteredLinksData) {
+        for (const filteredLink of filteredLinksData) {
+          const { error: filteredUpdateError } = await supabaseAdmin
+            .from('backlinks')
+            .update({
+              link_status: 'filtered',
+              last_updated_status: new Date().toISOString(),
+              last_check_result: { 
+                status: 'filtered', 
+                reason: 'Intentionally filtered', 
+                checked_at: new Date().toISOString() 
+              },
+              report_id: reportId
+            })
+            .eq('id', filteredLink.id);
+          
+          if (filteredUpdateError) {
+            console.error('Error updating filtered link status:', filteredUpdateError);
+          } else {
+            console.log(`Updated filtered link ${filteredLink.id} status to 'filtered'`);
+            
+            // Add to status history
+            const { error: historyError } = await supabaseAdmin
+              .from('backlink_status_history')
+              .insert({
+                backlink_id: filteredLink.id,
+                old_status: filteredLink.link_status || 'pending',
+                new_status: 'filtered',
+                change_reason: 'Intentionally filtered',
+                changed_at: new Date().toISOString(),
+                report_id: reportId
+              });
+            
+            if (historyError) {
+              console.error('Error inserting filtered status history:', historyError);
+            }
+          }
+        }
+      }
+
+    } catch (linkUpdateError) {
+      console.error('Error updating link statuses:', linkUpdateError);
     }
 
     // 2. Generate Follow-up Tasks
