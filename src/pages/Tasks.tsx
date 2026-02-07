@@ -1370,7 +1370,7 @@ export default function Tasks() {
                 >
                   Cancel
                 </Button>
-                <Button onClick={handleReviewSubmit}>Submit for Review</Button>
+                <Button onClick={handleReviewSubmit} disabled={taskService.isCompleting}>Submit for Review</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>

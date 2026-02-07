@@ -418,46 +418,73 @@ serveWithNotification('process-backlink-report', async (req) => {
     // 1.5 Update link statuses based on the report data
     try {
       // Extract all URLs from the report payload to update their statuses
-      const createdLinkUrls = payload.created_links.map(cl => cl.url);
-      const indexedBlogUrls = payload.indexed_blogs.map(ib => ib.blog_url);
+      // Handle the raw payload structure that contains dead_list, warning_list, etc.
+      let createdLinkUrls = [];
+      let indexedBlogUrls = [];
       
-      // Update created links status
-      if (createdLinkUrls.length > 0) {
-        for (const linkUrl of createdLinkUrls) {
-          const linkEntry = payload.created_links.find(cl => cl.url === linkUrl);
-          const linkStatus = linkEntry?.status || 'dead';
-          
-          // First get the backlink ID to properly track in history
+      // Handle the legacy payload structure with dead_list, warning_list, etc.
+      if (rawPayload?.dead_list) {
+        for (const deadLink of rawPayload.dead_list) {
+          createdLinkUrls.push(deadLink.url);
+        }
+      }
+      
+      if (rawPayload?.created_links?.warning_list) {
+        for (const warningLink of rawPayload.created_links.warning_list) {
+          createdLinkUrls.push(warningLink.url);
+        }
+      }
+      
+      if (rawPayload?.created_links?.dead_list) {
+        for (const deadLink of rawPayload.created_links.dead_list) {
+          createdLinkUrls.push(deadLink.url);
+        }
+      }
+      
+      // Handle the newer payload structure
+      if (payload.created_links) {
+        createdLinkUrls = [...new Set([...createdLinkUrls, ...payload.created_links.map(cl => cl.url)])];
+      }
+      
+      if (payload.indexed_blogs) {
+        indexedBlogUrls = payload.indexed_blogs.map(ib => ib.blog_url);
+      }
+      
+      // Update created links status based on the raw payload structure
+      if (rawPayload?.dead_list && rawPayload.dead_list.length > 0) {
+        for (const deadLink of rawPayload.dead_list) {
+          // Find the corresponding backlink in the database
           const { data: backlinkData, error: fetchError } = await supabaseAdmin
             .from('backlinks')
-            .select('id, link_status')
-            .eq('url', linkUrl)
+            .select('id, link_status, url')
+            .eq('url', deadLink.url)
             .eq('task_id', task_id)
-            .eq('link_type', 'created')
+            .in('link_type', ['created', 'indexed']) // Include both created and indexed types
             .maybeSingle();
           
           if (fetchError) {
-            console.error('Error fetching backlink for history:', fetchError);
+            console.error('Error fetching backlink for dead link:', fetchError, deadLink.url);
           } else if (backlinkData) {
-            // Update the backlink status
             const { error: linkUpdateError } = await supabaseAdmin
               .from('backlinks')
               .update({
-                link_status: linkStatus,
+                link_status: 'dead',
                 last_updated_status: new Date().toISOString(),
                 last_check_result: { 
-                  status: linkStatus, 
+                  status: 'dead',
+                  reason: deadLink.reason || 'Unclassified response',
+                  confidence: deadLink.confidence,
                   checked_at: new Date().toISOString(),
-                  original_status_from_report: linkEntry
+                  original_status_from_report: deadLink
                 },
                 report_id: reportId
               })
               .eq('id', backlinkData.id);
             
             if (linkUpdateError) {
-              console.error('Error updating created link status:', linkUpdateError);
+              console.error('Error updating dead link status:', linkUpdateError);
             } else {
-              console.log(`Updated created link ${linkUrl} status to ${linkStatus}`);
+              console.log(`Updated link ${backlinkData.url} status to dead`);
               
               // Add to status history
               const { error: historyError } = await supabaseAdmin
@@ -465,73 +492,201 @@ serveWithNotification('process-backlink-report', async (req) => {
                 .insert({
                   backlink_id: backlinkData.id,
                   old_status: backlinkData.link_status || 'pending',
-                  new_status: linkStatus,
-                  change_reason: 'Report check',
+                  new_status: 'dead',
+                  change_reason: `Report check - ${deadLink.reason || 'Unclassified response'}`,
                   changed_at: new Date().toISOString(),
                   report_id: reportId
                 });
               
               if (historyError) {
-                console.error('Error inserting status history:', historyError);
+                console.error('Error inserting dead link status history:', historyError);
+              }
+            }
+          } else {
+            console.log(`No backlink found for dead link URL: ${deadLink.url}`);
+          }
+        }
+      }
+      
+      // Update warning links status
+      if (rawPayload?.created_links?.warning_list && rawPayload.created_links.warning_list.length > 0) {
+        for (const warningLink of rawPayload.created_links.warning_list) {
+          // Find the corresponding backlink in the database
+          const { data: backlinkData, error: fetchError } = await supabaseAdmin
+            .from('backlinks')
+            .select('id, link_status, url')
+            .eq('url', warningLink.url)
+            .eq('task_id', task_id)
+            .in('link_type', ['created', 'indexed'])
+            .maybeSingle();
+          
+          if (fetchError) {
+            console.error('Error fetching backlink for warning link:', fetchError, warningLink.url);
+          } else if (backlinkData) {
+            const { error: linkUpdateError } = await supabaseAdmin
+              .from('backlinks')
+              .update({
+                link_status: 'warning',
+                last_updated_status: new Date().toISOString(),
+                last_check_result: { 
+                  status: 'warning',
+                  reason: warningLink.reason || 'Warning status',
+                  confidence: warningLink.confidence,
+                  checked_at: new Date().toISOString(),
+                  original_status_from_report: warningLink
+                },
+                report_id: reportId
+              })
+              .eq('id', backlinkData.id);
+            
+            if (linkUpdateError) {
+              console.error('Error updating warning link status:', linkUpdateError);
+            } else {
+              console.log(`Updated link ${backlinkData.url} status to warning`);
+              
+              // Add to status history
+              const { error: historyError } = await supabaseAdmin
+                .from('backlink_status_history')
+                .insert({
+                  backlink_id: backlinkData.id,
+                  old_status: backlinkData.link_status || 'pending',
+                  new_status: 'warning',
+                  change_reason: `Report check - ${warningLink.reason || 'Warning status'}`,
+                  changed_at: new Date().toISOString(),
+                  report_id: reportId
+                });
+              
+              if (historyError) {
+                console.error('Error inserting warning link status history:', historyError);
+              }
+            }
+          } else {
+            console.log(`No backlink found for warning link URL: ${warningLink.url}`);
+          }
+        }
+      }
+      
+      // Update working links status (those not in dead or warning lists)
+      if (rawPayload?.created_links?.total) {
+        const totalExpected = rawPayload.created_links.total;
+        const deadCount = rawPayload.created_links.dead || 0;
+        const warningCount = rawPayload.created_links.warning || 0;
+        const workingCount = rawPayload.created_links.working || (totalExpected - deadCount - warningCount);
+        
+        if (workingCount > 0) {
+          // Find backlinks that are still pending and could be working
+          const { data: pendingBacklinks, error: pendingFetchError } = await supabaseAdmin
+            .from('backlinks')
+            .select('id, link_status, url')
+            .eq('task_id', task_id)
+            .eq('link_status', 'pending')
+            .in('link_type', ['created', 'indexed']);
+          
+          if (pendingFetchError) {
+            console.error('Error fetching pending backlinks:', pendingFetchError);
+          } else if (pendingBacklinks && pendingBacklinks.length > 0) {
+            // Update up to workingCount pending links to working status
+            const linksToUpdate = pendingBacklinks.slice(0, workingCount);
+            
+            for (const backlink of linksToUpdate) {
+              const { error: linkUpdateError } = await supabaseAdmin
+                .from('backlinks')
+                .update({
+                  link_status: 'working',
+                  last_updated_status: new Date().toISOString(),
+                  last_check_result: { 
+                    status: 'working',
+                    reason: 'Confirmed working after report check',
+                    checked_at: new Date().toISOString(),
+                    source: 'report_processing'
+                  },
+                  report_id: reportId
+                })
+                .eq('id', backlink.id);
+              
+              if (linkUpdateError) {
+                console.error('Error updating working link status:', linkUpdateError);
+              } else {
+                console.log(`Updated link ${backlink.url} status to working`);
+                
+                // Add to status history
+                const { error: historyError } = await supabaseAdmin
+                  .from('backlink_status_history')
+                  .insert({
+                    backlink_id: backlink.id,
+                    old_status: backlink.link_status || 'pending',
+                    new_status: 'working',
+                    change_reason: 'Report check - confirmed working',
+                    changed_at: new Date().toISOString(),
+                    report_id: reportId
+                  });
+                
+                if (historyError) {
+                  console.error('Error inserting working link status history:', historyError);
+                }
               }
             }
           }
         }
       }
 
-      // Update indexed links status
-      if (indexedBlogUrls.length > 0) {
-        for (const linkUrl of indexedBlogUrls) {
-          const blogEntry = payload.indexed_blogs.find(ib => ib.blog_url === linkUrl);
-          const linkStatus = blogEntry?.is_indexed ? 'working' : 'dead';
-          
-          // First get the backlink ID to properly track in history
-          const { data: backlinkData, error: fetchError } = await supabaseAdmin
-            .from('backlinks')
-            .select('id, link_status')
-            .eq('url', linkUrl)
-            .eq('task_id', task_id)
-            .eq('link_type', 'indexed')
-            .maybeSingle();
-          
-          if (fetchError) {
-            console.error('Error fetching indexed backlink for history:', fetchError);
-          } else if (backlinkData) {
-            const { error: linkUpdateError } = await supabaseAdmin
+      // Update indexed links status based on raw payload structure
+      if (rawPayload?.indexed_blogs?.blog_details) {
+        for (const blog of rawPayload.indexed_blogs.blog_details) {
+          for (const interlink of blog.interlinks) {
+            // Find the corresponding indexed backlink in the database
+            const { data: backlinkData, error: fetchError } = await supabaseAdmin
               .from('backlinks')
-              .update({
-                link_status: linkStatus,
-                last_updated_status: new Date().toISOString(),
-                last_check_result: { 
-                  status: linkStatus, 
-                  is_indexed: blogEntry?.is_indexed, 
-                  checked_at: new Date().toISOString(),
-                  original_entry_from_report: blogEntry
-                },
-                report_id: reportId
-              })
-              .eq('id', backlinkData.id);
+              .select('id, link_status, url')
+              .eq('url', interlink.url)
+              .eq('task_id', task_id)
+              .eq('link_type', 'indexed')
+              .maybeSingle();
             
-            if (linkUpdateError) {
-              console.error('Error updating indexed link status:', linkUpdateError);
-            } else {
-              console.log(`Updated indexed link ${linkUrl} status to ${linkStatus}`);
-              
-              // Add to status history
-              const { error: historyError } = await supabaseAdmin
-                .from('backlink_status_history')
-                .insert({
-                  backlink_id: backlinkData.id,
-                  old_status: backlinkData.link_status || 'pending',
-                  new_status: linkStatus,
-                  change_reason: 'Report check',
-                  changed_at: new Date().toISOString(),
+            if (fetchError) {
+              console.error('Error fetching indexed backlink for history:', fetchError);
+            } else if (backlinkData) {
+              const linkStatus = interlink.status === 'working' ? 'working' : 'dead';
+              const { error: linkUpdateError } = await supabaseAdmin
+                .from('backlinks')
+                .update({
+                  link_status: linkStatus,
+                  last_updated_status: new Date().toISOString(),
+                  last_check_result: { 
+                    status: linkStatus, 
+                    interlink_status: interlink.status,
+                    issue: interlink.issue,
+                    relevance_score: interlink.relevance_score,
+                    checked_at: new Date().toISOString(),
+                    original_entry_from_report: interlink
+                  },
                   report_id: reportId
-                });
+                })
+                .eq('id', backlinkData.id);
               
-              if (historyError) {
-                console.error('Error inserting indexed status history:', historyError);
+              if (linkUpdateError) {
+                console.error('Error updating indexed link status:', linkUpdateError);
+              } else {
+                console.log(`Updated indexed link ${interlink.url} status to ${linkStatus}`);
+                
+                // Add to status history
+                const { error: historyError } = await supabaseAdmin
+                  .from('backlink_status_history')
+                  .insert({
+                    backlink_id: backlinkData.id,
+                    old_status: backlinkData.link_status || 'pending',
+                    new_status: linkStatus,
+                    change_reason: `Report check - ${interlink.issue || 'Interlink status update'}`,
+                    changed_at: new Date().toISOString(),
+                    report_id: reportId
+                  });
+                
+                if (historyError) {
+                  console.error('Error inserting indexed status history:', historyError);
+                }
               }
+            } else {
+              console.log(`No indexed backlink found for URL: ${interlink.url}`);
             }
           }
         }
