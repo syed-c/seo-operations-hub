@@ -2,9 +2,16 @@ import { useEffect, useState } from "react";
 import { MainLayout } from "@/components/layout/MainLayout";
 import { Header } from "@/components/layout/Header";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Link2, ShieldAlert, TrendingUp, Plus, Trash2 } from "lucide-react";
+import { Link2, ShieldAlert, TrendingUp, Plus, ExternalLink } from "lucide-react";
 import { supabase } from "@/lib/supabaseClient";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
 
 interface Backlink {
   id: string;
@@ -16,6 +23,10 @@ interface Backlink {
   discovered_at: string;
   lost?: boolean;
   created_at: string;
+  link_type?: string;
+  link_status?: string;
+  submission_date?: string;
+  last_check_result?: any;
 }
 
 import { useProject } from "@/contexts/ProjectContext";
@@ -28,6 +39,8 @@ export default function Backlinks() {
   const [error, setError] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [anchorText, setAnchorText] = useState("");
+  const [selectedBacklink, setSelectedBacklink] = useState<Backlink | null>(null);
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const { selectedProject } = useProject(); // Add project context
 
   const loadBacklinks = async () => {
@@ -35,7 +48,7 @@ export default function Backlinks() {
     try {
       let query = supabase
         .from("backlinks")
-        .select("id, url, source_url, anchor_text, toxicity_score, spam_reason, discovered_at, lost, created_at")
+        .select("id, url, source_url, anchor_text, toxicity_score, spam_reason, discovered_at, lost, created_at, link_type, link_status, submission_date, last_check_result")
         .order("discovered_at", { ascending: false });
 
       if (selectedProject) {
@@ -91,13 +104,39 @@ export default function Backlinks() {
     loadBacklinks();
   };
 
-  const onDelete = async (id: string) => {
-    const { error } = await supabase.from("backlinks").delete().eq("id", id);
-    if (error) {
-      setError(error.message);
-      return;
+  const handleViewDetails = (backlink: Backlink) => {
+    setSelectedBacklink(backlink);
+    setIsDetailModalOpen(true);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'working':
+        return 'bg-success text-white';
+      case 'dead':
+        return 'bg-destructive text-white';
+      case 'pending':
+        return 'bg-warning text-white';
+      case 'filtered':
+        return 'bg-muted text-foreground';
+      default:
+        return 'bg-muted text-foreground';
     }
-    loadBacklinks();
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status?.toLowerCase()) {
+      case 'working':
+        return 'Working';
+      case 'dead':
+        return 'Dead';
+      case 'pending':
+        return 'Pending';
+      case 'filtered':
+        return 'Filtered';
+      default:
+        return 'Unknown';
+    }
   };
 
   return (
@@ -130,7 +169,8 @@ export default function Backlinks() {
         {backlinks.map((link) => (
           <Card
             key={link.id}
-            className="glass-card animate-slide-up hover:shadow-card-hover transition-all"
+            className="glass-card animate-slide-up hover:shadow-card-hover transition-all cursor-pointer"
+            onClick={() => handleViewDetails(link)}
           >
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -138,12 +178,11 @@ export default function Backlinks() {
                   <Link2 className="w-4 h-4 text-primary" />
                   <CardTitle className="text-sm truncate">{link.domain}</CardTitle>
                 </div>
-                <button
-                  className="w-8 h-8 rounded-lg hover:bg-muted flex items-center justify-center"
-                  onClick={() => onDelete(link.id)}
-                >
-                  <Trash2 className="w-4 h-4 text-muted-foreground" />
-                </button>
+                {link.link_status && (
+                  <Badge className={getStatusColor(link.link_status)}>
+                    {getStatusText(link.link_status)}
+                  </Badge>
+                )}
               </div>
               <p className="text-xs text-muted-foreground">{link.anchor_text || "No anchor text"}</p>
               {link.spam_reason && (
@@ -168,6 +207,89 @@ export default function Backlinks() {
           </Card>
         ))}
       </div>
+
+      {/* Backlink Detail Modal */}
+      <Dialog open={isDetailModalOpen} onOpenChange={setIsDetailModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Backlink Details</DialogTitle>
+          </DialogHeader>
+          {selectedBacklink && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">URL</h3>
+                  <p className="text-sm">
+                    <a 
+                      href={selectedBacklink.url} 
+                      target="_blank" 
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline flex items-center gap-1"
+                    >
+                      {selectedBacklink.url}
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Domain</h3>
+                  <p className="text-sm">{selectedBacklink.domain}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Anchor Text</h3>
+                  <p className="text-sm">{selectedBacklink.anchor_text || "No anchor text"}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Status</h3>
+                  <Badge className={getStatusColor(selectedBacklink.link_status || '')}>
+                    {getStatusText(selectedBacklink.link_status || '')}
+                  </Badge>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Link Type</h3>
+                  <p className="text-sm">{selectedBacklink.link_type || "N/A"}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Toxicity Score</h3>
+                  <p className="text-sm">{selectedBacklink.toxicity_score !== undefined ? selectedBacklink.toxicity_score : "N/A"}</p>
+                </div>
+              </div>
+              
+              {selectedBacklink.spam_reason && (
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Spam Reason</h3>
+                  <p className="text-sm text-destructive">{selectedBacklink.spam_reason}</p>
+                </div>
+              )}
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Discovered At</h3>
+                  <p className="text-sm">{new Date(selectedBacklink.discovered_at).toLocaleDateString()}</p>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Submission Date</h3>
+                  <p className="text-sm">
+                    {selectedBacklink.submission_date 
+                      ? new Date(selectedBacklink.submission_date).toLocaleDateString()
+                      : "N/A"
+                    }
+                  </p>
+                </div>
+              </div>
+              
+              {selectedBacklink.last_check_result && (
+                <div>
+                  <h3 className="text-sm font-semibold text-muted-foreground">Last Check Result</h3>
+                  <pre className="text-xs bg-muted p-2 rounded">
+                    {JSON.stringify(selectedBacklink.last_check_result, null, 2)}
+                  </pre>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

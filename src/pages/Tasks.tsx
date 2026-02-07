@@ -125,9 +125,7 @@ export default function Tasks() {
     linksFiltered: [] as Array<{ id: string; url: string }>,
   });
 
-  // Loading states for backlink review submission
-  const [isSubmittingBacklink, setIsSubmittingBacklink] = useState(false);
-  const [backlinkSubmissionStep, setBacklinkSubmissionStep] = useState('');
+
 
 
   const { teamUser } = useAuth();

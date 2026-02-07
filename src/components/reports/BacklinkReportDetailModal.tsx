@@ -148,6 +148,7 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
   const [indexedLinksData, setIndexedLinksData] = useState<any[]>([]);
   const [filteredLinksData, setFilteredLinksData] = useState<any[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
+  const [rawJsonData, setRawJsonData] = useState<any[]>([]);
 
   // Fetch backlinks data when task ID is available
   useEffect(() => {
@@ -202,6 +203,19 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
             console.error('Error fetching filtered links:', filteredError);
           } else {
             setFilteredLinksData(filteredData || []);
+          }
+          
+          // Fetch raw JSON payload from backlink_reports
+          const { data: rawData, error: rawError } = await supabase
+            .from('backlink_reports')
+            .select('report_payload')
+            .eq('task_id', taskId)
+            .order('submitted_at', { ascending: false });
+            
+          if (rawError) {
+            console.error('Error fetching raw JSON data:', rawError);
+          } else {
+            setRawJsonData(rawData?.map(item => item.report_payload) || []);
           }
         } catch (error) {
           console.error('Error fetching backlinks:', error);
