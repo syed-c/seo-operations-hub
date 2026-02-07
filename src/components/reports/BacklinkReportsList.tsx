@@ -21,6 +21,7 @@ import { useBacklinkReports, BacklinkReportFilters } from '@/hooks/useBacklinkRe
 import { BacklinkReportStatus } from '@/types';
 import { cn } from '@/lib/utils';
 import { useNavigate } from 'react-router-dom';
+import { BacklinkReportDetailModal } from './BacklinkReportDetailModal';
 
 const statusConfig: Record<BacklinkReportStatus, { icon: typeof AlertCircle; color: string; bgColor: string; label: string }> = {
   critical: {
