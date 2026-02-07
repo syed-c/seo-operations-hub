@@ -1,0 +1,105 @@
+{
+  "id": "sample-report-1",
+  "status": "warning",
+  "taskId": "task-123",
+  "projectId": "project-456",
+  "assigneeId": "user-789",
+  "checked_at": "2026-02-07T10:30:00Z",
+  "projectName": "Sample Project",
+  "submittedAt": "2026-02-07T09:15:00Z",
+  "assigneeName": "John Doe",
+  "created_links": {
+    "dead": 3,
+    "total": 15,
+    "working": 12,
+    "dead_list": [
+      {
+        "url": "https://example.com/broken-link-1",
+        "reason": "404 Not Found",
+        "status": 404
+      },
+      {
+        "url": "https://example.com/broken-link-2",
+        "reason": "Timeout Error",
+        "status": 0
+      },
+      {
+        "url": "https://example.com/broken-link-3",
+        "reason": "500 Internal Server Error",
+        "status": 500
+      }
+    ]
+  },
+  "indexed_blogs": {
+    "total_blogs": 8,
+    "blog_details": [
+      {
+        "issues": ["Missing alt text on images", "No meta description"],
+        "blog_url": "https://example.com/blog/post-1",
+        "blog_title": "How to Optimize Your Website",
+        "interlinks": [
+          {
+            "url": "https://example.com/internal-link-1",
+            "issue": null,
+            "title": "Related Article",
+            "anchor": "click here",
+            "status": "working",
+            "is_relevant": true,
+            "relevance_score": 0.85
+          },
+          {
+            "url": "https://example.com/broken-internal",
+            "issue": "404 Not Found",
+            "title": "Broken Link",
+            "anchor": "learn more",
+            "status": "dead",
+            "is_relevant": false,
+            "relevance_score": 0.2
+          }
+        ],
+        "blog_status": "warning",
+        "dead_interlinks": 1,
+        "total_interlinks": 2,
+        "working_interlinks": 1,
+        "irrelevant_interlinks": 1
+      },
+      {
+        "issues": [],
+        "blog_url": "https://example.com/blog/post-2",
+        "blog_title": "SEO Best Practices Guide",
+        "interlinks": [
+          {
+            "url": "https://example.com/guide-link",
+            "issue": null,
+            "title": "Complete Guide",
+            "anchor": "read our guide",
+            "status": "working",
+            "is_relevant": true,
+            "relevance_score": 0.92
+          }
+        ],
+        "blog_status": "healthy",
+        "dead_interlinks": 0,
+        "total_interlinks": 1,
+        "working_interlinks": 1,
+        "irrelevant_interlinks": 0
+      }
+    ],
+    "healthy_blogs": 5,
+    "warning_blogs": 2,
+    "critical_blogs": 1,
+    "interlinks_summary": {
+      "dead": 2,
+      "working": 18,
+      "irrelevant": 3,
+      "total_interlinks": 23
+    },
+    "requires_attention": ["https://example.com/blog/post-1", "https://example.com/blog/critical-post"]
+  },
+  "overall_summary": {
+    "total_dead": 5,
+    "total_working": 30,
+    "health_percentage": 85.7,
+    "total_links_checked": 35
+  }
+}

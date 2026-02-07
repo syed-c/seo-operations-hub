@@ -1,0 +1,106 @@
+[
+  {
+    "id": "214ece6d-35c6-4f6c-809a-9d8530d53b59",
+    "status": "warning",
+    "taskId": "000f1968-82e6-4946-9d4d-b24b7b605df3",
+    "dead_list": [
+      {
+        "url": "https://www.zeczec.com/users/dynamic-group",
+        "title": "",
+        "reason": "Unclassified response",
+        "status": null,
+        "confidence": 40,
+        "content_length": 0
+      },
+      {
+        "url": "https://confengine.com/user/dynamic-group",
+        "title": "",
+        "reason": "Unclassified response",
+        "status": null,
+        "confidence": 40,
+        "content_length": 0
+      },
+      {
+        "url": "https://solo.to/dynamicgroup",
+        "title": "",
+        "reason": "Unclassified response",
+        "status": null,
+        "confidence": 40,
+        "content_length": 0
+      }
+    ],
+    "projectId": "02155f85-51d7-4953-9f2d-fa594146487d",
+    "assigneeId": "fd5bd07f-d04a-4763-be69-b41da3aaac00",
+    "projectName": "MakeMyCompany Oman",
+    "submittedAt": "2026-02-07T12:08:21.138Z",
+    "assigneeName": "Owais Alvi",
+    "created_links": {
+      "dead": 0,
+      "total": 5,
+      "warning": 3,
+      "working": 2,
+      "dead_list": [],
+      "warning_list": [
+        {
+          "url": "https://www.zeczec.com/users/dynamic-group",
+          "title": "",
+          "reason": "Unclassified response",
+          "status": null,
+          "confidence": 40,
+          "content_length": 0
+        },
+        {
+          "url": "https://confengine.com/user/dynamic-group",
+          "title": "",
+          "reason": "Unclassified response",
+          "status": null,
+          "confidence": 40,
+          "content_length": 0
+        },
+        {
+          "url": "https://solo.to/dynamicgroup",
+          "title": "",
+          "reason": "Unclassified response",
+          "status": null,
+          "confidence": 40,
+          "content_length": 0
+        }
+      ]
+    },
+    "indexed_blogs": null,
+    "overall_summary": {
+      "total_dead": 0,
+      "total_warning": 3,
+      "total_working": 2,
+      "health_percentage": 40,
+      "total_links_checked": 5
+    },
+    "submission_type": "create"
+  },
+  {
+    "id": "66e7098d-f630-4203-bc3a-43a5665e1f20",
+    "status": "healthy",
+    "taskId": "000f1968-82e6-4946-9d4d-b24b7b605df3",
+    "dead_list": [],
+    "projectId": "02155f85-51d7-4953-9f2d-fa594146487d",
+    "assigneeId": "fd5bd07f-d04a-4763-be69-b41da3aaac00",
+    "checked_at": "2026-02-07T12:08:45.129Z",
+    "projectName": "MakeMyCompany Oman",
+    "submittedAt": "2026-02-07T12:08:10.751Z",
+    "assigneeName": "Owais Alvi",
+    "created_links": {
+      "dead": 0,
+      "total": 5,
+      "working": 5,
+      "dead_list": []
+    },
+    "indexed_blogs": null,
+    "overall_summary": {
+      "total_dead": 0,
+      "total_working": 5,
+      "health_percentage": 100,
+      "total_links_checked": 5
+    },
+    "submission_type": "create"
+  }
+]

@@ -9,6 +9,7 @@ import Tasks from "./pages/Tasks";
 import Keywords from "./pages/Keywords";
 import Reports from "./pages/Reports";
 import BacklinkReportsPage from "./pages/BacklinkReportsPage";
+import DetailedBacklinkReportPage from "./pages/DetailedBacklinkReportPage";
 import Settings from "./pages/Settings";
 import NotFound from "./pages/NotFound";
 import Starred from "./pages/Starred";
@@ -74,6 +75,12 @@ const App = () => (
               <Route path="/team/auth" element={<TeamAuth />} />
               <Route path="/reports" element={<Reports />} />
               <Route path="/backlink-reports" element={<BacklinkReportsPage />} />
+              <Route path="/detailed-backlink-report/:taskId" element={<DetailedBacklinkReportPage />} />
+              <Route path="/test-detailed-report" element={<TestDetailedBacklinkReport />} />
+              <Route path="/test-json-parsing" element={<TestJsonParsing />} />
+              <Route path="/debug-backlink-data" element={<DebugBacklinkData />} />
+              <Route path="/final-backlink-test" element={<FinalBacklinkReportTest />} />
+              <Route path="/backlink-reports/:taskId" element={<DetailedBacklinkReportPage />} />
               <Route path="/settings" element={<Settings />} />
               <Route path="/notification-settings" element={<NotificationSettings />} />
               <Route path="/auth/callback" element={<AuthCallback />} />
