@@ -149,6 +149,15 @@ export function BacklinkReportDetailModal({ taskId, isOpen, onClose }: BacklinkR
   const [filteredLinksData, setFilteredLinksData] = useState<any[]>([]);
   const [loadingLinks, setLoadingLinks] = useState(false);
   const [rawJsonData, setRawJsonData] = useState<any[]>([]);
+  
+  // Filter states
+  const [createdLinksFilter, setCreatedLinksFilter] = useState<'all' | 'working' | 'dead' | 'warning' | 'pending'>('all');
+  const [indexedLinksFilter, setIndexedLinksFilter] = useState<'all' | 'working' | 'dead' | 'warning' | 'pending'>('all');
+  const [filteredLinksFilter, setFilteredLinksFilter] = useState<'all' | 'filtered'>('all');
+  
+  // Detail modal states
+  const [selectedLink, setSelectedLink] = useState<any>(null);
+  const [isLinkDetailOpen, setIsLinkDetailOpen] = useState(false);
 
   // Fetch backlinks data when task ID is available
   useEffect(() => {

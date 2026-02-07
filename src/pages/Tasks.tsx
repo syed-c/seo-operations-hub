@@ -132,6 +132,9 @@ export default function Tasks() {
   const [isSubmittingBacklink, setIsSubmittingBacklink] = useState(false);
   const [backlinkSubmissionStep, setBacklinkSubmissionStep] = useState('');
 
+  // Import the task completion service
+  const taskService = useTaskCompletion();
+
   const { teamUser } = useAuth();
   const { selectedProject } = useProject();
 
